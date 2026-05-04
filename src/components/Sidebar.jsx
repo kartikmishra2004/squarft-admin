@@ -47,13 +47,6 @@ const Sidebar = () => {
     { icon: LayoutDashboard, label: 'Super Admin Dashboard', path: '/dashboard' },
     { icon: ShieldCheck, label: 'Role and Access', path: '/dashboard/roles' },
     { icon: GitBranch, label: 'Branch management', path: '/dashboard/branches' },
-    { icon: Filter, label: 'Leads Pipeline', path: '/dashboard/leads' },
-    { icon: UserCheck, label: 'Clients Hub', path: '/dashboard/clients' },
-    { icon: Building2, label: 'Project Inventory', path: '/dashboard/inventory' },
-    { icon: CalendarDays, label: 'Upcoming Visits', path: '/dashboard/visits' },
-    { icon: Briefcase, label: 'Deal Management', path: '/dashboard/deals' },
-    { icon: UserPlus, label: 'User List', path: '/dashboard/users' },
-    { icon: ClipboardList, label: 'Task Management', path: '/dashboard/tasks' },
   ];
 
   const adminLinks = [
