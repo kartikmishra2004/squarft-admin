@@ -183,6 +183,48 @@ export const adminRoleDistribution = [
     { role: 'Field Officers', count: 6, color: 'bg-blue-500' },
 ];
 
+export const revenueTrajectory = {
+    revenue: [
+        { month: 'Nov', val: 1.2 },
+        { month: 'Dec', val: 1.8 },
+        { month: 'Jan', val: 1.5 },
+        { month: 'Feb', val: 2.4 },
+        { month: 'Mar', val: 3.2 },
+        { month: 'Apr', val: 4.2 },
+    ],
+    deals: [
+        { month: 'Nov', val: 15 },
+        { month: 'Dec', val: 22 },
+        { month: 'Jan', val: 18 },
+        { month: 'Feb', val: 28 },
+        { month: 'Mar', val: 35 },
+        { month: 'Apr', val: 42 },
+    ]
+};
+
+export const liveActivity = [
+    { time: 'Just now', action: 'Payment Received', detail: '₹ 5.0L for Flat 402, Skyline', type: 'payment' },
+    { time: '12 mins ago', action: 'Status Changed', detail: 'Vikash S. shortlisted Ocean View', type: 'status' },
+    { time: '45 mins ago', action: 'New Lead Auto-Assigned', detail: 'Ravi T. assigned to Swati Jain', type: 'lead' },
+    { time: '2 hours ago', action: 'Site Visit Completed', detail: 'Neha K. at Parkside Avenues', type: 'visit' },
+    { time: '3 hours ago', action: 'Agreement Uploaded', detail: 'Deal D003 - Green Valley', type: 'document' },
+];
+
+export const pipelineFunnel = [
+    { label: 'Raw Leads', val: '1,248', width: '100%', color: 'from-gray-200 to-gray-300' },
+    { label: 'Qualified (Budget Matched)', val: '342', width: '85%', color: 'from-blue-300 to-blue-400' },
+    { label: 'Site Visited', val: '185', width: '60%', color: 'from-indigo-400 to-purple-400' },
+    { label: 'Active Negotiation', val: '84', width: '40%', color: 'from-[#6F4BFF] to-[#9D84FF]' },
+    { label: 'Closed Deals', val: '42', width: '25%', color: 'from-emerald-400 to-emerald-500' },
+];
+
+export const geoPerformance = [
+    { city: 'Mumbai MMR', leads: '450', closed: 24, progress: 80, color: 'bg-[#6F4BFF]' },
+    { city: 'Bangalore', leads: '320', closed: 18, progress: 65, color: 'bg-blue-500' },
+    { city: 'Delhi NCR', leads: '210', closed: 8, progress: 40, color: 'bg-amber-500' },
+    { city: 'Chennai', leads: '140', closed: 12, progress: 55, color: 'bg-emerald-500' },
+];
+
 export const rolesList = ['Super Admin', 'Branch Manager', 'Sales Officer', 'Field Officer', 'Broker'];
 
 export const permissionModules = [
