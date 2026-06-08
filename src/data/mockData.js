@@ -122,6 +122,23 @@ export const sample2Clients = [
         timeline: [],
         notes: [],
         meetings: []
+    },
+    {
+        id: 'C004', name: 'Rohan Mehta', phone: '+91 9876543215', budget: '1.2 Cr - 1.8 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '09/06/26', time: '01:00 - 02:00 PM',
+        req: { type: 'Residential', bhk: ['3BHK'], loc: ['Mumbai', 'Andheri East'], timeline: '45 Days' },
+        status: 'Active', officer: '',
+        score: 'Warm', visitToday: false, nextFollowUp: '2026-06-12',
+        latestNote: 'New client awaiting sales officer assignment before property dispatch.',
+        actionRequired: false,
+        propertyPipeline: [],
+        timeline: [
+            { title: 'Client Registered', details: 'Client added without assigned sales officer.', date: '09/06/2026', time: '01:00 PM' }
+        ],
+        notes: [
+            { text: 'Assign a sales officer before dispatching matched properties.', date: '09/06/2026', time: '01:05 PM' }
+        ],
+        meetings: []
     }
 ];
 
@@ -143,16 +160,6 @@ export const mockDeals = [
     { dealCode: 'D0005', customer: 'Swapnil', property: 'Sindh Palace', city: 'Indore', salesOfficer: 'Manas', broker: 'Manas Gangrade', status: 'FINALIZED', createdOn: '24/02/26', customerPhone: '9876543210', brokerMobile: '-', salesOfficerMobile: '-', prefLocation: '-', propType: 'COMMERCIAL', address: '-', khasra: '-', expectPrice: 1500000, negotiationPrice: 1450000, remainingBalance: 0, payments: [], timeline: [], notes: [], meetings: [], documents: [] },
     { dealCode: 'D0004', customer: 'Anil Nahar', property: 'Sai Shyam', city: 'Indore', salesOfficer: 'Sales Officer', broker: 'Manas', status: 'FINALIZED', createdOn: '10/02/26', customerPhone: '9876543210', brokerMobile: '-', salesOfficerMobile: '-', prefLocation: '-', propType: 'APARTMENT/FLATS', address: '-', khasra: '-', expectPrice: 2000000, negotiationPrice: 1900000, remainingBalance: 0, payments: [], timeline: [], notes: [], meetings: [], documents: [] },
     { dealCode: 'D0003', customer: 'Anil Nahar', property: 'Anil Property', city: 'Indore', salesOfficer: 'Sales Officer', broker: 'Anil', status: 'FINALIZED', createdOn: '09/02/26', customerPhone: '9876543210', brokerMobile: '-', salesOfficerMobile: '-', prefLocation: '-', propType: 'APARTMENT/FLATS', address: '-', khasra: '-', expectPrice: 2500000, negotiationPrice: 2400000, remainingBalance: 0, payments: [], timeline: [], notes: [], meetings: [], documents: [] },
-];
-
-export const mockRequirements = [
-    { id: 'CR1', name: 'Mango', phone: '8225000092', budget: '1 L - 3 Cr', date: '05/04/26', time: '10:00 - 11:00', propAvailable: 2, listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS' },
-];
-
-export const sample2Requirements = [
-    { id: 'CR1', name: 'Mango', phone: '8225000092', budget: '100000 - 382523500', date: '05/04/26', time: '10:00 - 11:00', propAvailable: 2, listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS' },
-    { id: 'CR2', name: 'Manas Sir', phone: '8120180101', budget: '100000 - 1000000', date: '09/03/26', time: '17:00 - 18:00', propAvailable: 4, listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS' },
-    { id: 'CR3', name: 'Dr Kashyap Ji', phone: '8224004000', budget: '100000 - 201600000', date: '09/03/26', time: '10:00 - 11:00', propAvailable: 1, listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS' },
 ];
 
 export const mockUsers = [

@@ -1,24 +1,11 @@
-import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  LayoutDashboard,
-  Users,
-  Settings,
   LogOut,
-  ShieldCheck,
-  GitBranch,
-  Filter,
-  UserCheck,
-  Building2,
-  CalendarDays,
-  Briefcase,
-  UserPlus,
-  ClipboardList,
-  Activity
 } from 'lucide-react';
 import { logout } from '../store/authSlice';
 import logo from '../assets/logo.png';
+import { adminLinks, superAdminLinks } from '../data/navigation';
 
 const SidebarItem = ({ icon: Icon, label, active = false, onClick }) => (
   <div
@@ -43,24 +30,6 @@ const Sidebar = () => {
     dispatch(logout());
     navigate('/auth/login');
   };
-
-  const superAdminLinks = [
-    { icon: LayoutDashboard, label: 'Super Admin Dashboard', path: '/dashboard' },
-    { icon: GitBranch, label: 'Branch management', path: '/dashboard/branches' },
-  ];
-
-  const adminLinks = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: ShieldCheck, label: 'Role and Access', path: '/dashboard/roles' },
-    { icon: Filter, label: 'Leads Pipeline', path: '/dashboard/leads' },
-    { icon: UserCheck, label: 'Clients Hub', path: '/dashboard/clients' },
-    { icon: Building2, label: 'Project Inventory', path: '/dashboard/inventory' },
-    { icon: CalendarDays, label: 'Upcoming Visits', path: '/dashboard/visits' },
-    { icon: Briefcase, label: 'Deal Management', path: '/dashboard/deals' },
-    { icon: UserPlus, label: 'User List', path: '/dashboard/users' },
-    { icon: Activity, label: 'User app activities', path: '/dashboard/user-app-activities' },
-    { icon: ClipboardList, label: 'Customer Requirements', path: '/dashboard/requirements' },
-  ];
 
   const links = user?.role === 'super_admin'
     ? [

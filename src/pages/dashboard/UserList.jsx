@@ -95,13 +95,13 @@ const UserList = () => {
 
     return (
         <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
-            <Header title="User List" />
+            <Header title="App user list" />
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
                 <div className="max-w-[1600px] mx-auto space-y-6">
                     <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-800">User List</h2>
+                            <h2 className="text-2xl font-bold text-gray-800">App user list</h2>
                             <p className="text-sm text-gray-500 mt-1">Manage Sales, Broker, and Field Officer app registrations.</p>
                         </div>
                         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full xl:w-auto">
