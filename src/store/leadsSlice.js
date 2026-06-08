@@ -32,6 +32,14 @@ const leadsSlice = createSlice({
       }
       state.filteredLeads = state.leads;
     },
+    updateLead: (state, action) => {
+      const { id, changes } = action.payload;
+      const lead = state.leads.find(l => l.id === id);
+      if (lead) {
+        Object.assign(lead, changes);
+      }
+      state.filteredLeads = state.leads;
+    },
     setFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
       const { search, status } = state.filters;
@@ -46,5 +54,5 @@ const leadsSlice = createSlice({
   },
 });
 
-export const { addLead, setLeads, updateLeadStatus, setFilters } = leadsSlice.actions;
+export const { addLead, setLeads, updateLeadStatus, updateLead, setFilters } = leadsSlice.actions;
 export default leadsSlice.reducer;

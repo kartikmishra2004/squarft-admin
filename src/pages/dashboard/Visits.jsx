@@ -1,13 +1,32 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
-    Building2, Calendar, CheckCircle2, Clock, FileText,
-    HardHat, PhoneCall, TrendingUp, User, XCircle
+    Building2, Calendar, CheckCircle2, Clock, Edit2, FileText,
+    HardHat, PhoneCall, Plus, Save, Search, TrendingUp, User, XCircle
 } from 'lucide-react';
-import { sample2Visits } from '../../data/mockData';
+import { addVisit, addVisitNote, updateVisit, updateVisitStatus } from '../../store/visitsSlice';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import Modal from '../../components/ui/Modal';
 import Header from '../../components/layout/Header';
+
+const visitFormInitialState = {
+    officerName: '',
+    officerPhone: '',
+    customerName: '',
+    customerPhone: '',
+    purpose: 'BUY',
+    date: '',
+    time: '',
+    status: 'Scheduled',
+    propertyName: '',
+    propertyType: 'APARTMENT/FLATS',
+    propertyConfig: '',
+    propertyAddress: '',
+    propertyPrice: '',
+    notes: '',
+};
 
 const getStatusBadge = (status) => {
     if (status === 'Scheduled') return <Badge variant="purple">{status}</Badge>;
@@ -16,32 +35,114 @@ const getStatusBadge = (status) => {
     return <Badge variant="gray">{status}</Badge>;
 };
 
+const mapVisitToForm = (visit) => ({
+    officerName: visit.officerName || '',
+    officerPhone: visit.officerPhone || '',
+    customerName: visit.customerName || '',
+    customerPhone: visit.customerPhone || '',
+    purpose: visit.purpose || 'BUY',
+    date: visit.date || '',
+    time: visit.time || '',
+    status: visit.status || 'Scheduled',
+    propertyName: visit.property?.name || '',
+    propertyType: visit.property?.type || 'APARTMENT/FLATS',
+    propertyConfig: visit.property?.config || '',
+    propertyAddress: visit.property?.address || '',
+    propertyPrice: visit.property?.price || '',
+    notes: visit.notes || '',
+});
+
+const buildVisitPayload = (formState) => ({
+    officerName: formState.officerName.trim(),
+    officerPhone: formState.officerPhone.trim(),
+    customerName: formState.customerName.trim(),
+    customerPhone: formState.customerPhone.trim(),
+    purpose: formState.purpose,
+    date: formState.date,
+    time: formState.time,
+    status: formState.status,
+    property: {
+        name: formState.propertyName.trim(),
+        type: formState.propertyType,
+        config: formState.propertyConfig.trim(),
+        address: formState.propertyAddress.trim(),
+        price: formState.propertyPrice.trim(),
+    },
+    notes: formState.notes.trim(),
+});
+
 const Visits = () => {
-    const [localVisits, setLocalVisits] = useState(sample2Visits);
-    const [selectedVisit, setSelectedVisit] = useState(sample2Visits[0]);
+    const dispatch = useDispatch();
+    const { visits } = useSelector((state) => state.visits);
+    const [selectedVisitId, setSelectedVisitId] = useState(visits[0]?.id || null);
     const [filter, setFilter] = useState('All');
+    const [searchQuery, setSearchQuery] = useState('');
     const [newNote, setNewNote] = useState('');
+    const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
+    const [editingVisitId, setEditingVisitId] = useState(null);
+    const [visitForm, setVisitForm] = useState(visitFormInitialState);
 
-    const filteredVisits = localVisits.filter((visit) => {
-        if (filter === 'All') return true;
-        return visit.status === filter;
-    });
+    const selectedVisit = visits.find((visit) => visit.id === selectedVisitId) || visits[0] || null;
 
-    const handleUpdateStatus = (id, newStatus) => {
-        setLocalVisits((current) => current.map((visit) => visit.id === id ? { ...visit, status: newStatus } : visit));
-        if (selectedVisit.id === id) {
-            setSelectedVisit({ ...selectedVisit, status: newStatus });
+    const filteredVisits = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        return visits.filter((visit) => {
+            const matchesStatus = filter === 'All' || visit.status === filter;
+            const matchesQuery = !query || [
+                visit.customerName,
+                visit.customerPhone,
+                visit.officerName,
+                visit.property?.name,
+                visit.property?.address,
+                visit.purpose,
+            ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+            return matchesStatus && matchesQuery;
+        });
+    }, [filter, searchQuery, visits]);
+
+    const openCreateModal = () => {
+        setEditingVisitId(null);
+        setVisitForm(visitFormInitialState);
+        setIsVisitModalOpen(true);
+    };
+
+    const openEditModal = (visit) => {
+        setEditingVisitId(visit.id);
+        setVisitForm(mapVisitToForm(visit));
+        setIsVisitModalOpen(true);
+    };
+
+    const closeVisitModal = () => {
+        setIsVisitModalOpen(false);
+        setEditingVisitId(null);
+        setVisitForm(visitFormInitialState);
+    };
+
+    const updateVisitForm = (field, value) => {
+        setVisitForm((current) => ({ ...current, [field]: value }));
+    };
+
+    const handleSubmitVisit = (event) => {
+        event.preventDefault();
+        const payload = buildVisitPayload(visitForm);
+
+        if (editingVisitId) {
+            dispatch(updateVisit({ id: editingVisitId, changes: payload }));
+            setSelectedVisitId(editingVisitId);
+        } else {
+            dispatch(addVisit(payload));
         }
+        closeVisitModal();
+    };
+
+    const handleUpdateStatus = (id, status) => {
+        dispatch(updateVisitStatus({ id, status }));
+        setSelectedVisitId(id);
     };
 
     const handleAddNote = () => {
-        if (!newNote.trim()) return;
-        const updatedVisit = {
-            ...selectedVisit,
-            notes: `${selectedVisit.notes}\n\n[Updated]: ${newNote}`,
-        };
-        setLocalVisits((current) => current.map((visit) => visit.id === selectedVisit.id ? updatedVisit : visit));
-        setSelectedVisit(updatedVisit);
+        if (!selectedVisit || !newNote.trim()) return;
+        dispatch(addVisitNote({ id: selectedVisit.id, note: newNote.trim() }));
         setNewNote('');
     };
 
@@ -52,10 +153,22 @@ const Visits = () => {
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
                 <div className="max-w-[1600px] mx-auto flex flex-col lg:flex-row h-full gap-6 animate-in fade-in duration-300 min-h-[80vh]">
                     <Card noPadding className="w-full lg:w-1/3 flex flex-col h-[80vh] border-gray-200 shadow-md shrink-0">
-                        <div className="p-5 border-b border-gray-100 bg-gray-50/50">
-                            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                <Calendar className="w-5 h-5 text-[#6F4BFF]" /> Visits Schedule
-                            </h2>
+                        <div className="p-5 border-b border-gray-100 bg-gray-50/50 space-y-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                    <Calendar className="w-5 h-5 text-[#6F4BFF]" /> Visits Schedule
+                                </h2>
+                                <Button icon={Plus} className="px-3 py-2 text-xs" onClick={openCreateModal}>New</Button>
+                            </div>
+                            <div className="relative">
+                                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    value={searchQuery}
+                                    onChange={(event) => setSearchQuery(event.target.value)}
+                                    className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30"
+                                    placeholder="Search visits..."
+                                />
+                            </div>
                             <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
                                 {['All', 'Scheduled', 'Completed', 'Cancelled'].map((item) => (
                                     <button key={item} onClick={() => setFilter(item)} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${filter === item ? 'bg-[#6F4BFF] text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
@@ -74,7 +187,7 @@ const Visits = () => {
                                 if (visit.status === 'Completed') statusBorder = 'border-l-emerald-500';
                                 if (visit.status === 'Cancelled') statusBorder = 'border-l-rose-500';
                                 return (
-                                    <div key={visit.id} onClick={() => setSelectedVisit(visit)} className={`bg-white border-y border-r border-l-4 rounded-lg p-4 cursor-pointer transition-all ${statusBorder} ${isSelected ? 'ring-2 ring-[#6F4BFF]/20 shadow-md bg-purple-50/10' : 'border-gray-200 hover:shadow-sm'}`}>
+                                    <div key={visit.id} onClick={() => setSelectedVisitId(visit.id)} className={`bg-white border-y border-r border-l-4 rounded-lg p-4 cursor-pointer transition-all ${statusBorder} ${isSelected ? 'ring-2 ring-[#6F4BFF]/20 shadow-md bg-purple-50/10' : 'border-gray-200 hover:shadow-sm'}`}>
                                         <div className="flex justify-between items-start mb-2">
                                             <p className="text-sm font-bold text-gray-900">{visit.customerName}</p>
                                             <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{visit.time}</span>
@@ -115,10 +228,11 @@ const Visits = () => {
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
+                                        <Button variant="secondary" icon={Edit2} onClick={() => openEditModal(selectedVisit)} className="shadow-sm border-gray-300 hover:bg-gray-100 text-gray-700">Edit</Button>
                                         {selectedVisit.status === 'Scheduled' && (
                                             <>
                                                 <Button variant="success" icon={CheckCircle2} onClick={() => handleUpdateStatus(selectedVisit.id, 'Completed')} className="shadow-sm">Complete</Button>
-                                                <Button variant="secondary" icon={Clock} className="shadow-sm border-gray-300 hover:bg-gray-100 text-gray-700">Reschedule</Button>
+                                                <Button variant="secondary" icon={Clock} onClick={() => openEditModal(selectedVisit)} className="shadow-sm border-gray-300 hover:bg-gray-100 text-gray-700">Reschedule</Button>
                                                 <Button variant="danger" icon={XCircle} onClick={() => handleUpdateStatus(selectedVisit.id, 'Cancelled')} className="shadow-sm">Cancel</Button>
                                             </>
                                         )}
@@ -136,18 +250,31 @@ const Visits = () => {
 
                                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                                         <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                                            <Building2 className="w-5 h-5 text-gray-400" /> Property Details
+                                        </h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm font-bold text-gray-700">
+                                            <p><span className="text-gray-400 uppercase text-[10px] tracking-widest block">Property</span>{selectedVisit.property.name}</p>
+                                            <p><span className="text-gray-400 uppercase text-[10px] tracking-widest block">Configuration</span>{selectedVisit.property.config}</p>
+                                            <p><span className="text-gray-400 uppercase text-[10px] tracking-widest block">Type</span>{selectedVisit.property.type}</p>
+                                            <p><span className="text-gray-400 uppercase text-[10px] tracking-widest block">Price</span>{selectedVisit.property.price}</p>
+                                            <p className="md:col-span-2"><span className="text-gray-400 uppercase text-[10px] tracking-widest block">Address</span>{selectedVisit.property.address}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
                                             <FileText className="w-5 h-5 text-gray-400" /> Visit Notes & Follow-up
                                         </h3>
                                         <div className="bg-amber-50/50 border border-amber-100 p-4 rounded-lg mb-6">
-                                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedVisit.notes}</p>
+                                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedVisit.notes || 'No notes yet.'}</p>
                                         </div>
                                         {selectedVisit.status !== 'Cancelled' && (
-                                            <div className="flex gap-3 items-end border-t border-gray-100 pt-6">
+                                            <div className="flex flex-col gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:items-end">
                                                 <div className="flex-1">
                                                     <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Add internal update</label>
                                                     <textarea value={newNote} onChange={(event) => setNewNote(event.target.value)} rows="2" className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 text-sm font-medium"></textarea>
                                                 </div>
-                                                <Button onClick={handleAddNote} className="h-full px-6 shadow-sm">Save Note</Button>
+                                                <Button onClick={handleAddNote} icon={Save} className="px-6 shadow-sm">Save Note</Button>
                                             </div>
                                         )}
                                     </div>
@@ -157,9 +284,64 @@ const Visits = () => {
                     </div>
                 </div>
             </main>
+
+            <Modal isOpen={isVisitModalOpen} onClose={closeVisitModal} title={editingVisitId ? 'Edit Visit' : 'Schedule New Visit'}>
+                <form onSubmit={handleSubmitVisit} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Field label="Customer Name" value={visitForm.customerName} onChange={(value) => updateVisitForm('customerName', value)} required />
+                        <Field label="Customer Phone" value={visitForm.customerPhone} onChange={(value) => updateVisitForm('customerPhone', value)} required />
+                        <Field label="Officer Name" value={visitForm.officerName} onChange={(value) => updateVisitForm('officerName', value)} required />
+                        <Field label="Officer Phone" value={visitForm.officerPhone} onChange={(value) => updateVisitForm('officerPhone', value)} required />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <SelectField label="Purpose" value={visitForm.purpose} onChange={(value) => updateVisitForm('purpose', value)} options={['BUY', 'RENT', 'SELL']} />
+                        <Field label="Date" type="text" value={visitForm.date} onChange={(value) => updateVisitForm('date', value)} placeholder="05/04/26" required />
+                        <Field label="Time" value={visitForm.time} onChange={(value) => updateVisitForm('time', value)} placeholder="10:00 - 11:00 AM" required />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Field label="Property Name" value={visitForm.propertyName} onChange={(value) => updateVisitForm('propertyName', value)} required />
+                        <SelectField label="Property Type" value={visitForm.propertyType} onChange={(value) => updateVisitForm('propertyType', value)} options={['APARTMENT/FLATS', 'VILLA PLOTS', 'COMMERCIAL', 'PLOT']} />
+                        <Field label="Configuration" value={visitForm.propertyConfig} onChange={(value) => updateVisitForm('propertyConfig', value)} placeholder="3BHK Premium" />
+                        <Field label="Price" value={visitForm.propertyPrice} onChange={(value) => updateVisitForm('propertyPrice', value)} placeholder="1.85 Cr" />
+                    </div>
+                    <Field label="Property Address" value={visitForm.propertyAddress} onChange={(value) => updateVisitForm('propertyAddress', value)} />
+                    <SelectField label="Status" value={visitForm.status} onChange={(value) => updateVisitForm('status', value)} options={['Scheduled', 'Completed', 'Cancelled']} />
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Notes</label>
+                        <textarea rows="3" value={visitForm.notes} onChange={(event) => updateVisitForm('notes', event.target.value)} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 text-sm font-medium" />
+                    </div>
+                    <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+                        <Button variant="secondary" onClick={closeVisitModal}>Cancel</Button>
+                        <Button type="submit" icon={Save}>{editingVisitId ? 'Save Changes' : 'Schedule Visit'}</Button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 };
+
+const Field = ({ label, value, onChange, type = 'text', placeholder = '', required = false }) => (
+    <div>
+        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</label>
+        <input
+            type={type}
+            required={required}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={placeholder}
+            className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
+        />
+    </div>
+);
+
+const SelectField = ({ label, value, onChange, options }) => (
+    <div>
+        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</label>
+        <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
+            {options.map((option) => <option key={option}>{option}</option>)}
+        </select>
+    </div>
+);
 
 const InfoCard = ({ title, name, phone, icon: Icon, color }) => {
     const colorClass = color === 'blue' ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-purple-100 border-purple-200 text-purple-600';

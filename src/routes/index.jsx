@@ -13,6 +13,7 @@ import Inventory from '../pages/dashboard/Inventory';
 import Visits from '../pages/dashboard/Visits';
 import Deals from '../pages/dashboard/Deals';
 import UserList from '../pages/dashboard/UserList';
+import UserAppActivities from '../pages/dashboard/UserAppActivities';
 import Requirements from '../pages/dashboard/Requirements';
 import SettingsPage from '../pages/dashboard/Settings';
 
@@ -93,6 +94,7 @@ const AppRoutes = () => {
         <Route path="visits" element={<Visits />} />
         <Route path="deals" element={<Deals />} />
         <Route path="users" element={<UserList />} />
+        <Route path="user-app-activities" element={<UserAppActivities />} />
         <Route path="requirements" element={<Requirements />} />
       </Route>
 

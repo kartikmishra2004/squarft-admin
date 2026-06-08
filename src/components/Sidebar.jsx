@@ -14,7 +14,8 @@ import {
   CalendarDays,
   Briefcase,
   UserPlus,
-  ClipboardList
+  ClipboardList,
+  Activity
 } from 'lucide-react';
 import { logout } from '../store/authSlice';
 import logo from '../assets/logo.png';
@@ -57,6 +58,7 @@ const Sidebar = () => {
     { icon: CalendarDays, label: 'Upcoming Visits', path: '/dashboard/visits' },
     { icon: Briefcase, label: 'Deal Management', path: '/dashboard/deals' },
     { icon: UserPlus, label: 'User List', path: '/dashboard/users' },
+    { icon: Activity, label: 'User app activities', path: '/dashboard/user-app-activities' },
     { icon: ClipboardList, label: 'Customer Requirements', path: '/dashboard/requirements' },
   ];
 

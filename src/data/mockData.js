@@ -156,13 +156,121 @@ export const sample2Requirements = [
 ];
 
 export const mockUsers = [
-    { id: 'U001', name: 'Rizwan Khan', type: 'Sales_officer', phone: '9424654160', docStatus: 'Approved' },
-    { id: 'U002', name: 'SquarFT106', type: 'Field_officer', phone: '8224000106', docStatus: 'Pending' },
-    { id: 'U003', name: 'Sales Officer', type: 'Sales_officer', phone: '9302569085', docStatus: 'Approved' },
-    { id: 'U004', name: 'Anil', type: 'Broker', phone: '9165993939', docStatus: 'Rejected' },
-    { id: 'U005', name: 'Fff', type: 'Sales_officer', phone: '8889998258', docStatus: 'Approved' },
-    { id: 'U006', name: 'Rajesh Gurjar', type: 'Sales_officer', phone: '8224004000', docStatus: 'Pending' },
-];
+      { id: 'U001', name: 'Rizwan Khan', type: 'Sales_officer', phone: '9424654160', docStatus: 'Approved' },
+      { id: 'U002', name: 'SquarFT106', type: 'Field_officer', phone: '8224000106', docStatus: 'Pending' },
+      { id: 'U003', name: 'Sales Officer', type: 'Sales_officer', phone: '9302569085', docStatus: 'Approved' },
+      { id: 'U004', name: 'Anil', type: 'Broker', phone: '9165993939', docStatus: 'Rejected' },
+      { id: 'U005', name: 'Fff', type: 'Sales_officer', phone: '8889998258', docStatus: 'Approved' },
+      { id: 'U006', name: 'Rajesh Gurjar', type: 'Sales_officer', phone: '8224004000', docStatus: 'Pending' },
+  ];
+
+  export const userAppActivities = [
+      {
+          id: 'UA001',
+          userId: 'APP-U001',
+          name: 'Manas Gangrade',
+          phone: '+91 98765 43210',
+          email: 'manas@squarft.com',
+          city: 'Indore, MP',
+          status: 'Online',
+          joinedDate: '20 Feb 2025',
+          lastActive: 'Today, 04:42 PM',
+          activeMinutesToday: 128,
+          totalActiveMinutes: 1840,
+          sessionsToday: 7,
+          savedProperties: [
+              { id: 'p1', title: 'Serenity Reserve', location: 'Scheme No 140, Indore', type: 'Flat/Apartment', price: 'INR 2.5 Cr - INR 3.5 Cr', savedAt: 'Today, 12:10 PM' },
+              { id: 'p2', title: 'Sumeru Sky Heights', location: 'Bypass Road, Indore', type: 'Flat/Apartment', price: 'INR 85 L - INR 1.4 Cr', savedAt: 'Today, 01:18 PM' },
+              { id: 'p3', title: 'The Grand Atrium', location: 'Vijay Nagar, Indore', type: 'Commercial', price: 'INR 1.8 Cr', savedAt: 'Yesterday, 06:20 PM' },
+          ],
+          seenProperties: [
+              { id: 'p1', title: 'Serenity Reserve', seenAt: 'Today, 12:04 PM' },
+              { id: 'p2', title: 'Sumeru Sky Heights', seenAt: 'Today, 01:12 PM' },
+              { id: 'p4', title: 'Lakeview County', seenAt: 'Today, 03:25 PM' },
+              { id: 'p5', title: 'Urban Nest', seenAt: 'Yesterday, 08:40 PM' },
+          ],
+          contactedProperties: [
+              { id: 'p1', title: 'Serenity Reserve', contactedAt: 'Today, 12:15 PM', channel: 'Phone Call' },
+              { id: 'p2', title: 'Sumeru Sky Heights', contactedAt: 'Today, 01:24 PM', channel: 'WhatsApp' },
+          ],
+          recentSearches: ['3BHK Indore under 3 Cr', 'Ready to move apartment', 'Scheme No 140 luxury flat'],
+          bookedVisits: [
+              { id: 'v1', status: 'SCHEDULED', title: 'Serenity Reserve', dateFull: 'Wed, 12th June | 10:30 AM', bookingId: 'SQF-88291' },
+              { id: 'v2', status: 'CONFIRMED', title: 'Sumeru Sky Heights', dateFull: 'Fri, 14th June | 04:00 PM', bookingId: 'SQF-44910' },
+          ],
+          screenEvents: [
+              { time: '04:42 PM', screen: 'Project Detail', action: 'Viewed floor plan for Serenity Reserve' },
+              { time: '04:21 PM', screen: 'Saved Properties', action: 'Opened saved properties list' },
+              { time: '03:58 PM', screen: 'Book Site Visit', action: 'Selected morning visit slot' },
+              { time: '03:25 PM', screen: 'Property Listing', action: 'Viewed Lakeview County' },
+          ],
+      },
+      {
+          id: 'UA002',
+          userId: 'APP-U002',
+          name: 'Vikash Singh',
+          phone: '+91 9876543212',
+          email: 'vikash@squarft.com',
+          city: 'Chennai, TN',
+          status: 'Idle',
+          joinedDate: '08 Apr 2026',
+          lastActive: 'Today, 02:18 PM',
+          activeMinutesToday: 64,
+          totalActiveMinutes: 920,
+          sessionsToday: 3,
+          savedProperties: [
+              { id: 'p4', title: 'Ocean View Luxury', location: 'ECR, Chennai', type: 'Apartment', price: 'INR 3 Cr - INR 5 Cr', savedAt: 'Today, 10:05 AM' },
+              { id: 'p1', title: 'Skyline Residency', location: 'Andheri West, Mumbai', type: 'Apartment', price: 'INR 1.85 Cr', savedAt: 'Yesterday, 04:30 PM' },
+          ],
+          seenProperties: [
+              { id: 'p4', title: 'Ocean View Luxury', seenAt: 'Today, 09:54 AM' },
+              { id: 'p1', title: 'Skyline Residency', seenAt: 'Yesterday, 04:20 PM' },
+          ],
+          contactedProperties: [
+              { id: 'p4', title: 'Ocean View Luxury', contactedAt: 'Today, 10:12 AM', channel: 'Request Callback' },
+          ],
+          recentSearches: ['4BHK sea view Chennai', 'ECR apartment', 'Luxury flat immediate possession'],
+          bookedVisits: [
+              { id: 'v3', status: 'SCHEDULED', title: 'Ocean View Luxury', dateFull: 'Today | 04:00 PM', bookingId: 'SQF-77104' },
+          ],
+          screenEvents: [
+              { time: '02:18 PM', screen: 'My Activity', action: 'Checked contacted properties' },
+              { time: '01:44 PM', screen: 'Project Detail', action: 'Saved Ocean View Luxury' },
+              { time: '10:12 AM', screen: 'Project Detail', action: 'Requested callback' },
+          ],
+      },
+      {
+          id: 'UA003',
+          userId: 'APP-U003',
+          name: 'Ankit Sharma',
+          phone: '+91 9876543213',
+          email: 'ankit@squarft.com',
+          city: 'Mumbai, MH',
+          status: 'Offline',
+          joinedDate: '08 Apr 2026',
+          lastActive: 'Yesterday, 09:30 PM',
+          activeMinutesToday: 0,
+          totalActiveMinutes: 710,
+          sessionsToday: 0,
+          savedProperties: [
+              { id: 'p5', title: 'Green Valley Phase 2', location: 'HSR Layout, Bangalore', type: 'Villa Plot', price: 'INR 1.50 Cr', savedAt: 'Yesterday, 09:20 PM' },
+          ],
+          seenProperties: [
+              { id: 'p5', title: 'Green Valley Phase 2', seenAt: 'Yesterday, 09:10 PM' },
+              { id: 'p1', title: 'Skyline Residency', seenAt: '08 Apr, 05:14 PM' },
+          ],
+          contactedProperties: [],
+          recentSearches: ['2BHK Andheri', 'Bangalore villa plots'],
+          bookedVisits: [
+              { id: 'v4', status: 'COMPLETED', title: 'Green Valley Phase 2', dateFull: '09 Mar | 10:00 AM', bookingId: 'SQF-11029' },
+          ],
+          screenEvents: [
+              { time: '09:30 PM', screen: 'Visit', action: 'Opened past visits' },
+              { time: '09:20 PM', screen: 'Project Detail', action: 'Saved Green Valley Phase 2' },
+              { time: '08:52 PM', screen: 'Property Listing', action: 'Applied BHK filter' },
+          ],
+      },
+  ];
 
 export const mockVisits = [
     { id: 'V001', officerName: 'Manas', officerPhone: '7691962521', customerName: 'Vikash Singh', customerPhone: '8225000092', purpose: 'BUY', date: '05/04/26', time: '10:00 - 11:00 AM', status: 'Scheduled', property: { name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '3BHK Premium', address: 'Andheri West, Mumbai', price: '₹ 1.85 Cr' }, notes: 'Client highly interested.' },
