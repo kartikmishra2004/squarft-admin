@@ -45,7 +45,6 @@ const Sidebar = () => {
 
   const superAdminLinks = [
     { icon: LayoutDashboard, label: 'Super Admin Dashboard', path: '/dashboard' },
-    { icon: ShieldCheck, label: 'Role and Access', path: '/dashboard/roles' },
     { icon: GitBranch, label: 'Branch management', path: '/dashboard/branches' },
   ];
 
@@ -58,11 +57,16 @@ const Sidebar = () => {
     { icon: CalendarDays, label: 'Upcoming Visits', path: '/dashboard/visits' },
     { icon: Briefcase, label: 'Deal Management', path: '/dashboard/deals' },
     { icon: UserPlus, label: 'User List', path: '/dashboard/users' },
-    { icon: ClipboardList, label: 'Task Management', path: '/dashboard/tasks' },
     { icon: ClipboardList, label: 'Customer Requirements', path: '/dashboard/requirements' },
   ];
 
-  const links = user?.role === 'super_admin' ? superAdminLinks : adminLinks;
+  const links = user?.role === 'super_admin'
+    ? [
+        ...superAdminLinks,
+        { ...adminLinks[0], label: 'Admin Dashboard', path: '/dashboard/admin' },
+        ...adminLinks.slice(1),
+      ]
+    : adminLinks;
 
   return (
     <aside className="w-72 bg-white border-r border-gray-100 p-5 flex-col hidden lg:flex fixed h-full z-20 shadow-sm overflow-y-auto custom-scrollbar">

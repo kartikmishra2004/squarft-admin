@@ -46,15 +46,15 @@ const UserList = () => {
 
     return (
         <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
-            <Header title="User Management" />
+            <Header title="User List" />
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
                 <div className="max-w-[1600px] mx-auto space-y-6">
                     
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
                         <div>
-                            <h2 className="text-2xl font-black text-gray-800 tracking-tight uppercase">User Directory</h2>
-                            <p className="text-sm text-gray-500 mt-1 font-medium italic">Manage Sales, Broker, and Field Officer app registrations.</p>
+                            <h2 className="text-2xl font-bold text-gray-800">User List</h2>
+                            <p className="text-sm text-gray-500 mt-1">Manage Sales, Broker, and Field Officer app registrations.</p>
                         </div>
                         <div className="flex items-center gap-3 w-full sm:w-auto">
                             <div className="relative flex-1 sm:w-80">

@@ -45,10 +45,14 @@ const Roles = () => {
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 h-full scroll-smooth">
                 <div className="max-w-[1600px] mx-auto h-full flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div>
+                        <h2 className="text-3xl font-black text-gray-900 tracking-tight">Roles & Access Control</h2>
+                        <p className="text-gray-500 mt-1 font-medium text-sm">Define granular permissions for what different team members can view, edit, or delete.</p>
+                    </div>
                     
                     <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
                         {/* Left Sidebar for Roles */}
-                        <Card noPadding className="w-full lg:w-64 shrink-0 flex flex-col border-gray-200 shadow-md h-fit">
+                        <Card noPadding className="w-full lg:w-64 shrink-0 flex flex-col border-gray-200 shadow-md">
                             <div className="p-4 border-b border-gray-100 bg-gray-50/50">
                                 <h3 className="font-bold text-gray-800 uppercase tracking-widest text-xs">Defined Roles</h3>
                             </div>
@@ -73,7 +77,7 @@ const Roles = () => {
                         </Card>
 
                         {/* Right Area: Permission Matrix */}
-                        <Card noPadding className="flex-1 flex flex-col border-gray-200 shadow-lg min-h-[600px]">
+                        <Card noPadding className="flex-1 flex flex-col border-gray-200 shadow-lg">
                             <div className="p-6 border-b border-gray-100 bg-white flex justify-between items-center shrink-0">
                                 <div>
                                     <h3 className="text-2xl font-black text-gray-900 tracking-tight">{activeRole} Permissions</h3>

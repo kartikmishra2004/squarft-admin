@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { 
     adminMetrics, 
     revenueTrajectory, 
@@ -15,43 +15,6 @@ import GeographicPerformance from '../../components/dashboard/GeographicPerforma
 
 const Home = () => {
     const [timeRange, setTimeRange] = useState('30d');
-    const [metrics, setMetrics] = useState(adminMetrics);
-    const [revenueData, setRevenueData] = useState(revenueTrajectory);
-    const [isLoading, setIsLoading] = useState(false);
-
-    useEffect(() => {
-        setIsLoading(true);
-        // Simulate API call with a slight delay
-        const timer = setTimeout(() => {
-            // Randomly adjust metrics slightly to show they are "dynamic"
-            const updatedMetrics = adminMetrics.map(m => ({
-                ...m,
-                value: timeRange === '24h' 
-                    ? (parseFloat(m.value.replace(/[^0-9.]/g, '')) / 30).toFixed(1) + (m.value.includes('Cr') ? ' Cr' : '')
-                    : timeRange === '7d'
-                    ? (parseFloat(m.value.replace(/[^0-9.]/g, '')) / 4).toFixed(1) + (m.value.includes('Cr') ? ' Cr' : '')
-                    : timeRange === '1y'
-                    ? (parseFloat(m.value.replace(/[^0-9.]/g, '')) * 12).toFixed(1) + (m.value.includes('Cr') ? ' Cr' : '')
-                    : m.value,
-                trend: (Math.random() > 0.5 ? '+' : '-') + (Math.random() * 20).toFixed(1) + '%',
-                isUp: Math.random() > 0.3
-            }));
-            // Simulating chart data updates
-            const updatedRevenue = {
-                ...revenueTrajectory,
-                revenue: revenueTrajectory.revenue.map(r => ({
-                    ...r,
-                    val: r.val * (timeRange === '24h' ? 0.1 : timeRange === '7d' ? 0.4 : timeRange === '1y' ? 2.5 : 1)
-                }))
-            };
-            
-            setMetrics(updatedMetrics);
-            setRevenueData(updatedRevenue);
-            setIsLoading(false);
-        }, 500);
-
-        return () => clearTimeout(timer);
-    }, [timeRange]);
 
     const ranges = [
         { id: '24h', label: '24h' },
@@ -76,8 +39,8 @@ const Home = () => {
                         <div>
                             <h2 className="text-2xl font-bold text-gray-900 tracking-tight">System Intelligence Overview</h2>
                             <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${isLoading ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`}></span>
-                                {isLoading ? 'Updating intelligence...' : 'Live data sync enabled'}
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Live data sync enabled
                             </p>
                         </div>
                         <div className="flex items-center gap-3 bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
@@ -94,16 +57,16 @@ const Home = () => {
                     </div>
 
                     {/* METRICS ROW */}
-                    <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 transition-all duration-500 ${isLoading ? 'opacity-50 grayscale-[0.5]' : 'opacity-100'}`}>
-                        {metrics.map((m, i) => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 transition-all duration-500">
+                        {adminMetrics.map((m, i) => (
                             <MetricCard key={i} {...m} index={i} />
                         ))}
                     </div>
 
                     {/* CHARTS & ACTIVITY ROW */}
-                    <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 transition-all duration-700 ${isLoading ? 'opacity-50 grayscale-[0.5]' : 'opacity-100'}`}>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 transition-all duration-700">
                         <div className="lg:col-span-2">
-                            <RevenueTrajectory data={revenueData} />
+                            <RevenueTrajectory data={revenueTrajectory} />
                         </div>
                         <div className="lg:col-span-1">
                             <LiveActivityFeed activities={liveActivity} />
@@ -111,7 +74,7 @@ const Home = () => {
                     </div>
 
                     {/* FUNNEL & GEO ROW */}
-                    <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 transition-all duration-1000 ${isLoading ? 'opacity-50 grayscale-[0.5]' : 'opacity-100'}`}>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 transition-all duration-1000">
                         <PipelineFunnel data={pipelineFunnel} />
                         <GeographicPerformance data={geoPerformance} />
                     </div>

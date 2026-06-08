@@ -70,8 +70,8 @@ const Deals = () => {
                     
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
                         <div>
-                            <h2 className="text-2xl font-black text-gray-800 tracking-tight uppercase">Customer List</h2>
-                            <p className="text-sm text-gray-500 mt-1 font-medium italic">Manage and track all finalized deals and property owners.</p>
+                            <h2 className="text-2xl font-bold text-gray-800">Customer List</h2>
+                            <p className="text-sm text-gray-500 mt-1">Manage and track all finalized deals and property owners.</p>
                         </div>
                         <div className="flex items-center gap-3 w-full sm:w-auto">
                             <div className="relative flex-1 sm:w-80">

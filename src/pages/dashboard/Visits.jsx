@@ -1,34 +1,48 @@
-import React, { useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { 
-    Calendar, Plus, Search, MapPin, User, Clock, 
-    MoreVertical, CheckCircle2, XCircle, Filter, 
-    ArrowRight, Building2, Phone, MessageSquare
+import { useState } from 'react';
+import {
+    Building2, Calendar, CheckCircle2, Clock, FileText,
+    HardHat, PhoneCall, TrendingUp, User, XCircle
 } from 'lucide-react';
-import { addVisit, updateVisitStatus } from '../../store/visitsSlice';
-import { mockClients, mockProjects } from '../../data/mockData';
+import { sample2Visits } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Header from '../../components/layout/Header';
-import Modal from '../../components/ui/Modal';
-import Table from '../../components/ui/Table';
+
+const getStatusBadge = (status) => {
+    if (status === 'Scheduled') return <Badge variant="purple">{status}</Badge>;
+    if (status === 'Completed') return <Badge variant="green">{status}</Badge>;
+    if (status === 'Cancelled') return <Badge variant="red">{status}</Badge>;
+    return <Badge variant="gray">{status}</Badge>;
+};
 
 const Visits = () => {
-    const dispatch = useDispatch();
-    const { visits } = useSelector((state) => state.visits);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [localVisits, setLocalVisits] = useState(sample2Visits);
+    const [selectedVisit, setSelectedVisit] = useState(sample2Visits[0]);
+    const [filter, setFilter] = useState('All');
+    const [newNote, setNewNote] = useState('');
 
-    const filteredVisits = visits.filter(v => 
-        v.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.property.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.officerName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredVisits = localVisits.filter((visit) => {
+        if (filter === 'All') return true;
+        return visit.status === filter;
+    });
 
-    const handleScheduleVisit = (newVisit) => {
-        dispatch(addVisit(newVisit));
-        setIsModalOpen(false);
+    const handleUpdateStatus = (id, newStatus) => {
+        setLocalVisits((current) => current.map((visit) => visit.id === id ? { ...visit, status: newStatus } : visit));
+        if (selectedVisit.id === id) {
+            setSelectedVisit({ ...selectedVisit, status: newStatus });
+        }
+    };
+
+    const handleAddNote = () => {
+        if (!newNote.trim()) return;
+        const updatedVisit = {
+            ...selectedVisit,
+            notes: `${selectedVisit.notes}\n\n[Updated]: ${newNote}`,
+        };
+        setLocalVisits((current) => current.map((visit) => visit.id === selectedVisit.id ? updatedVisit : visit));
+        setSelectedVisit(updatedVisit);
+        setNewNote('');
     };
 
     return (
@@ -36,257 +50,137 @@ const Visits = () => {
             <Header title="Upcoming Visits" />
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
-                <div className="max-w-[1600px] mx-auto space-y-6">
-                    
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <div>
-                            <h2 className="text-2xl font-black text-gray-800 tracking-tight uppercase">Site Visit Pipeline</h2>
-                            <p className="text-sm text-gray-500 mt-1 font-medium italic">Track and manage property tours with high-intent clients.</p>
-                        </div>
-                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <div className="relative flex-1 sm:w-80">
-                                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search by client, project, or officer..."
-                                    className="pl-9 pr-4 py-2.5 w-full bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] transition-all shadow-sm"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
+                <div className="max-w-[1600px] mx-auto flex flex-col lg:flex-row h-full gap-6 animate-in fade-in duration-300 min-h-[80vh]">
+                    <Card noPadding className="w-full lg:w-1/3 flex flex-col h-[80vh] border-gray-200 shadow-md shrink-0">
+                        <div className="p-5 border-b border-gray-100 bg-gray-50/50">
+                            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <Calendar className="w-5 h-5 text-[#6F4BFF]" /> Visits Schedule
+                            </h2>
+                            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+                                {['All', 'Scheduled', 'Completed', 'Cancelled'].map((item) => (
+                                    <button key={item} onClick={() => setFilter(item)} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${filter === item ? 'bg-[#6F4BFF] text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                                        {item}
+                                    </button>
+                                ))}
                             </div>
-                            <Button icon={Calendar} onClick={() => setIsModalOpen(true)} className="font-black uppercase tracking-widest text-xs">Schedule Visit</Button>
                         </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-                        <div className="xl:col-span-3">
-                            <Card noPadding className="overflow-hidden border-gray-100 shadow-xl shadow-gray-200/50">
-                                <Table
-                                    headers={['CLIENT & CONTACT', 'TARGET PROPERTY', 'SCHEDULED FOR', 'ASSIGNED OFFICER', 'STATUS', 'ACTION']}
-                                    data={filteredVisits}
-                                    renderRow={(row, i) => (
-                                        <tr key={i} className="hover:bg-gray-50/80 transition-all border-b border-gray-100 last:border-0">
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-[#6F4BFF]/10 text-[#6F4BFF] flex items-center justify-center font-black text-xs border border-[#6F4BFF]/20 shadow-inner">
-                                                        {row.customerName.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-gray-900 tracking-tight">{row.customerName}</p>
-                                                        <p className="text-[10px] text-gray-400 font-bold flex items-center gap-1 uppercase">
-                                                            <Phone className="w-3 h-3" /> {row.customerPhone}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400 group-hover:text-[#6F4BFF] transition-colors">
-                                                        <Building2 className="w-4 h-4" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-gray-800 text-sm tracking-tight">{row.property.name}</p>
-                                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{row.property.config}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex flex-col">
-                                                    <span className="font-black text-gray-800 text-sm">{row.date}</span>
-                                                    <span className="text-[10px] font-bold text-[#6F4BFF] flex items-center gap-1 uppercase tracking-widest">
-                                                        <Clock className="w-3 h-3" /> {row.time}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
-                                                        <User className="w-3.5 h-3.5" />
-                                                    </div>
-                                                    <span className="text-sm font-black text-gray-700">{row.officerName}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <Badge variant={row.status === 'Completed' ? 'green' : row.status === 'Scheduled' ? 'purple' : 'red'}>
-                                                    {row.status}
-                                                </Badge>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-2">
-                                                    <button className="p-2 hover:bg-[#6F4BFF]/10 rounded-lg text-[#6F4BFF] transition-all" title="Message Client">
-                                                        <MessageSquare className="w-4 h-4" />
-                                                    </button>
-                                                    <button className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 transition-all">
-                                                        <MoreVertical className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                />
-                            </Card>
-                        </div>
-
-                        <div className="space-y-6">
-                            <Card className="p-6 bg-linear-to-br from-[#6F4BFF] to-[#9D84FF] text-white border-0 shadow-xl shadow-[#6F4BFF]/20">
-                                <p className="text-[10px] font-black uppercase tracking-widest mb-4 opacity-80">Daily Intelligence</p>
-                                <h3 className="text-2xl font-black mb-1">4 Visits Today</h3>
-                                <p className="text-xs font-bold opacity-70 leading-relaxed mb-6">You have 4 scheduled property tours for today. Ensure all sales officers are briefed.</p>
-                                <Button variant="secondary" className="w-full bg-white/20 hover:bg-white/30 border-0 text-white font-black uppercase tracking-widest text-xs" icon={ArrowRight}>View Today's Map</Button>
-                            </Card>
-
-                            <Card className="p-6">
-                                <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-6 border-b border-gray-100 pb-4">Visit Overview</h3>
-                                <div className="space-y-4">
-                                    {[
-                                        { label: 'Scheduled', count: 12, color: 'bg-purple-500' },
-                                        { label: 'Completed', count: 48, color: 'bg-emerald-500' },
-                                        { label: 'Cancelled', count: 3, color: 'bg-rose-500' },
-                                    ].map((stat, i) => (
-                                        <div key={i}>
-                                            <div className="flex justify-between text-xs font-black mb-1.5 uppercase tracking-widest">
-                                                <span className="text-gray-500">{stat.label}</span>
-                                                <span className="text-gray-900">{stat.count}</span>
-                                            </div>
-                                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                <div className={`h-full ${stat.color} rounded-full`} style={{ width: `${(stat.count / 63) * 100}%` }}></div>
-                                            </div>
+                        <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50/30">
+                            {filteredVisits.length === 0 ? (
+                                <p className="text-center text-gray-400 text-sm font-medium mt-10">No visits found.</p>
+                            ) : filteredVisits.map((visit) => {
+                                const isSelected = selectedVisit?.id === visit.id;
+                                let statusBorder = 'border-l-gray-300';
+                                if (visit.status === 'Scheduled') statusBorder = 'border-l-purple-500';
+                                if (visit.status === 'Completed') statusBorder = 'border-l-emerald-500';
+                                if (visit.status === 'Cancelled') statusBorder = 'border-l-rose-500';
+                                return (
+                                    <div key={visit.id} onClick={() => setSelectedVisit(visit)} className={`bg-white border-y border-r border-l-4 rounded-lg p-4 cursor-pointer transition-all ${statusBorder} ${isSelected ? 'ring-2 ring-[#6F4BFF]/20 shadow-md bg-purple-50/10' : 'border-gray-200 hover:shadow-sm'}`}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <p className="text-sm font-bold text-gray-900">{visit.customerName}</p>
+                                            <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{visit.time}</span>
                                         </div>
-                                    ))}
+                                        <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-2 font-medium">
+                                            <Building2 className="w-3.5 h-3.5" /> {visit.property.name}
+                                        </p>
+                                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
+                                            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-600">
+                                                <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[8px] uppercase">{visit.officerName.charAt(0)}</div>
+                                                {visit.officerName}
+                                            </div>
+                                            {getStatusBadge(visit.status)}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </Card>
+
+                    <div className="w-full lg:w-2/3 h-[80vh] flex flex-col">
+                        {!selectedVisit ? (
+                            <Card className="flex-1 flex flex-col items-center justify-center text-center bg-gray-50 border-dashed border-2 border-gray-200">
+                                <Calendar className="w-16 h-16 text-gray-300 mb-4" />
+                                <h3 className="text-xl font-bold text-gray-600">No Visit Selected</h3>
+                            </Card>
+                        ) : (
+                            <Card noPadding className="flex-1 flex flex-col shadow-lg border-gray-200 overflow-hidden relative">
+                                <div className="bg-white border-b border-gray-100 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <h2 className="text-2xl font-bold text-gray-900">Visit #{selectedVisit.id}</h2>
+                                            {getStatusBadge(selectedVisit.status)}
+                                        </div>
+                                        <p className="text-sm font-medium text-gray-500 flex items-center gap-1.5">
+                                            <Calendar className="w-4 h-4 text-gray-400" /> {selectedVisit.date}
+                                            <Clock className="w-4 h-4 text-gray-400 ml-2" /> {selectedVisit.time}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedVisit.status === 'Scheduled' && (
+                                            <>
+                                                <Button variant="success" icon={CheckCircle2} onClick={() => handleUpdateStatus(selectedVisit.id, 'Completed')} className="shadow-sm">Complete</Button>
+                                                <Button variant="secondary" icon={Clock} className="shadow-sm border-gray-300 hover:bg-gray-100 text-gray-700">Reschedule</Button>
+                                                <Button variant="danger" icon={XCircle} onClick={() => handleUpdateStatus(selectedVisit.id, 'Cancelled')} className="shadow-sm">Cancel</Button>
+                                            </>
+                                        )}
+                                        {selectedVisit.status === 'Completed' && (
+                                            <Button variant="primary" icon={TrendingUp} className="bg-emerald-600 hover:bg-emerald-700 shadow-md">Convert to Deal</Button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50 space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <InfoCard title="Customer" name={selectedVisit.customerName} phone={selectedVisit.customerPhone} icon={User} color="blue" />
+                                        <InfoCard title="Assigned Officer" name={selectedVisit.officerName} phone={selectedVisit.officerPhone} icon={HardHat} color="purple" />
+                                    </div>
+
+                                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                                            <FileText className="w-5 h-5 text-gray-400" /> Visit Notes & Follow-up
+                                        </h3>
+                                        <div className="bg-amber-50/50 border border-amber-100 p-4 rounded-lg mb-6">
+                                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedVisit.notes}</p>
+                                        </div>
+                                        {selectedVisit.status !== 'Cancelled' && (
+                                            <div className="flex gap-3 items-end border-t border-gray-100 pt-6">
+                                                <div className="flex-1">
+                                                    <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Add internal update</label>
+                                                    <textarea value={newNote} onChange={(event) => setNewNote(event.target.value)} rows="2" className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 text-sm font-medium"></textarea>
+                                                </div>
+                                                <Button onClick={handleAddNote} className="h-full px-6 shadow-sm">Save Note</Button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </Card>
-                        </div>
+                        )}
                     </div>
                 </div>
             </main>
-
-            <ScheduleVisitModal 
-                isOpen={isModalOpen} 
-                onClose={() => setIsModalOpen(false)} 
-                onSchedule={handleScheduleVisit} 
-            />
         </div>
     );
 };
 
-const ScheduleVisitModal = ({ isOpen, onClose, onSchedule }) => {
-    const [formData, setFormData] = useState({
-        customerId: '',
-        projectId: '',
-        date: '',
-        time: '',
-        officerName: 'Rahul M.',
-        notes: ''
-    });
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        const client = mockClients.find(c => c.id === formData.customerId);
-        const project = mockProjects.find(p => p.id === formData.projectId);
-        
-        if (!client || !project) return;
-
-        onSchedule({
-            customerName: client.name,
-            customerPhone: client.phone,
-            officerName: formData.officerName,
-            officerPhone: '9424654160',
-            purpose: 'BUY',
-            date: formData.date,
-            time: formData.time,
-            property: {
-                name: project.name,
-                type: 'APARTMENT/FLATS',
-                config: project.configs[0],
-                address: project.location,
-                price: project.priceRange.split('-')[0].trim()
-            },
-            notes: formData.notes
-        });
-    };
+const InfoCard = ({ title, name, phone, icon: Icon, color }) => {
+    const colorClass = color === 'blue' ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-purple-100 border-purple-200 text-purple-600';
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Schedule New Site Visit">
-            <form onSubmit={handleSubmit} className="space-y-5 p-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div>
-                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Select Client</label>
-                        <div className="relative">
-                            <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <select 
-                                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] appearance-none"
-                                value={formData.customerId}
-                                onChange={(e) => setFormData({...formData, customerId: e.target.value})}
-                                required
-                            >
-                                <option value="">Choose Client</option>
-                                {mockClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                        </div>
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm relative overflow-hidden group">
+            <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center border ${colorClass}`}>
+                        <Icon className="w-6 h-6" />
                     </div>
                     <div>
-                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Target Property</label>
-                        <div className="relative">
-                            <Building2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <select 
-                                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] appearance-none"
-                                value={formData.projectId}
-                                onChange={(e) => setFormData({...formData, projectId: e.target.value})}
-                                required
-                            >
-                                <option value="">Choose Property</option>
-                                {mockProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                        </div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">{title}</p>
+                        <h4 className="text-lg font-bold text-gray-900">{name}</h4>
                     </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div>
-                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Visit Date</label>
-                        <div className="relative">
-                            <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input 
-                                type="date" 
-                                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF]"
-                                value={formData.date}
-                                onChange={(e) => setFormData({...formData, date: e.target.value})}
-                                required
-                            />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Preferred Time</label>
-                        <div className="relative">
-                            <Clock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input 
-                                type="time" 
-                                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF]"
-                                value={formData.time}
-                                onChange={(e) => setFormData({...formData, time: e.target.value})}
-                                required
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5 block">Special Instructions / Notes</label>
-                    <textarea 
-                        className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] placeholder:text-gray-400"
-                        rows="3"
-                        placeholder="e.g. Client needs pick-up, showing 3BHK model flat..."
-                        value={formData.notes}
-                        onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                    ></textarea>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                    <Button variant="secondary" onClick={onClose} className="flex-1 font-black uppercase tracking-widest text-xs">Cancel</Button>
-                    <Button type="submit" variant="primary" className="flex-1 font-black uppercase tracking-widest text-xs" icon={CheckCircle2}>Confirm Schedule</Button>
-                </div>
-            </form>
-        </Modal>
+            </div>
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                <p className="font-semibold text-gray-700 flex items-center gap-2"><PhoneCall className="w-4 h-4 text-gray-400" /> {phone}</p>
+            </div>
+        </div>
     );
 };
 

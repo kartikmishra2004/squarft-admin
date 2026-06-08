@@ -1,7 +1,12 @@
 import React from 'react';
 import { Bell, ArrowRight } from 'lucide-react';
+import { useSelector } from 'react-redux';
 
-const Header = ({ title, showBack = false, onBack }) => {
+const Header = ({ title, showBack = false, onBack, rightContent = null }) => {
+    const { user } = useSelector((state) => state.auth);
+    const roleLabel = user?.role === 'super_admin' ? 'Super Admin' : 'Admin';
+    const initial = user?.name?.charAt(0) || 'A';
+
     return (
         <header className="h-20 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-8 shrink-0 z-20 sticky top-0">
             <div className="flex items-center gap-4">
@@ -16,16 +21,7 @@ const Header = ({ title, showBack = false, onBack }) => {
             </div>
 
             <div className="flex items-center gap-6">
-                {/* Global Branch Selector */}
-                <div className="hidden md:flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl p-1.5 shadow-sm">
-                    <span className="text-xs font-bold text-gray-500 pl-2">Active Region:</span>
-                    <select className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-bold text-[#6F4BFF] outline-none cursor-pointer shadow-sm">
-                        <option>All Branches (Global)</option>
-                        <option>Indore Headquarters</option>
-                        <option>Mumbai MMR Hub</option>
-                        <option>Bangalore Tech Park</option>
-                    </select>
-                </div>
+                {rightContent}
 
                 <button 
                     className="relative text-gray-400 hover:text-gray-600 transition-colors bg-white p-2.5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md"
@@ -40,11 +36,11 @@ const Header = ({ title, showBack = false, onBack }) => {
                     onClick={() => console.log("Profile clicked")}
                 >
                     <div className="text-right hidden sm:block">
-                        <p className="font-bold text-gray-800 text-sm group-hover:text-[#6F4BFF] transition-colors">Admin User</p>
-                        <p className="text-[10px] text-[#6F4BFF] font-black tracking-widest uppercase mt-0.5">Super Admin</p>
+                        <p className="font-bold text-gray-800 text-sm group-hover:text-[#6F4BFF] transition-colors">{user?.name || 'Admin User'}</p>
+                        <p className="text-[10px] text-[#6F4BFF] font-black tracking-widest uppercase mt-0.5">{roleLabel}</p>
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-gray-800 to-gray-600 text-white flex items-center justify-center font-bold text-lg shadow-md group-hover:shadow-lg transition-all">
-                        A
+                        {initial}
                     </div>
                 </div>
             </div>

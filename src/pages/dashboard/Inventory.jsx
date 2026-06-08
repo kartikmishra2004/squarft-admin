@@ -60,7 +60,7 @@ const Inventory = () => {
                     
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
                         <div>
-                            <h2 className="text-2xl font-black text-gray-800 tracking-tight">Real Estate Portfolios</h2>
+                            <h2 className="text-2xl font-bold text-gray-900">Project Inventory</h2>
                             <p className="text-sm text-gray-500 mt-1 font-medium">Manage builders, projects, and unit configurations.</p>
                         </div>
                         <div className="flex items-center gap-3 w-full sm:w-auto">

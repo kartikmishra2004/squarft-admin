@@ -1,35 +1,87 @@
-import React, { useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { 
-    Plus, Search, ChevronRight, ArrowRight, Sparkles, 
-    Navigation, Eye, Heart, MapPin, TrendingUp, ThumbsDown 
+import { useState } from 'react';
+import {
+    AlertCircle, ArrowRight, ArrowUpRight, Calendar, ClipboardCheck,
+    Clock, MapPin, PhoneCall, Plus, Search, ThumbsDown, ThumbsUp, X, Zap
 } from 'lucide-react';
-import { setSelectedClient, setFilters } from '../../store/clientsSlice';
-import { mockProjects } from '../../data/mockData';
+import { sample2Clients } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import Table from '../../components/ui/Table';
 import Badge from '../../components/ui/Badge';
+import Modal from '../../components/ui/Modal';
 import Header from '../../components/layout/Header';
 
+const getStatusBadge = (status) => {
+    if (['Active', 'Completed'].includes(status)) return <Badge variant="green">{status}</Badge>;
+    if (['Negotiating', 'Pending'].includes(status)) return <Badge variant="yellow">{status}</Badge>;
+    if (status === 'Suspended') return <Badge variant="gray">{status}</Badge>;
+    return <Badge variant="purple">{status}</Badge>;
+};
+
 const Clients = () => {
-    const dispatch = useDispatch();
-    const { filteredClients, selectedClient, filters } = useSelector((state) => state.clients);
+    const [isAddClientOpen, setIsAddClientOpen] = useState(false);
+    const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+    const [selectedActionClient, setSelectedActionClient] = useState(null);
+    const [selectedClient, setSelectedClient] = useState(null);
+    const [activeTab, setActiveTab] = useState('All');
+    const [dateFilter, setDateFilter] = useState('');
+    const [feedbackState, setFeedbackState] = useState({ interest: 'Interested', notes: '' });
 
-    const handleSearch = (e) => {
-        dispatch(setFilters({ search: e.target.value }));
-    };
+    const filteredClients = sample2Clients.filter((client) => {
+        const matchTab = activeTab === 'All' ||
+            (activeTab === 'Hot' && client.score === 'Hot') ||
+            (activeTab === 'Cold' && client.score === 'Cold') ||
+            (activeTab === 'Suspended' && client.status === 'Suspended');
+        const matchDate = dateFilter ? client.nextFollowUp === dateFilter : true;
+        return matchTab && matchDate;
+    });
 
-    const handleClientClick = (client) => {
-        dispatch(setSelectedClient(client));
-    };
+    const todaysVisits = sample2Clients.filter((client) => client.visitToday);
+    const actionRequiredClients = sample2Clients.filter((client) => client.actionRequired);
 
-    const handleBack = () => {
-        dispatch(setSelectedClient(null));
+    const handleLogFeedback = (client, event) => {
+        event.stopPropagation();
+        setSelectedActionClient(client);
+        setFeedbackModalOpen(true);
     };
 
     if (selectedClient) {
-        return <ClientProfileView client={selectedClient} onBack={handleBack} projects={mockProjects} />;
+        return (
+            <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
+                <Header title="Client Profile" showBack onBack={() => setSelectedClient(null)} />
+                <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
+                    <div className="max-w-[1600px] mx-auto space-y-6">
+                        <Card noPadding className="bg-linear-to-r from-white to-[#6F4BFF]/5 relative overflow-hidden animate-in fade-in duration-300">
+                            <div className="p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                                <div className="flex gap-6">
+                                    <div className="w-20 h-20 rounded-2xl bg-[#6F4BFF] text-white flex items-center justify-center text-3xl font-black shadow-xl shadow-[#6F4BFF]/20">
+                                        {selectedClient.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-1.5">
+                                            <h2 className="text-3xl font-black text-gray-900 tracking-tight">{selectedClient.name}</h2>
+                                            {getStatusBadge(selectedClient.status)}
+                                        </div>
+                                        <p className="text-gray-500 font-bold">{selectedClient.phone} - Added on {selectedClient.date}</p>
+                                        <div className="flex flex-wrap gap-2 mt-4">
+                                            <Badge variant="gray" className="bg-white border border-gray-100 shadow-sm font-bold uppercase tracking-wider">{selectedClient.req.type}</Badge>
+                                            {selectedClient.req.bhk.map((bhk) => (
+                                                <Badge key={bhk} variant="gray" className="bg-white border border-gray-100 shadow-sm font-bold uppercase tracking-wider">{bhk}</Badge>
+                                            ))}
+                                            <Badge variant="purple" className="font-bold uppercase tracking-wider shadow-sm">AI Matching Enabled</Badge>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-left md:text-right p-6 bg-white/40 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Approved Budget</p>
+                                    <p className="text-4xl font-black text-emerald-600 tracking-tighter">{selectedClient.budget}</p>
+                                    <p className="text-xs text-gray-500 mt-2 font-bold">Assigned to: <span className="text-gray-900 bg-gray-100 px-2 py-0.5 rounded-lg">{selectedClient.officer}</span></p>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+                </main>
+            </div>
+        );
     }
 
     return (
@@ -37,279 +89,205 @@ const Clients = () => {
             <Header title="Clients Hub" />
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
-                <div className="max-w-[1600px] mx-auto flex flex-col gap-6">
-                    
-                    <Card noPadding className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white">
-                            <div>
-                                <h2 className="text-xl font-black text-gray-800 tracking-tight">Active Clients</h2>
-                                <p className="text-sm text-gray-500 mt-1 font-medium">Qualified buyers actively evaluating multiple projects.</p>
-                            </div>
-                            <div className="flex items-center gap-3 w-full md:w-auto">
-                                <div className="relative flex-1 md:w-80">
-                                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search clients, phone numbers..."
-                                        className="pl-9 pr-4 py-2.5 w-full bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] transition-all"
-                                        value={filters.search}
-                                        onChange={handleSearch}
-                                    />
-                                </div>
-                                <Button icon={Plus}>New Client</Button>
-                            </div>
-                        </div>
-
-                        <Table
-                            headers={['Client Info', 'Requirement', 'Pipeline Status', 'Assigned To', '']}
-                            data={filteredClients}
-                            renderRow={(row, i) => (
-                                <tr
-                                    key={row.id}
-                                    onClick={() => handleClientClick(row)}
-                                    className="hover:bg-[#6F4BFF]/5 transition-colors cursor-pointer group"
-                                >
-                                    <td className="px-6 py-5">
-                                        <div className="font-bold text-gray-900 group-hover:text-[#6F4BFF] transition-colors">{row.name}</div>
-                                        <div className="text-xs text-gray-500 font-medium">{row.phone}</div>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="text-sm font-black text-gray-700">{row.budget}</div>
-                                        <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">
-                                            {row.req.type} • {row.req.loc.join(', ')}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex gap-1.5 mb-1.5">
-                                            {row.propertyPipeline.slice(0, 3).map((p, idx) => {
-                                                let v = 'gray';
-                                                if (p.status === 'Shortlisted') v = 'purple';
-                                                if (p.status === 'Visited') v = 'blue';
-                                                if (p.status === 'Negotiating') v = 'amber';
-                                                return <div key={idx} className={`w-3 h-3 rounded-full bg-${v}-400 shadow-sm`} title={`${p.projectId}: ${p.status}`}></div>
-                                            })}
-                                            {!row.propertyPipeline.length && <div className="text-[10px] text-gray-400 font-bold italic">No active pipeline</div>}
-                                        </div>
-                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                            {row.propertyPipeline.length} properties in pipeline
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-600 border border-gray-200">
-                                                {row.officer?.charAt(0)}
-                                            </div>
-                                            <span className="text-sm font-bold text-gray-700">{row.officer}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 text-right">
-                                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-[#6F4BFF] group-hover:text-white transition-all">
-                                            <ChevronRight className="w-5 h-5" />
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                        />
-                        
-                        {filteredClients.length === 0 && (
-                            <div className="p-20 text-center flex flex-col items-center gap-4">
-                                <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 shadow-inner">
-                                    <Search className="w-8 h-8 text-gray-300" />
-                                </div>
+                <div className="max-w-[1600px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    {actionRequiredClients.length > 0 && (
+                        <Card className="border-l-4 border-l-amber-500 bg-linear-to-r from-amber-50 to-white shadow-md">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 bg-amber-100 rounded-lg text-amber-600"><AlertCircle className="w-6 h-6" /></div>
                                 <div>
-                                    <p className="text-lg font-black text-gray-800">No clients found</p>
-                                    <p className="text-sm text-gray-500 font-medium">Try adjusting your search query.</p>
+                                    <h3 className="text-lg font-black text-gray-900 tracking-tight">Action Required: Post-Visit Feedback</h3>
+                                    <p className="text-xs font-bold text-gray-500 uppercase">Site visits are complete. Log feedback to process them to the next stage.</p>
                                 </div>
                             </div>
-                        )}
-                    </Card>
-                </div>
-            </main>
-        </div>
-    );
-};
-
-const ClientProfileView = ({ client, projects, onBack }) => {
-    const getProject = (id) => projects.find(p => p.id === id);
-
-    return (
-        <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
-            <Header title="Client Profile" showBack onBack={onBack} />
-
-            <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
-                <div className="max-w-[1600px] mx-auto space-y-6">
-
-                    {/* CLIENT HEADER */}
-                    <Card noPadding className="bg-linear-to-r from-white to-[#6F4BFF]/5 relative overflow-hidden animate-in fade-in duration-500">
-                        <div className="p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                            <div className="flex gap-6">
-                                <div className="w-20 h-20 rounded-2xl bg-[#6F4BFF] text-white flex items-center justify-center text-3xl font-black shadow-xl shadow-[#6F4BFF]/20 relative">
-                                    {client.name.charAt(0)}
-                                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 border-4 border-white rounded-full"></div>
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-3 mb-1.5">
-                                        <h2 className="text-3xl font-black text-gray-900 tracking-tight">{client.name}</h2>
-                                        <Badge variant={client.status === 'Negotiating' ? 'yellow' : 'green'}>{client.status}</Badge>
-                                    </div>
-                                    <p className="text-gray-500 font-bold">{client.phone} • Added on 10 Apr 2026</p>
-                                    <div className="flex flex-wrap gap-2 mt-4">
-                                        <Badge variant="gray" className="bg-white border border-gray-100 shadow-sm font-bold uppercase tracking-wider">{client.req.type}</Badge>
-                                        {client.req.bhk.map(b => (
-                                            <Badge key={b} variant="gray" className="bg-white border border-gray-100 shadow-sm font-bold uppercase tracking-wider">{b}</Badge>
-                                        ))}
-                                        <Badge variant="purple" className="flex items-center gap-1.5 font-bold uppercase tracking-wider shadow-sm">
-                                            <Sparkles className="w-3 h-3" /> AI Matching Enabled
-                                        </Badge>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="text-left md:text-right p-6 bg-white/40 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm">
-                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Approved Budget</p>
-                                <p className="text-4xl font-black text-emerald-600 tracking-tighter">{client.budget}</p>
-                                <p className="text-xs text-gray-500 mt-2 font-bold flex items-center md:justify-end gap-1.5">
-                                    Assigned to: <span className="text-gray-900 bg-gray-100 px-2 py-0.5 rounded-lg">{client.officer}</span>
-                                </p>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
-                        {/* LEFT COLUMN */}
-                        <div className="space-y-6 xl:col-span-1">
-                            <Card className="p-6">
-                                <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
-                                    <h3 className="text-lg font-black text-gray-800 flex items-center gap-2 tracking-tight">
-                                        <Search className="w-5 h-5 text-[#6F4BFF]" /> Requirement Profile
-                                    </h3>
-                                    <Button variant="ghost" className="text-xs h-8 font-black uppercase tracking-widest">Edit</Button>
-                                </div>
-                                <div className="space-y-5">
-                                    <div>
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Preferred Locations</p>
-                                        <p className="font-bold text-gray-800">{client.req.loc.join(' • ')}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Property Configuration</p>
-                                        <p className="font-bold text-gray-800">{client.req.type} ({client.req.bhk.join(', ')})</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Decision Timeline</p>
-                                        <p className="font-bold text-gray-800">{client.req.timeline}</p>
-                                    </div>
-                                </div>
-                            </Card>
-
-                            <Card className="p-6 bg-[#6F4BFF]/[0.02] border-[#6F4BFF]/10 relative overflow-hidden group">
-                                <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#6F4BFF]/5 rounded-full blur-2xl group-hover:bg-[#6F4BFF]/10 transition-colors"></div>
-                                <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#6F4BFF]/10">
-                                    <h3 className="text-lg font-black text-gray-800 flex items-center gap-2 tracking-tight">
-                                        <Sparkles className="w-5 h-5 text-[#6F4BFF]" /> Recommended Matches
-                                    </h3>
-                                </div>
-                                <div className="space-y-4">
-                                    {projects.filter(p => !client.propertyPipeline.find(cp => cp.projectId === p.id)).slice(0, 2).map(project => (
-                                        <div key={project.id} className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm hover:shadow-md transition-all group/item">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-black text-gray-900 text-sm group-hover/item:text-[#6F4BFF] transition-colors">{project.name}</h4>
-                                                <Badge variant="green" className="text-[9px]">98% Match</Badge>
-                                            </div>
-                                            <p className="text-xs text-gray-500 font-medium mb-3">{project.location}</p>
-                                            <p className="text-sm font-black text-emerald-600 mb-4">{project.priceRange}</p>
-                                            <Button variant="secondary" className="w-full text-[11px] py-1.5 h-auto uppercase tracking-widest font-black" icon={Plus}>
-                                                Add to Pipeline
-                                            </Button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                {actionRequiredClients.map((client) => (
+                                    <div key={client.id} className="bg-white p-5 rounded-xl border border-amber-200 shadow-sm flex flex-col justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-gray-900 flex items-center gap-2 mb-2">{client.name} <Badge variant="yellow">Pending Processing</Badge></h4>
+                                            <p className="text-sm font-medium text-gray-600 mb-4">{client.actionDetails}</p>
                                         </div>
-                                    ))}
-                                </div>
-                            </Card>
-                        </div>
-
-                        {/* RIGHT COLUMN */}
-                        <div className="xl:col-span-2">
-                            <Card noPadding className="h-full flex flex-col">
-                                <div className="p-6 border-b border-gray-100 bg-white flex justify-between items-center shrink-0">
-                                    <div>
-                                        <h3 className="text-lg font-black text-gray-800 flex items-center gap-2 tracking-tight">
-                                            <Navigation className="w-5 h-5 text-[#6F4BFF]" /> Property Pipeline
-                                        </h3>
-                                        <p className="text-xs text-gray-500 mt-1 font-bold">Comprehensive tracking of all shown projects.</p>
+                                        <Button variant="primary" className="w-full bg-amber-500 hover:bg-amber-600 shadow-amber-500/30" icon={ClipboardCheck} onClick={(event) => handleLogFeedback(client, event)}>
+                                            Log Client Feedback
+                                        </Button>
                                     </div>
-                                    <Button icon={Plus} variant="primary" className="text-xs uppercase tracking-widest font-black">Add Project</Button>
+                                ))}
+                            </div>
+                        </Card>
+                    )}
+
+                    {todaysVisits.length > 0 && (
+                        <Card className="border-l-4 border-l-emerald-500 bg-linear-to-r from-emerald-50 to-white">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600"><MapPin className="w-5 h-5" /></div>
+                                <div>
+                                    <h3 className="text-lg font-black text-gray-900 tracking-tight">Today's Site Visits</h3>
+                                    <p className="text-xs font-bold text-gray-500 uppercase">Clients scheduled for viewing today</p>
                                 </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                {todaysVisits.map((visit) => (
+                                    <div key={visit.id} onClick={() => setSelectedClient(visit)} className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm cursor-pointer hover:shadow-md hover:border-emerald-300 transition-all group">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <h4 className="font-bold text-gray-900 group-hover:text-emerald-600 transition-colors flex items-center gap-2">{visit.name} <Badge variant="green"># {visit.id}</Badge></h4>
+                                                <p className="text-xs font-medium text-gray-500 flex items-center gap-1 mt-1"><PhoneCall className="w-3 h-3" /> {visit.phone}</p>
+                                            </div>
+                                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                                                <ArrowUpRight className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                            </div>
+                                        </div>
+                                        <div className="mt-3 pt-3 border-t border-gray-50 text-xs font-medium text-gray-600 line-clamp-2">
+                                            <span className="font-bold text-gray-800">Note:</span> {visit.latestNote}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </Card>
+                    )}
 
-                                <div className="flex-1 p-6 bg-gray-50/50 space-y-4 overflow-y-auto custom-scrollbar">
-                                    {client.propertyPipeline.map((item, i) => {
-                                        const project = getProject(item.projectId);
-                                        if (!project) return null;
+                    <Card noPadding>
+                        <div className="p-6 border-b border-gray-100 bg-white space-y-5">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Active Clients Hub</h2>
+                                    <p className="text-sm font-medium text-gray-500 mt-1">Manage pipeline and track follow-ups for your assigned clients.</p>
+                                </div>
+                                <Button icon={Plus} onClick={() => setIsAddClientOpen(true)} className="shadow-md shadow-[#6F4BFF]/20">Register New Client</Button>
+                            </div>
 
-                                        const meta = {
-                                            Shortlisted: { bg: 'bg-purple-100 text-[#6F4BFF]', icon: Heart, border: 'border-purple-200 ring-1 ring-purple-100' },
-                                            Visited: { bg: 'bg-blue-100 text-blue-700', icon: MapPin, border: 'border-blue-200 ring-1 ring-blue-100' },
-                                            Negotiating: { bg: 'bg-amber-100 text-amber-700', icon: TrendingUp, border: 'border-amber-200 shadow-md ring-1 ring-amber-100' },
-                                            'Not Interested': { bg: 'bg-gray-100 text-gray-500', icon: ThumbsDown, border: 'border-gray-200 opacity-60' },
-                                            Shown: { bg: 'bg-gray-100 text-gray-600', icon: Eye, border: 'border-gray-200' },
-                                        }[item.status] || { bg: 'bg-gray-100 text-gray-600', icon: Eye, border: 'border-gray-200' };
-
-                                        const Icon = meta.icon;
-
+                            <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 bg-gray-50/80 p-2.5 rounded-xl border border-gray-200">
+                                <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+                                    {['All', 'Hot', 'Cold', 'Suspended'].map((tab) => {
+                                        const selected = activeTab === tab;
+                                        const activeClass = tab === 'Hot' ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 border-transparent' :
+                                            tab === 'Cold' ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30 border-transparent' :
+                                                tab === 'Suspended' ? 'bg-gray-800 text-white shadow-md shadow-gray-800/30 border-transparent' :
+                                                    'bg-[#6F4BFF] text-white shadow-md shadow-[#6F4BFF]/30 border-transparent';
                                         return (
-                                            <div key={i} className={`bg-white rounded-2xl border p-5 transition-all animate-in fade-in slide-in-from-right-4 duration-300 delay-[${i*100}ms] ${meta.border}`}>
-                                                <div className="flex flex-col md:flex-row items-start justify-between gap-4 mb-5">
-                                                    <div className="flex gap-4">
-                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${meta.bg}`}>
-                                                            <Icon className="w-6 h-6" />
-                                                        </div>
-                                                        <div>
-                                                            <div className="flex items-center gap-3 mb-1">
-                                                                <h4 className="text-xl font-black text-gray-900 tracking-tight">{project.name}</h4>
-                                                                <span className={`px-2 py-0.5 text-[9px] font-black rounded-lg uppercase tracking-widest ${meta.bg}`}>
-                                                                    {item.status}
-                                                                </span>
-                                                            </div>
-                                                            <p className="text-sm text-gray-500 font-bold">{project.location} • {project.builder}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <select className="w-full md:w-auto text-xs font-black uppercase tracking-widest bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] outline-none cursor-pointer shadow-sm transition-all">
-                                                        {['Shown', 'Shortlisted', 'Visited', 'Negotiating', 'Final Deal', 'Not Interested'].map(opt => (
-                                                            <option key={opt} selected={item.status === opt}>{opt}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100">
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Target Units</p>
-                                                        <p className="font-black text-gray-800 text-sm">{item.units.length ? item.units.join(' • ') : 'TBD'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Project Price</p>
-                                                        <p className="font-black text-emerald-600 text-sm">{project.priceRange}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Site Visit</p>
-                                                        <p className="font-black text-gray-800 text-sm">{item.visitedOn || 'Not yet'}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${selected ? activeClass : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>
+                                                {tab === 'Hot' && selected && <Zap className="w-4 h-4 inline mr-1.5" />}
+                                                {tab} Clients
+                                            </button>
                                         );
                                     })}
-                                    
-                                    {!client.propertyPipeline.length && (
-                                        <div className="h-full flex flex-col items-center justify-center py-20 text-center opacity-40">
-                                            <Navigation className="w-16 h-16 text-gray-300 mb-4" />
-                                            <p className="text-lg font-black text-gray-900">Pipeline is empty</p>
-                                            <p className="text-sm font-bold text-gray-500">Start adding projects to track progress.</p>
-                                        </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm shrink-0">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5" /> Follow-up Date:
+                                    </label>
+                                    <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none bg-transparent text-sm font-bold text-gray-800 outline-none cursor-pointer" />
+                                    {dateFilter && (
+                                        <button onClick={() => setDateFilter('')} className="p-1 hover:bg-rose-50 rounded-md text-rose-500 transition-colors ml-1">
+                                            <X className="w-4 h-4" />
+                                        </button>
                                     )}
                                 </div>
-                            </Card>
+                            </div>
                         </div>
-                    </div>
+
+                        <div className="overflow-x-auto min-h-[400px]">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-white border-b border-gray-100">
+                                        {['CLIENT NO. & INFO', 'REQUIREMENT', 'CURRENT STATUS & NOTES', 'NEXT FOLLOW-UP', 'ACTION'].map((header) => (
+                                            <th key={header} className={`px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest ${header === 'ACTION' ? 'text-center' : ''}`}>{header}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {filteredClients.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="5" className="px-6 py-16 text-center">
+                                                <Search className="w-12 h-12 text-gray-200 mb-3 mx-auto" />
+                                                <p className="text-gray-500 font-bold text-lg">No clients found</p>
+                                                <p className="text-gray-400 text-sm mt-1">Try adjusting your filters or date selection.</p>
+                                            </td>
+                                        </tr>
+                                    ) : filteredClients.map((row) => (
+                                        <tr key={row.id} onClick={() => setSelectedClient(row)} className="hover:bg-[#6F4BFF]/5 transition-colors cursor-pointer group bg-white">
+                                            <td className="px-6 py-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 border border-gray-200 shrink-0">{row.name.charAt(0)}</div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="font-bold text-gray-900 text-base group-hover:text-[#6F4BFF] transition-colors">{row.name}</span>
+                                                            <Badge variant="gray" className="text-[10px]">#{row.id}</Badge>
+                                                            {row.score === 'Hot' && <Badge variant="red" className="shadow-sm">Hot</Badge>}
+                                                            {row.score === 'Cold' && <Badge variant="blue" className="shadow-sm">Cold</Badge>}
+                                                        </div>
+                                                        <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5"><PhoneCall className="w-3 h-3" /> {row.phone}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-5">
+                                                <p className="text-sm font-bold text-gray-800">{row.budget}</p>
+                                                <p className="text-xs text-gray-500 mt-0.5">{row.propType}</p>
+                                            </td>
+                                            <td className="px-6 py-5 max-w-xs">
+                                                <div className="mb-2">{getStatusBadge(row.status)}</div>
+                                                <p className="text-xs font-medium text-gray-600 line-clamp-2" title={row.latestNote}>
+                                                    <span className="font-bold text-gray-800">Latest Note:</span> {row.latestNote || 'No recent notes.'}
+                                                </p>
+                                            </td>
+                                            <td className="px-6 py-5">
+                                                <div className={`flex items-center gap-2 text-sm font-bold ${row.nextFollowUp === 'Today' ? 'text-rose-600' : 'text-gray-800'}`}>
+                                                    <Calendar className={`w-4 h-4 ${row.nextFollowUp === 'Today' ? 'text-rose-500' : 'text-[#6F4BFF]'}`} />
+                                                    {row.nextFollowUp || 'Not Scheduled'}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-5 text-center">
+                                                <button className="w-8 h-8 rounded-lg bg-gray-100 text-gray-500 inline-flex items-center justify-center group-hover:bg-[#6F4BFF] group-hover:text-white transition-all shadow-sm">
+                                                    <ArrowRight className="w-4 h-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
                 </div>
             </main>
+
+            <Modal isOpen={isAddClientOpen} onClose={() => setIsAddClientOpen(false)} title="Register New Client">
+                <form onSubmit={(event) => { event.preventDefault(); setIsAddClientOpen(false); }}>
+                    <div className="pt-4 flex justify-end gap-3"><Button type="submit">Create</Button></div>
+                </form>
+            </Modal>
+
+            <Modal isOpen={feedbackModalOpen} onClose={() => setFeedbackModalOpen(false)} title="Log Post-Visit Feedback & Process">
+                {selectedActionClient && (
+                    <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); setFeedbackModalOpen(false); }}>
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
+                            <p className="text-sm font-bold text-gray-900">{selectedActionClient.name}</p>
+                            <p className="text-xs font-medium text-gray-600 mt-1">{selectedActionClient.actionDetails}</p>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Client Interest Level</label>
+                            <div className="grid grid-cols-3 gap-3 mt-2">
+                                {[
+                                    { value: 'Interested', icon: ThumbsUp, text: 'Interested' },
+                                    { value: 'Needs Time', icon: Clock, text: 'Needs Time' },
+                                    { value: 'Not Interested', icon: ThumbsDown, text: 'Not Interested' },
+                                ].map(({ value, icon: Icon, text }) => (
+                                    <button key={value} type="button" onClick={() => setFeedbackState({ ...feedbackState, interest: value })} className={`p-4 border rounded-xl flex flex-col items-center justify-center gap-2 transition-all shadow-sm ${feedbackState.interest === value ? 'border-[#6F4BFF] bg-[#6F4BFF]/10 text-[#6F4BFF] ring-2 ring-[#6F4BFF]/20' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                                        <Icon className="w-6 h-6" /> <span className="text-xs font-bold text-center leading-tight">{text}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Follow-up Notes & Insights</label>
+                            <textarea rows="4" value={feedbackState.notes} onChange={(event) => setFeedbackState({ ...feedbackState, notes: event.target.value })} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 text-sm font-medium" required></textarea>
+                        </div>
+                        <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+                            <Button variant="secondary" onClick={() => setFeedbackModalOpen(false)}>Cancel</Button>
+                            <Button type="submit" icon={ClipboardCheck} className="shadow-md">Update Pipeline</Button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
         </div>
     );
 };

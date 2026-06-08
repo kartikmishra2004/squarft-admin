@@ -28,12 +28,12 @@ const Branches = () => {
             <Header title="Branch & Region Management" />
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 h-full scroll-smooth">
-                <div className="max-w-[1600px] mx-auto h-full flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="max-w-[1600px] mx-auto h-full flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     
                     <div className="flex items-center justify-between shrink-0">
                         <div>
-                            <h2 className="text-3xl font-black text-gray-900 tracking-tight">Branches Overview</h2>
-                            <p className="text-gray-500 mt-1 font-medium text-sm">Control multi-city operations and track regional performance.</p>
+                            <h2 className="text-3xl font-black text-gray-900 tracking-tight">Branch & Region Management</h2>
+                            <p className="text-gray-500 mt-1 font-medium text-sm">Control multi-city operations, assign branch managers, and track regional revenue.</p>
                         </div>
                         <Button 
                             icon={Plus} 
@@ -44,7 +44,7 @@ const Branches = () => {
                         </Button>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-10">
                         {branches.map((branch, i) => (
                             <Card key={i} noPadding className="flex flex-col hover:shadow-xl hover:border-[#6F4BFF]/30 transition-all duration-300 group overflow-visible">
                                 <div className="bg-gray-50/50 p-6 border-b border-gray-100 flex justify-between items-start relative">
@@ -61,10 +61,10 @@ const Branches = () => {
                                         <Globe className="w-6 h-6" />
                                     </div>
                                 </div>
-                                <div className="p-6 flex-1 grid grid-cols-2 gap-8">
+                                <div className="p-6 flex-1 grid grid-cols-2 gap-6">
                                     <div>
                                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Branch Manager</p>
-                                        <p className="font-bold text-gray-800 flex items-center gap-2 italic"><User className="w-4 h-4 text-gray-400" /> {branch.head}</p>
+                                        <p className="font-bold text-gray-800 flex items-center gap-2"><User className="w-4 h-4 text-gray-400" /> {branch.head}</p>
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Branch Type</p>
@@ -72,10 +72,10 @@ const Branches = () => {
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Active Deals</p>
-                                        <p className="font-black text-xl text-[#6F4BFF]">{branch.activeDeals}</p>
+                                        <p className="font-black text-xl text-blue-600">{branch.activeDeals}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue</p>
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Generated Revenue</p>
                                         <p className="font-black text-xl text-emerald-600">{branch.revenue}</p>
                                     </div>
                                 </div>
@@ -90,46 +90,43 @@ const Branches = () => {
             </main>
 
             <Modal isOpen={isAddBranchOpen} onClose={() => setIsAddBranchOpen(false)} title="Setup New Branch">
-                <form onSubmit={handleAddBranch} className="space-y-6">
+                <form onSubmit={handleAddBranch} className="space-y-5">
                     <div>
-                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest">Branch Name</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Branch Name</label>
                         <input 
                             type="text" 
                             required
-                            className="w-full mt-2 border border-gray-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-bold transition-all bg-gray-50/50" 
+                            className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" 
                             placeholder="e.g. Pune Regional Office" 
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-black text-gray-500 uppercase tracking-widest">Branch Type</label>
-                            <select className="w-full mt-2 border border-gray-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-bold transition-all bg-white shadow-sm">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Branch Type</label>
+                            <select className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
                                 <option>Regional Branch</option>
                                 <option>Satellite Office</option>
-                                <option>Shared Workspace</option>
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-black text-gray-500 uppercase tracking-widest">Assign Manager</label>
-                            <select className="w-full mt-2 border border-gray-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-bold transition-all bg-white shadow-sm">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Assign Manager</label>
+                            <select className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
                                 <option>Select User...</option>
                                 <option>Rahul M.</option>
                                 <option>Sneha P.</option>
-                                <option>Amit S.</option>
                             </select>
                         </div>
                     </div>
                     <div>
-                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest">Complete Address</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Complete Address</label>
                         <textarea 
                             rows="3" 
-                            className="w-full mt-2 border border-gray-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-bold transition-all bg-gray-50/50"
-                            placeholder="Enter the full official address..."
+                            className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
                         ></textarea>
                     </div>
-                    <div className="pt-6 flex justify-end gap-3 mt-4 border-t border-gray-100">
-                        <Button variant="secondary" className="px-6" onClick={() => setIsAddBranchOpen(false)}>Cancel</Button>
-                        <Button type="submit" icon={Save} className="px-8">Create Branch</Button>
+                    <div className="pt-4 flex justify-end gap-3 mt-6 border-t border-gray-100">
+                        <Button variant="secondary" onClick={() => setIsAddBranchOpen(false)}>Cancel</Button>
+                        <Button type="submit" icon={Save}>Create Branch</Button>
                     </div>
                 </form>
             </Modal>
