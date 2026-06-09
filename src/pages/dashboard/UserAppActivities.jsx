@@ -229,6 +229,7 @@ const UserAppActivities = () => {
                                                     <h3 className="text-2xl font-black text-gray-900">{selectedUser.name}</h3>
                                                     <Badge variant={getStatusVariant(selectedUser.status)}>{selectedUser.status}</Badge>
                                                 </div>
+                                                <p className="text-xs font-black text-[#6F4BFF] uppercase tracking-widest mt-1">{selectedUser.userId}</p>
                                                 <p className="text-sm font-bold text-gray-500 mt-1 break-words">{selectedUser.email} - {selectedUser.city}</p>
                                                 <p className="text-xs font-black text-gray-400 uppercase tracking-widest mt-2">Last active: {selectedUser.lastActive}</p>
                                             </div>

@@ -24,9 +24,22 @@ const dealsSlice = createSlice({
       if (deal) {
         deal.status = status;
       }
+      if (state.selectedDeal?.dealCode === dealCode) {
+        state.selectedDeal = { ...state.selectedDeal, status };
+      }
+    },
+    updateDealDetails: (state, action) => {
+      const { dealCode, changes } = action.payload;
+      const deal = state.deals.find(d => d.dealCode === dealCode);
+      if (deal) {
+        Object.assign(deal, changes);
+      }
+      if (state.selectedDeal?.dealCode === dealCode) {
+        state.selectedDeal = { ...state.selectedDeal, ...changes };
+      }
     },
   },
 });
 
-export const { setSelectedDeal, deleteDeal, updateDealStatus } = dealsSlice.actions;
+export const { setSelectedDeal, deleteDeal, updateDealStatus, updateDealDetails } = dealsSlice.actions;
 export default dealsSlice.reducer;
