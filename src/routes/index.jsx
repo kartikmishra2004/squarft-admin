@@ -13,6 +13,7 @@ import Visits from '../pages/dashboard/Visits';
 import Deals from '../pages/dashboard/Deals';
 import UserList from '../pages/dashboard/UserList';
 import UserAppActivities from '../pages/dashboard/UserAppActivities';
+import Support from '../pages/dashboard/Support';
 import SettingsPage from '../pages/dashboard/Settings';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -93,6 +94,11 @@ const AppRoutes = () => {
         <Route path="deals" element={<Deals />} />
         <Route path="users" element={<UserList />} />
         <Route path="user-app-activities" element={<UserAppActivities />} />
+        <Route path="support" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <Support />
+          </ProtectedRoute>
+        } />
       </Route>
 
       {/* Default Redirect */}

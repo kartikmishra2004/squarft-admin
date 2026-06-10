@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Filter,
   GitBranch,
+  Headphones,
   LayoutDashboard,
   ShieldCheck,
   UserCheck,
@@ -26,6 +27,7 @@ export const adminLinks = [
   { icon: Briefcase, label: 'Deal Management', path: '/dashboard/deals' },
   { icon: UserPlus, label: 'App user list', path: '/dashboard/users' },
   { icon: Activity, label: 'User app activities', path: '/dashboard/user-app-activities' },
+  { icon: Headphones, label: 'Support Center', path: '/dashboard/support' },
 ];
 
 export const dashboardAccessTabs = [
