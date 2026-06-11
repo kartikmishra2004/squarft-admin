@@ -24,7 +24,7 @@ const Login = () => {
 
     setTimeout(() => {
       if (selectedRole === 'admin' && mobileNumber === '+919988776655' && password === 'password') {
-        dispatch(loginSuccess({ name: 'Kartik (Admin)', role: 'admin', mobile: mobileNumber }));
+        dispatch(loginSuccess({ name: 'Kartik (Admin)', role: 'admin', mobile: mobileNumber, branchId: 'B02' }));
         navigate('/dashboard');
       } else if (selectedRole === 'super_admin' && mobileNumber === '+917788996655' && password === 'password') {
         dispatch(loginSuccess({ name: 'Owner (Super Admin)', role: 'super_admin', mobile: mobileNumber }));

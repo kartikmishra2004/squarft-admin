@@ -9,6 +9,7 @@ import visitsReducer from './visitsSlice'
 import dealsReducer from './dealsSlice'
 import usersReducer from './usersSlice'
 import tasksReducer from './tasksSlice'
+import rolesReducer from './rolesSlice'
 
 export const store = configureStore({
   reducer: {
@@ -22,5 +23,6 @@ export const store = configureStore({
     deals: dealsReducer,
     users: usersReducer,
     tasks: tasksReducer,
+    roles: rolesReducer,
   },
 })
