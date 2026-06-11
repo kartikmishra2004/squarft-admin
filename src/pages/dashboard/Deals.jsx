@@ -597,7 +597,7 @@ const DealDetailView = ({ deal, onBack }) => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className={deal.broker && deal.broker !== '-' ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6" : "grid grid-cols-1 md:grid-cols-3 gap-6"}>
                         <Card className="p-6 border-gray-100">
                             <div className="flex justify-between items-start mb-6 border-b border-gray-50 pb-4">
                                 <h3 className="font-black text-gray-400 uppercase tracking-widest text-[10px]">DEAL OVERVIEW</h3>
@@ -666,6 +666,60 @@ const DealDetailView = ({ deal, onBack }) => {
                                 </Button>
                             </div>
                         </Card>
+
+                        {deal.broker && deal.broker !== '-' && (
+                            <Card className="p-6 border-gray-100 hover:shadow-xl transition-all duration-300">
+                                <h3 className="font-black text-gray-400 uppercase tracking-widest text-[10px] mb-6 border-b border-gray-50 pb-4">BROKER COMMISSION</h3>
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="p-1.5 rounded-lg bg-[#6F4BFF]/10 text-[#6F4BFF]">
+                                            <IndianRupee className="w-4.5 h-4.5" />
+                                        </div>
+                                        <p className="font-black text-gray-800 uppercase tracking-widest text-xs">Payout Details</p>
+                                    </div>
+                                    
+                                    <div className="space-y-3.5 text-sm">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 font-bold uppercase text-[10px]">Broker Name:</span>
+                                            <span className="font-black text-gray-800">{deal.broker}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 font-bold uppercase text-[10px]">Commission Rate:</span>
+                                            <span className="font-black text-indigo-600">2.0 %</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-3 border-t border-gray-50">
+                                            <span className="text-gray-400 font-bold uppercase text-[10px]">Payout Amount:</span>
+                                            <span className="font-black text-emerald-600 text-lg">
+                                                ₹ {((deal.negotiationPrice || deal.expectPrice) * 0.02).toLocaleString('en-IN')}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 font-bold uppercase text-[10px]">Payout Status:</span>
+                                            <Badge variant={deal.commissionStatus === 'Paid' ? 'green' : 'yellow'}>
+                                                {deal.commissionStatus || 'Pending'}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="pt-4 border-t border-gray-50 mt-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newStatus = deal.commissionStatus === 'Paid' ? 'Pending' : 'Paid';
+                                                updateDeal({ commissionStatus: newStatus });
+                                            }}
+                                            className={`w-full py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg border transition-all cursor-pointer ${
+                                                deal.commissionStatus === 'Paid'
+                                                    ? 'border-amber-200 bg-amber-50/60 text-amber-700 hover:bg-amber-100/80'
+                                                    : 'border-emerald-200 bg-emerald-50/60 text-emerald-700 hover:bg-emerald-100/80'
+                                            }`}
+                                        >
+                                            {deal.commissionStatus === 'Paid' ? 'Mark as Pending' : 'Mark as Paid'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </Card>
+                        )}
                     </div>
 
                     <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden animate-in fade-in duration-500">
