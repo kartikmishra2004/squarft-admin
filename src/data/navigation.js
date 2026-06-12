@@ -7,6 +7,7 @@ import {
   GitBranch,
   Headphones,
   LayoutDashboard,
+  PanelsTopLeft,
   ShieldCheck,
   UserCheck,
   UserPlus,
@@ -27,6 +28,7 @@ export const adminLinks = [
   { icon: Briefcase, label: 'Deal Management', path: '/dashboard/deals' },
   { icon: UserPlus, label: 'App user list', path: '/dashboard/users' },
   { icon: Activity, label: 'User app activities', path: '/dashboard/user-app-activities' },
+  { icon: PanelsTopLeft, label: 'Panel Overview', path: '/dashboard/panel-overview' },
   { icon: Headphones, label: 'Support Center', path: '/dashboard/support' },
 ];
 

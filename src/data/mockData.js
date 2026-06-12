@@ -166,14 +166,19 @@ export const mockDeals = [
 
 export const mockUsers = [
       { id: 'U001', name: 'Rizwan Khan', type: 'Sales_officer', phone: '9424654160', docStatus: 'Approved' },
-      { id: 'U002', name: 'SquarFT106', type: 'Field_officer', phone: '8224000106', docStatus: 'Pending' },
+      { id: 'U002', name: 'Marcus Holloway', type: 'Field_officer', phone: '8224000106', docStatus: 'Approved', area: 'South District', zone: 'Zone A-1', latitude: 22.7196, longitude: 75.8577, speed: 4.2, distanceToday: 24.5, battery: 88, lastSync: '2s ago', score: 98, currentLocation: 'Palasia, Indore' },
       { id: 'U003', name: 'Sales Officer', type: 'Sales_officer', phone: '9302569085', docStatus: 'Approved' },
       { id: 'U004', name: 'Anil', type: 'Broker', phone: '9165993939', docStatus: 'Rejected' },
       { id: 'U005', name: 'Fff', type: 'Sales_officer', phone: '8889998258', docStatus: 'Approved' },
       { id: 'U006', name: 'Rajesh Gurjar', type: 'Sales_officer', phone: '8224004000', docStatus: 'Pending' },
+      { id: 'U007', name: 'Sarah Connor', type: 'Field_officer', phone: '8224000107', docStatus: 'Approved', area: 'North Ridge', zone: 'Zone B-4', latitude: 22.7528, longitude: 75.8937, speed: 12.5, distanceToday: 20.9, battery: 24, lastSync: '14m ago', score: 82, currentLocation: 'Rau Road, Indore' },
+      { id: 'U008', name: 'Amit Verma', type: 'Field_officer', phone: '8224000108', docStatus: 'Pending', area: 'Central Circle', zone: 'Zone C-2', latitude: 22.6924, longitude: 75.8790, speed: 8.8, distanceToday: 17.3, battery: 76, lastSync: '18m ago', score: 91, currentLocation: 'Vijay Nagar, Indore' },
+      { id: 'U009', name: 'Priya Nair', type: 'Field_officer', phone: '8224000109', docStatus: 'Approved', area: 'East Corridor', zone: 'Zone D-3', latitude: 22.7359, longitude: 75.9176, speed: 6.1, distanceToday: 15.8, battery: 63, lastSync: '22m ago', score: 87, currentLocation: 'Bypass Road, Indore' },
+      { id: 'U010', name: 'Kabir Mehta', type: 'Field_officer', phone: '8224000110', docStatus: 'Approved', area: 'West Bypass', zone: 'Zone A-1', latitude: 22.6855, longitude: 75.8236, speed: 5.4, distanceToday: 13.6, battery: 71, lastSync: '26m ago', score: 84, currentLocation: 'Rajendra Nagar, Indore' },
+      { id: 'U011', name: 'Neha Kulkarni', type: 'Field_officer', phone: '8224000111', docStatus: 'Pending', area: 'Metro Fringe', zone: 'Zone B-4', latitude: 22.7611, longitude: 75.8371, speed: 7.2, distanceToday: 12.1, battery: 57, lastSync: '31m ago', score: 79, currentLocation: 'Choithram Mandi, Indore' },
   ];
 
-  export const userAppActivities = [
+export const userAppActivities = [
       {
           id: 'UA001',
           userId: 'APP-U001',
@@ -280,6 +285,160 @@ export const mockUsers = [
           ],
       },
   ];
+
+export const panelOverviewByStatus = {
+    draft: {
+        label: 'Draft',
+        metrics: [
+            { key: 'pendingKyc', title: 'Pending KYC', value: 24, change: '+3 today', color: '#8D3106', progress: 64 },
+            { key: 'activePanelUsers', title: 'Active panel users', value: 1248, change: '98.2%', color: '#2717D7', progress: 92 },
+            { key: 'inOnboarding', title: 'In onboarding', value: 42, change: '12 new', color: '#655D98', progress: 46 },
+            { key: 'fieldMeetings', title: 'Field meetings', value: 18, change: 'Today', color: '#2A2535', progress: 38 },
+        ],
+    },
+    submitted: {
+        label: 'Submitted',
+        metrics: [
+            { key: 'pendingKyc', title: 'Pending KYC', value: 18, change: '-6', color: '#8D3106', progress: 48 },
+            { key: 'activePanelUsers', title: 'Active panel users', value: 1316, change: '96.8%', color: '#2717D7', progress: 88 },
+            { key: 'inOnboarding', title: 'In onboarding', value: 57, change: '21 new', color: '#655D98', progress: 58 },
+            { key: 'fieldMeetings', title: 'Field meetings', value: 26, change: 'Today', color: '#2A2535', progress: 52 },
+        ],
+    },
+    adminApproved: {
+        label: 'Admin approved',
+        metrics: [
+            { key: 'pendingKyc', title: 'Pending KYC', value: 8, change: 'Urgent', color: '#C40018', progress: 28 },
+            { key: 'activePanelUsers', title: 'Active panel users', value: 1184, change: '94.4%', color: '#2717D7', progress: 84 },
+            { key: 'inOnboarding', title: 'In onboarding', value: 31, change: '7 new', color: '#655D98', progress: 36 },
+            { key: 'fieldMeetings', title: 'Field meetings', value: 21, change: 'Today', color: '#2A2535', progress: 44 },
+        ],
+    },
+    live: {
+        label: 'Live',
+        metrics: [
+            { key: 'pendingKyc', title: 'Pending KYC', value: 5, change: 'Clear', color: '#04622E', progress: 18 },
+            { key: 'activePanelUsers', title: 'Active panel users', value: 1420, change: '99.1%', color: '#2717D7', progress: 96 },
+            { key: 'inOnboarding', title: 'In onboarding', value: 16, change: '4 new', color: '#655D98', progress: 22 },
+            { key: 'fieldMeetings', title: 'Field meetings', value: 34, change: 'Today', color: '#2A2535', progress: 62 },
+        ],
+    },
+};
+
+export const panelWorkflowByStatus = {
+    draft: {
+        fieldOfficer: {
+            label: 'Field officer',
+            approveLabel: 'Approve project',
+            stages: [
+                { title: 'Meeting', count: 14, status: 'Active', note: 'Project intro and site discussion pending' },
+                { title: 'Followup', count: 9, status: 'Pending', note: 'Waiting on owner confirmation' },
+                { title: 'Onboarding', count: 11, status: 'Draft', note: 'Officer details being collected' },
+                { title: 'Task management', count: 7, status: 'Open', note: 'Tasks assigned to field teams' },
+                { title: 'Approved', count: 3, status: 'Approved', note: 'Ready for admin handoff' },
+            ],
+        },
+        projectPanel: {
+            label: 'Project Panel',
+            approveLabel: 'Approve project',
+            stages: [
+                { title: 'KYC Approved', count: 8, status: 'Pending', note: 'Builder KYC documents under review' },
+                {
+                    title: 'Onboarding states',
+                    count: 22,
+                    status: 'In progress',
+                    note: 'Project form progress from project panel',
+                    subStages: ['Basic Details', 'Property Type', 'Property Detail', 'Approvals', 'Finance', 'Image & Price'],
+                },
+                { title: 'Approved', count: 4, status: 'Approved', note: 'Approved projects waiting to go live' },
+            ],
+        },
+    },
+    submitted: {
+        fieldOfficer: {
+            label: 'Field officer',
+            approveLabel: 'Approve project',
+            stages: [
+                { title: 'Meeting', count: 21, status: 'Done', note: 'Site meeting records submitted' },
+                { title: 'Followup', count: 16, status: 'Active', note: 'Second-level followups in progress' },
+                { title: 'Onboarding', count: 19, status: 'Submitted', note: 'Officer onboarding forms submitted' },
+                { title: 'Task management', count: 13, status: 'Open', note: 'Tasks pending admin validation' },
+                { title: 'Approved', count: 6, status: 'Approved', note: 'Cleared by branch team' },
+            ],
+        },
+        projectPanel: {
+            label: 'Project Panel',
+            approveLabel: 'Approve project',
+            stages: [
+                { title: 'KYC Approved', count: 14, status: 'Submitted', note: 'KYC packet sent for admin review' },
+                {
+                    title: 'Onboarding states',
+                    count: 31,
+                    status: 'Submitted',
+                    note: 'Project details submitted from panel',
+                    subStages: ['Basic Details', 'Property Type', 'Property Detail', 'Approvals', 'Finance', 'Image & Price'],
+                },
+                { title: 'Approved', count: 9, status: 'Approved', note: 'Approved after submission checks' },
+            ],
+        },
+    },
+    adminApproved: {
+        fieldOfficer: {
+            label: 'Field officer',
+            approveLabel: 'Approve project',
+            stages: [
+                { title: 'Meeting', count: 12, status: 'Verified', note: 'Meeting proof verified by admin' },
+                { title: 'Followup', count: 8, status: 'Verified', note: 'Followup notes checked' },
+                { title: 'Onboarding', count: 15, status: 'Approved', note: 'Officer onboarding approved' },
+                { title: 'Task management', count: 10, status: 'Review', note: 'Tasks ready for final closure' },
+                { title: 'Approved', count: 11, status: 'Approved', note: 'Admin-approved project handoff' },
+            ],
+        },
+        projectPanel: {
+            label: 'Project Panel',
+            approveLabel: 'Approve project',
+            stages: [
+                { title: 'KYC Approved', count: 18, status: 'Approved', note: 'KYC cleared by admin' },
+                {
+                    title: 'Onboarding states',
+                    count: 26,
+                    status: 'Admin approved',
+                    note: 'All main project form sections reviewed',
+                    subStages: ['Basic Details', 'Property Type', 'Property Detail', 'Approvals', 'Finance', 'Image & Price'],
+                },
+                { title: 'Approved', count: 18, status: 'Approved', note: 'Ready for live publish approval' },
+            ],
+        },
+    },
+    live: {
+        fieldOfficer: {
+            label: 'Field officer',
+            approveLabel: 'Approve project',
+            stages: [
+                { title: 'Meeting', count: 28, status: 'Closed', note: 'Live project meetings completed' },
+                { title: 'Followup', count: 19, status: 'Active', note: 'Live lead followups running' },
+                { title: 'Onboarding', count: 6, status: 'Closed', note: 'Officer onboarding completed' },
+                { title: 'Task management', count: 24, status: 'Live', note: 'Live project task board active' },
+                { title: 'Approved', count: 34, status: 'Approved', note: 'Approved and visible in operations' },
+            ],
+        },
+        projectPanel: {
+            label: 'Project Panel',
+            approveLabel: 'Approve project',
+            stages: [
+                { title: 'KYC Approved', count: 31, status: 'Approved', note: 'KYC complete for live projects' },
+                {
+                    title: 'Onboarding states',
+                    count: 18,
+                    status: 'Live',
+                    note: 'Live projects with completed panel onboarding',
+                    subStages: ['Basic Details', 'Property Type', 'Property Detail', 'Approvals', 'Finance', 'Image & Price'],
+                },
+                { title: 'Approved', count: 34, status: 'Live', note: 'Project approved and live' },
+            ],
+        },
+    },
+};
 
 export const mockVisits = [
     { id: 'V001', officerName: 'Manas', officerPhone: '7691962521', customerName: 'Vikash Singh', customerPhone: '8225000092', purpose: 'BUY', date: '05/04/26', time: '10:00 - 11:00 AM', status: 'Scheduled', property: { name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '3BHK Premium', address: 'Andheri West, Mumbai', price: '₹ 1.85 Cr' }, notes: 'Client highly interested.' },
