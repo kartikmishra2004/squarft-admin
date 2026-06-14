@@ -14,6 +14,7 @@ import Deals from '../pages/dashboard/Deals';
 import UserList from '../pages/dashboard/UserList';
 import UserAppActivities from '../pages/dashboard/UserAppActivities';
 import PanelOverview from '../pages/dashboard/PanelOverview';
+import BrokerCommission from '../pages/dashboard/BrokerCommission';
 import NotificationCenter from '../pages/dashboard/NotificationCenter';
 import Support from '../pages/dashboard/Support';
 import SettingsPage from '../pages/dashboard/Settings';
@@ -99,6 +100,11 @@ const AppRoutes = () => {
         <Route path="panel-overview" element={
           <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
             <PanelOverview />
+          </ProtectedRoute>
+        } />
+        <Route path="broker-commission" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <BrokerCommission />
           </ProtectedRoute>
         } />
         <Route path="notifications" element={
