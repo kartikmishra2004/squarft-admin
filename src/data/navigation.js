@@ -1,5 +1,6 @@
 import {
   Activity,
+  BellRing,
   Briefcase,
   Building2,
   CalendarDays,
@@ -29,6 +30,7 @@ export const adminLinks = [
   { icon: UserPlus, label: 'App user list', path: '/dashboard/users' },
   { icon: Activity, label: 'User app activities', path: '/dashboard/user-app-activities' },
   { icon: PanelsTopLeft, label: 'Panel Overview', path: '/dashboard/panel-overview' },
+  { icon: BellRing, label: 'Custom Notifications', path: '/dashboard/notifications' },
   { icon: Headphones, label: 'Support Center', path: '/dashboard/support' },
 ];
 
