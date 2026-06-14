@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import {
     AlertCircle,
     ArrowUpRight,
+    Bot,
     Building2,
     CheckCircle2,
     Clock3,
