@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import {
     AlertCircle,
-    ArrowUpRight,
     Bot,
     Building2,
     CheckCircle2,
@@ -176,92 +175,6 @@ const supportTickets = [
     }
 ];
 
-const userSupportRequests = [
-    {
-        id: 'USR-8812',
-        requester: 'Riya Mehta',
-        role: 'Customer',
-        app: 'Customer App',
-        request: 'Refund hold after visit reschedule',
-        category: 'Payments',
-        contact: '+91 99887 76655',
-        channel: 'Chat',
-        device: 'Android 14',
-        owner: 'Front Desk',
-        sla: '12m left',
-        status: 'Urgent',
-    },
-    {
-        id: 'USR-8811',
-        requester: 'Elite Realty',
-        role: 'Broker',
-        app: 'Broker App',
-        request: 'KYC rejection reason needed',
-        category: 'Verification',
-        contact: 'broker@squarft.com',
-        channel: 'Email',
-        device: 'iPhone 15',
-        owner: 'KYC Desk',
-        sla: '42m left',
-        status: 'Open',
-    },
-    {
-        id: 'USR-8810',
-        requester: 'Amit Sharma',
-        role: 'Sales Officer',
-        app: 'Sales Officer',
-        request: 'Assigned lead missing from today list',
-        category: 'Lead Flow',
-        contact: '+91 77889 96655',
-        channel: 'Call',
-        device: 'Android 13',
-        owner: 'Nisha Rao',
-        sla: '1h left',
-        status: 'Open',
-    },
-    {
-        id: 'USR-8809',
-        requester: 'North Zone Team',
-        role: 'Project Admin',
-        app: 'Project Panel',
-        request: 'Inventory CSV upload stuck at variant mapping',
-        category: 'Inventory',
-        contact: 'northzone@squarft.com',
-        channel: 'Form',
-        device: 'Chrome Windows',
-        owner: 'Technical Queue',
-        sla: 'Overdue',
-        status: 'Escalated',
-    },
-    {
-        id: 'USR-8808',
-        requester: 'Rahul Jain',
-        role: 'Field Officer',
-        app: 'Field Officer',
-        request: 'Voice note not saving after project visit',
-        category: 'Media Upload',
-        contact: '+91 88776 65544',
-        channel: 'Chat',
-        device: 'Android 12',
-        owner: 'Technical Queue',
-        sla: '2h left',
-        status: 'Open',
-    },
-    {
-        id: 'USR-8807',
-        requester: 'Priya Nair',
-        role: 'Customer',
-        app: 'Customer App',
-        request: 'Cannot download booking receipt',
-        category: 'Documents',
-        contact: 'priya@example.com',
-        channel: 'Email',
-        device: 'Safari iOS',
-        owner: 'Front Desk',
-        sla: '3h left',
-        status: 'Open',
-    },
-];
 
 const channels = [
     { label: 'Chat', value: '94', icon: MessageSquare, detail: 'Live conversations' },
@@ -270,11 +183,6 @@ const channels = [
     { label: 'Forms', value: '19', icon: FileText, detail: 'In-app requests' },
 ];
 
-const manualTeams = [
-    { name: 'Front Desk', load: 68, available: 5, color: '#2512D9' },
-    { name: 'KYC Desk', load: 54, available: 3, color: '#6B679E' },
-    { name: 'Technical Queue', load: 82, available: 2, color: '#B41212' },
-];
 
 const Panel = ({ children, className = '' }) => (
     <section className={`rounded-[8px] border border-[#C8C2DD] bg-white shadow-[0_1px_0_rgba(53,38,110,0.03)] ${className}`}>
@@ -313,22 +221,26 @@ const Support = () => {
     const clients = useSelector((state) => state.clients.clients);
     const visits = useSelector((state) => state.visits.visits);
     const deals = useSelector((state) => state.deals.deals);
+    const [tickets, setTickets] = useState(supportTickets);
     const [selectedTicketId, setSelectedTicketId] = useState(supportTickets[0].id);
     const [activeQueue, setActiveQueue] = useState('All');
     const [selectedApp, setSelectedApp] = useState('All Apps');
 
-    const visibleTickets = supportTickets.filter((ticket) => {
+    const handleResolveTicket = (ticketId) => {
+        setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, status: 'Resolved' } : t)));
+    };
+
+    const visibleTickets = tickets.filter((ticket) => {
         const queueMatch = activeQueue === 'All' || ticket.status === activeQueue || ticket.channel === activeQueue;
         const appMatch = selectedApp === 'All Apps' || ticket.app === selectedApp;
         return queueMatch && appMatch;
     });
-    const visibleRequests = userSupportRequests.filter((request) => selectedApp === 'All Apps' || request.app === selectedApp);
 
     const supportMetrics = useMemo(() => {
         const totalOpen = supportApps.reduce((sum, app) => sum + app.open, 0);
         const requestsToday = supportApps.reduce((sum, app) => sum + app.today, 0);
-        const manualTickets = supportTickets.filter((ticket) => ticket.status !== 'AI handled').length;
-        const urgentTickets = supportTickets.filter((ticket) => ticket.priority === 'P1').length;
+        const manualTickets = tickets.filter((ticket) => ticket.status !== 'AI handled' && ticket.status !== 'Resolved').length;
+        const urgentTickets = tickets.filter((ticket) => ticket.priority === 'P1' && ticket.status !== 'Resolved').length;
         const ecosystemUsers = users.length + clients.length + visits.length + deals.length;
 
         return {
@@ -338,7 +250,7 @@ const Support = () => {
             urgentTickets,
             ecosystemUsers,
         };
-    }, [clients.length, deals.length, users.length, visits.length]);
+    }, [clients.length, deals.length, users.length, visits.length, tickets]);
 
     const roleLabel = user?.role === 'super_admin' ? 'Super Admin' : 'Admin';
 
@@ -349,7 +261,6 @@ const Support = () => {
                     <div>
                         <div className="mb-2 flex flex-wrap items-center gap-2">
                             <StatusPill tone="open">{roleLabel} Access</StatusPill>
-                            <StatusPill tone="resolved">Manual Support Desk</StatusPill>
                         </div>
                         <h1 className="text-[30px] font-black leading-tight tracking-normal text-black md:text-[38px]">Support Center</h1>
                         <p className="mt-1 max-w-[720px] text-sm font-medium text-[#342E45]">
@@ -406,59 +317,57 @@ const Support = () => {
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="w-full min-w-[860px] text-left">
-                                <thead className="bg-[#F2EEFA] text-[11px] uppercase tracking-[0.14em] text-[#171327]">
-                                    <tr>
-                                        <th className="px-5 py-4 font-black">Case</th>
-                                        <th className="px-5 py-4 font-black">App</th>
-                                        <th className="px-5 py-4 font-black">Priority</th>
-                                        <th className="px-5 py-4 font-black">Owner</th>
-                                        <th className="px-5 py-4 font-black">Age</th>
-                                        <th className="px-5 py-4 font-black">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#D8D3E6]">
-                                    {visibleTickets.map((ticket) => {
-                                        const tone = ticket.status === 'Urgent'
-                                            ? 'urgent'
-                                            : ticket.status === 'Escalated'
-                                                ? 'escalated'
-                                                    : ticket.status === 'AI handled'
-                                                        ? 'resolved'
-                                                        : 'open';
+                        <div className="divide-y divide-[#D8D3E6] max-h-[500px] overflow-y-auto">
+                            {visibleTickets.map((ticket) => {
+                                const tone = ticket.status === 'Urgent'
+                                    ? 'urgent'
+                                    : ticket.status === 'Escalated'
+                                        ? 'escalated'
+                                            : ticket.status === 'AI handled' || ticket.status === 'Resolved'
+                                                ? 'resolved'
+                                                : 'open';
 
-                                        return (
-                                            <tr
-                                                key={ticket.id}
-                                                onClick={() => setSelectedTicketId(ticket.id)}
-                                                className={`cursor-pointer align-top transition hover:bg-[#FBFAFF] ${
-                                                    selectedTicketId === ticket.id ? 'bg-[#F8F5FF]' : 'bg-white'
-                                                }`}
-                                            >
-                                                <td className="px-5 py-5">
-                                                    <p className="text-sm font-black text-[#15111F]">{ticket.topic}</p>
-                                                    <p className="mt-1 text-xs font-bold text-[#6F687F]">{ticket.id} . {ticket.customer}</p>
-                                                </td>
-                                                <td className="px-5 py-5 text-sm font-bold">{ticket.app}</td>
-                                                <td className="px-5 py-5">
-                                                    <div className="flex items-center gap-2">
-                                                        <StatusPill tone={tone}>{ticket.status}</StatusPill>
-                                                        <span className="text-xs font-black">{ticket.priority}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-5 text-sm font-bold">{ticket.owner}</td>
-                                                <td className="px-5 py-5 text-sm font-black text-[#B41212]">{ticket.age}</td>
-                                                <td className="px-5 py-5">
-                                                    <button className="grid h-9 w-9 place-items-center rounded-[8px] bg-[#F0EDFA] text-[#2512D9]" aria-label={`Open ${ticket.id}`}>
-                                                        <ArrowUpRight size={17} />
+                                return (
+                                    <div
+                                        key={ticket.id}
+                                        onClick={() => setSelectedTicketId(ticket.id)}
+                                        className={`p-4 transition hover:bg-[#FBFAFF] cursor-pointer flex flex-col gap-2 ${
+                                            selectedTicketId === ticket.id ? 'bg-[#F8F5FF]' : 'bg-white'
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-black text-[#15111F]">{ticket.topic}</p>
+                                                <p className="mt-1 text-xs text-[#524B64] font-medium leading-relaxed">{ticket.summary}</p>
+                                            </div>
+                                            <div className="shrink-0 flex items-center gap-2">
+                                                <StatusPill tone={tone}>{ticket.status}</StatusPill>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
+                                            <p className="text-[11px] font-bold text-[#6F687F]">
+                                                From: <span className="text-[#15111F] font-black">{ticket.customer}</span> ({ticket.app})
+                                            </p>
+                                            <div className="flex items-center gap-3">
+                                                {ticket.status !== 'Resolved' && ticket.status !== 'AI handled' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleResolveTicket(ticket.id);
+                                                        }}
+                                                        className="px-3 py-1 rounded-[6px] bg-[#0C6B39] hover:bg-[#094d29] text-white text-[10px] font-black uppercase tracking-wider transition shadow-sm"
+                                                    >
+                                                        Resolve
                                                     </button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                                )}
+                                                <span className="text-[10px] font-black text-[#6F687F] bg-[#F0EDFA] px-2 py-0.5 rounded">{ticket.id}</span>
+                                                <span className="text-[11px] font-black text-[#B41212]">{ticket.age} ago</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </Panel>
 
@@ -477,24 +386,26 @@ const Support = () => {
                             {supportApps.map((app) => (
                                 <button
                                     key={app.key}
+                                    type="button"
                                     onClick={() => setSelectedApp(selectedApp === app.name ? 'All Apps' : app.name)}
-                                    className={`grid w-full gap-4 rounded-[8px] border p-4 text-left transition sm:grid-cols-[42px_1fr_auto] sm:items-center ${
+                                    className={`w-full flex items-center justify-between p-3.5 rounded-[8px] border transition text-left ${
                                         selectedApp === app.name ? 'border-[#2512D9] bg-[#F8F5FF]' : 'border-[#D8D3E6] bg-white hover:bg-[#FBFAFF]'
                                     }`}
                                 >
-                                    <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#F0EDFF] text-[#2512D9]">
-                                        {app.name.includes('Project') ? <Building2 size={20} /> : app.name.includes('Customer') ? <Smartphone size={20} /> : <ShieldCheck size={20} />}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="font-black">{app.name}</p>
-                                        <p className="text-xs font-bold text-[#6F687F]">{app.key} . {app.users} users . {app.today} today</p>
-                                        <div className="mt-3 h-2 rounded-full bg-[#F0EDFA]">
-                                            <div className="h-full rounded-full bg-[#2512D9]" style={{ width: `${app.resolution}%` }} />
+                                    <div className="min-w-0 flex items-center gap-3">
+                                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-[#F0EDFF] text-[#2512D9]">
+                                            {app.name.includes('Project') ? <Building2 size={18} /> : app.name.includes('Customer') ? <Smartphone size={18} /> : <ShieldCheck size={18} />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="font-black text-sm text-[#15111F]">{app.name}</p>
+                                            <p className="text-[11px] font-bold text-[#6F687F] mt-0.5">{app.users} users . {app.today} today</p>
                                         </div>
                                     </div>
-                                    <div className="sm:text-right">
+                                    <div className="flex items-center gap-2 shrink-0">
                                         <StatusPill tone="neutral">{app.open} open</StatusPill>
-                                        <p className={`mt-2 inline-block rounded-[4px] px-2 py-1 text-[11px] font-black ${app.tone}`}>{app.health}</p>
+                                        <span className={`rounded-[4px] px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${app.tone}`}>
+                                            {app.health}
+                                        </span>
                                     </div>
                                 </button>
                             ))}
@@ -502,113 +413,43 @@ const Support = () => {
                     </Panel>
                 </div>
 
-                <div className="mt-7 grid gap-6 xl:grid-cols-[0.86fr_1.14fr]">
+                <div className="mt-7 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
                     <Panel className="p-5">
-                        <div className="mb-5 flex items-center justify-between">
-                            <div>
-                                <h2 className="text-2xl font-black">App Coverage</h2>
-                                <p className="mt-1 text-xs font-bold text-[#6F687F]">Support health by product surface</p>
-                            </div>
-                            <button className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#F0EDFA] text-[#2512D9]" aria-label="Refresh support health">
-                                <RefreshCw size={18} />
-                            </button>
-                        </div>
-
-                        <div className="space-y-3">
-                            {supportApps.map((app) => (
-                                <button
-                                    key={app.key}
-                                    onClick={() => setSelectedApp(selectedApp === app.name ? 'All Apps' : app.name)}
-                                    className={`grid w-full gap-4 rounded-[8px] border p-4 text-left transition sm:grid-cols-[42px_1fr_auto] sm:items-center ${
-                                        selectedApp === app.name ? 'border-[#2512D9] bg-[#F8F5FF]' : 'border-[#D8D3E6] bg-white hover:bg-[#FBFAFF]'
-                                    }`}
-                                >
-                                    <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#F0EDFF] text-[#2512D9]">
-                                        {app.name.includes('Project') ? <Building2 size={20} /> : app.name.includes('Customer') ? <Smartphone size={20} /> : <ShieldCheck size={20} />}
+                        <h2 className="mb-5 text-2xl font-black">Channels</h2>
+                        <div className="grid grid-cols-2 gap-3">
+                            {channels.map(({ label, value, icon: Icon, detail }) => (
+                                <div key={label} className="rounded-[8px] border border-[#D8D3E6] p-4">
+                                    <div className="mb-5 flex items-center justify-between">
+                                        <Icon size={19} className="text-[#2512D9]" />
+                                        <p className="text-[28px] font-black leading-none">{value}</p>
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="font-black">{app.name}</p>
-                                        <p className="text-xs font-bold text-[#6F687F]">{app.key} . {app.users} users</p>
-                                        <div className="mt-3 h-2 rounded-full bg-[#F0EDFA]">
-                                            <div className="h-full rounded-full bg-[#2512D9]" style={{ width: `${app.aiRate}%` }} />
-                                        </div>
-                                    </div>
-                                    <div className="sm:text-right">
-                                        <StatusPill tone="neutral">{app.open} open</StatusPill>
-                                        <p className={`mt-2 inline-block rounded-[4px] px-2 py-1 text-[11px] font-black ${app.tone}`}>{app.health}</p>
-                                    </div>
-                                </button>
+                                    <p className="font-black">{label}</p>
+                                    <p className="text-xs font-bold text-[#6F687F]">{detail}</p>
+                                </div>
                             ))}
                         </div>
                     </Panel>
 
-                    <div className="grid gap-6">
-                        <Panel className="p-5">
-                            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                    <h2 className="text-2xl font-black">Manual Support Desk</h2>
-                                    <p className="mt-1 text-xs font-bold text-[#6F687F]">Agent load, ownership, and callback readiness</p>
-                                </div>
-                                <button className="flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#2512D9] px-4 text-xs font-black text-white">
-                                    <UserRoundCheck size={16} /> Assign Agent
-                                </button>
-                            </div>
-
-                            <div className="grid gap-4 md:grid-cols-3">
-                                {manualTeams.map((team) => (
-                                    <div key={team.name} className="rounded-[8px] border border-[#D8D3E6] p-4">
-                                        <div className="mb-4 flex items-center justify-between">
-                                            <p className="font-black">{team.name}</p>
-                                            <span className="text-xs font-black text-[#2512D9]">{team.available} online</span>
-                                        </div>
-                                        <div className="h-2 rounded-full bg-[#F0EDFA]">
-                                            <div className="h-full rounded-full" style={{ width: `${team.load}%`, backgroundColor: team.color }} />
-                                        </div>
-                                        <p className="mt-3 text-xs font-bold text-[#6F687F]">{team.load}% queue load</p>
+                    <Panel className="p-5">
+                        <h2 className="mb-5 text-2xl font-black">SLA Timeline</h2>
+                        <div className="space-y-5">
+                            {[
+                                { icon: Clock3, title: 'First response', value: '2m 18s', tone: 'text-[#2512D9]' },
+                                { icon: Bot, title: 'AI triage complete', value: '74%', tone: 'text-[#0C6B39]' },
+                                { icon: Headphones, title: 'Manual handoff', value: '9m avg', tone: 'text-[#A15A00]' },
+                                { icon: CheckCircle2, title: 'Resolved today', value: '126 cases', tone: 'text-[#0C6B39]' },
+                            ].map(({ icon: Icon, title, value, tone }, index) => (
+                                <div key={title} className="grid grid-cols-[28px_1fr_auto] items-center gap-3">
+                                    <div className="relative grid h-7 w-7 place-items-center rounded-full border border-[#BDB5FF]">
+                                        <Icon size={15} className={tone} />
+                                        {index < 3 && <span className="absolute top-7 h-5 w-px bg-[#D8D3E6]" />}
                                     </div>
-                                ))}
-                            </div>
-                        </Panel>
-
-                        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-                            <Panel className="p-5">
-                                <h2 className="mb-5 text-2xl font-black">Channels</h2>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {channels.map(({ label, value, icon: Icon, detail }) => (
-                                        <div key={label} className="rounded-[8px] border border-[#D8D3E6] p-4">
-                                            <div className="mb-5 flex items-center justify-between">
-                                                <Icon size={19} className="text-[#2512D9]" />
-                                                <p className="text-[28px] font-black leading-none">{value}</p>
-                                            </div>
-                                            <p className="font-black">{label}</p>
-                                            <p className="text-xs font-bold text-[#6F687F]">{detail}</p>
-                                        </div>
-                                    ))}
+                                    <p className="text-sm font-bold text-[#211B31]">{title}</p>
+                                    <p className="text-sm font-black">{value}</p>
                                 </div>
-                            </Panel>
-
-                            <Panel className="p-5">
-                                <h2 className="mb-5 text-2xl font-black">SLA Timeline</h2>
-                                <div className="space-y-5">
-                                    {[
-                                        { icon: Clock3, title: 'First response', value: '2m 18s', tone: 'text-[#2512D9]' },
-                                        { icon: Bot, title: 'AI triage complete', value: '74%', tone: 'text-[#0C6B39]' },
-                                        { icon: Headphones, title: 'Manual handoff', value: '9m avg', tone: 'text-[#A15A00]' },
-                                        { icon: CheckCircle2, title: 'Resolved today', value: '126 cases', tone: 'text-[#0C6B39]' },
-                                    ].map(({ icon: Icon, title, value, tone }, index) => (
-                                        <div key={title} className="grid grid-cols-[28px_1fr_auto] items-center gap-3">
-                                            <div className="relative grid h-7 w-7 place-items-center rounded-full border border-[#BDB5FF]">
-                                                <Icon size={15} className={tone} />
-                                                {index < 3 && <span className="absolute top-7 h-5 w-px bg-[#D8D3E6]" />}
-                                            </div>
-                                            <p className="text-sm font-bold text-[#211B31]">{title}</p>
-                                            <p className="text-sm font-black">{value}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </Panel>
+                            ))}
                         </div>
-                    </div>
+                    </Panel>
                 </div>
             </main>
         </div>

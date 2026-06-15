@@ -15,6 +15,7 @@ import Header from '../../components/layout/Header';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
 import { mockProjects } from '../../data/mockData';
+import samplePropertyImage from '../../assets/login-bg.png';
 
 const getStatusBadge = (status) => {
     if (!status) return null;
@@ -245,6 +246,42 @@ const getDealDocumentsForAdmin = (deal) => {
 const DealPropertyDetailsModal = ({ deal, projectDetails, propertyNumber, isOpen, onClose }) => (
     <Modal isOpen={isOpen} onClose={onClose} title={`${projectDetails.name} - Full Property Details`} size="xl">
         <div className="space-y-6">
+            {/* Property Image Gallery */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2 relative h-52 rounded-2xl overflow-hidden border border-[#E1DDF0]">
+                    <img 
+                        src={samplePropertyImage} 
+                        alt={projectDetails.name} 
+                        className="w-full h-full object-cover" 
+                    />
+                    <div className="absolute bottom-3 left-3 rounded-lg bg-black/60 backdrop-blur-xs px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white">
+                        Referred Property Hero View
+                    </div>
+                </div>
+                <div className="grid grid-rows-2 gap-3">
+                    <div className="relative h-[100px] rounded-xl overflow-hidden border border-[#E1DDF0]">
+                        <img 
+                            src={samplePropertyImage} 
+                            alt="Interior View" 
+                            className="w-full h-full object-cover brightness-95" 
+                        />
+                        <div className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[8px] font-bold text-white">
+                            Layout Plan
+                        </div>
+                    </div>
+                    <div className="relative h-[100px] rounded-xl overflow-hidden border border-[#E1DDF0]">
+                        <img 
+                            src={samplePropertyImage} 
+                            alt="Elevation View" 
+                            className="w-full h-full object-cover brightness-90" 
+                        />
+                        <div className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[8px] font-bold text-white">
+                            Elevation View
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
                 <div className="rounded-2xl border border-gray-100 bg-linear-to-br from-[#6F4BFF]/10 to-white p-6">
                     <div className="flex items-start gap-4">

@@ -1009,6 +1009,127 @@ export const sample2Clients = [
             { text: 'Assign a sales officer before dispatching matched properties.', date: '09/06/2026', time: '01:05 PM' }
         ],
         meetings: []
+    },
+    {
+        id: 'CL-101', name: 'Suresh Kumar', phone: '+91 98987 88776', budget: '2 Cr - 3 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'VILLA', date: '08/06/26', time: '12:00 - 01:00 PM',
+        req: { type: 'Residential', bhk: ['3BHK', '4BHK'], loc: ['Mahalakshmi Nagar', 'Indore'], timeline: '30 Days' },
+        status: 'Active', officer: 'Neha K.',
+        score: 'Warm', visitToday: false, nextFollowUp: '2026-06-18',
+        latestNote: 'Interested in Sunset Villa. Onboarded by broker Anil Nahar.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P004', status: 'Shortlisted', units: ['4BHK Luxury - Villa 12'], visitedOn: '08 Jun', notes: 'Interested in Sunset Villa' }
+        ],
+        timeline: [
+            { title: 'Client Qualified', details: 'Broker Anil Nahar onboarded client Suresh Kumar', date: '08/06/2026', time: '10:45 AM' }
+        ],
+        notes: [
+            { text: 'Looking for a villa with proper modular kitchen options.', date: '08/06/2026', time: '11:00 AM' }
+        ],
+        meetings: []
+    },
+    {
+        id: 'CL-102', name: 'Pooja Hegde', phone: '+91 99887 77665', budget: '80 L - 1.2 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '10/06/26', time: '02:00 - 03:00 PM',
+        req: { type: 'Residential', bhk: ['1BHK', '2BHK'], loc: ['Vijay Nagar', 'Indore'], timeline: '30 Days' },
+        status: 'Active', officer: 'Sneha P.',
+        score: 'Hot', visitToday: true, nextFollowUp: '2026-06-16',
+        latestNote: 'Scheduled for site visit of Green Valley Phase 2 flat 102. Onboarded by broker Anil Nahar.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P001', status: 'Shortlisted', units: ['2BHK Classic - Flat 102'], visitedOn: '10 Jun', notes: 'Interested in Fully Furnished 1 BHK Flat' }
+        ],
+        timeline: [
+            { title: 'Client Onboarded', details: 'Onboarded by broker Anil Nahar', date: '10/06/2026', time: '02:15 PM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-103', name: 'Rajesh Patel', phone: '+91 98221 33221', budget: '4 Cr - 6 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'VILLA', date: '12/06/26', time: '03:00 - 04:00 PM',
+        req: { type: 'Residential', bhk: ['4BHK', '5+BHK'], loc: ['Mahalakshmi Nagar', 'Indore'], timeline: 'Immediate' },
+        status: 'Completed', officer: 'Neha K.',
+        score: 'Hot', visitToday: false, nextFollowUp: '2026-06-12',
+        latestNote: 'Deal closed for Sunset Villa. Documents finalized and sent to registrar. Onboarded by broker Anil Nahar.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P004', status: 'Negotiating', units: ['4BHK Luxury - Villa 15'], visitedOn: '12 Jun', notes: 'Deal Closed.' }
+        ],
+        timeline: [
+            { title: 'Deal Finalized', details: 'Sunset Villa purchase complete', date: '12/06/2026', time: '04:00 PM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-201', name: 'Neha Sharma', phone: '+91 91122 33445', budget: '1.5 Cr - 2.5 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '11/06/26', time: '11:00 - 12:00 PM',
+        req: { type: 'Residential', bhk: ['2BHK', '3BHK'], loc: ['Pipliyapala', 'Indore'], timeline: '30 Days' },
+        status: 'Active', officer: 'Rahul M.',
+        score: 'Warm', visitToday: false, nextFollowUp: '2026-06-17',
+        latestNote: 'Showed Lake View Apartment. Awaiting broker feedback. Onboarded by broker Manas Gangrade.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P001', status: 'Visited', units: ['2BHK Classic - Flat 301'], visitedOn: '11 Jun', notes: 'Likes the lake view.' }
+        ],
+        timeline: [
+            { title: 'Client Onboarded', details: 'Referred by broker Manas Gangrade', date: '11/06/2026', time: '11:10 AM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-202', name: 'Devendra Jha', phone: '+91 98888 77777', budget: '3 Cr - 4 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'PLOT', date: '13/06/26', time: '04:00 - 05:00 PM',
+        req: { type: 'Residential', bhk: ['N/A'], loc: ['Super Corridor', 'Indore'], timeline: '60 Days' },
+        status: 'Active', officer: 'Ravi T.',
+        score: 'Warm', visitToday: false, nextFollowUp: '2026-06-19',
+        latestNote: 'Interested in green field plot options. Onboarded by broker Manas Gangrade.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P002', status: 'Shortlisted', units: ['40x60 Plot - Plot A7'], visitedOn: '13 Jun', notes: 'Liked the corner plot.' }
+        ],
+        timeline: [
+            { title: 'Client Onboarded', details: 'Referred by broker Manas Gangrade', date: '13/06/2026', time: '04:15 PM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-301', name: 'Vikram Malhotra', phone: '+91 95555 44444', budget: '15 Cr - 20 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '05/06/26', time: '10:00 - 11:00 AM',
+        req: { type: 'Residential', bhk: ['4BHK', 'Penthouse'], loc: ['Andheri West', 'Mumbai'], timeline: 'Immediate' },
+        status: 'Completed', officer: 'Rahul M.',
+        score: 'Hot', visitToday: false, nextFollowUp: '2026-06-05',
+        latestNote: 'Skyline Residency penthouse purchased and deal closed. Onboarded by broker Apex Realty.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P001', status: 'Negotiating', units: ['4BHK Luxury - Flat 1002'], visitedOn: '05 Jun', notes: 'Deal Closed.' }
+        ],
+        timeline: [
+            { title: 'Deal Closed', details: 'Penthouse purchase finalized', date: '05/06/2026', time: '04:30 PM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-302', name: 'Rohan Mehra', phone: '+91 96666 55555', budget: '6 Cr - 10 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '09/06/26', time: '01:00 - 02:00 PM',
+        req: { type: 'Residential', bhk: ['3BHK', '4BHK'], loc: ['New Palasia', 'Indore'], timeline: '45 Days' },
+        status: 'Active', officer: 'Sneha P.',
+        score: 'Warm', visitToday: false, nextFollowUp: '2026-06-15',
+        latestNote: 'Considering Skyline and Ocean View luxury units. Onboarded by broker Apex Realty.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P001', status: 'Shortlisted', units: ['3BHK Premium - Flat 801'], visitedOn: '09 Jun', notes: 'Considering pricing options.' }
+        ],
+        timeline: [
+            { title: 'Client Onboarded', details: 'Referred by broker Apex Realty', date: '09/06/2026', time: '01:15 PM' }
+        ],
+        notes: [],
+        meetings: []
     }
 ];
 

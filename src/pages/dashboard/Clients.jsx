@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useLocation } from 'react-router-dom';
 import {
     Activity,
     ArrowRight,
@@ -1400,6 +1401,42 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
             <Modal isOpen={Boolean(projectDetails)} onClose={() => setProjectDetails(null)} title={projectDetails ? `${projectDetails.name} - Full Project Details` : 'Project Details'} size="xl">
                 {projectDetails && (
                     <div className="space-y-6">
+                        {/* Property Image Gallery */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="md:col-span-2 relative h-52 rounded-2xl overflow-hidden border border-[#E1DDF0]">
+                                <img 
+                                    src={propertyHeroImage} 
+                                    alt={projectDetails.name} 
+                                    className="w-full h-full object-cover" 
+                                />
+                                <div className="absolute bottom-3 left-3 rounded-lg bg-black/60 backdrop-blur-xs px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white">
+                                    Referred Property Hero View
+                                </div>
+                            </div>
+                            <div className="grid grid-rows-2 gap-3">
+                                <div className="relative h-[100px] rounded-xl overflow-hidden border border-[#E1DDF0]">
+                                    <img 
+                                        src={propertyHeroImage} 
+                                        alt="Interior View" 
+                                        className="w-full h-full object-cover brightness-95" 
+                                    />
+                                    <div className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[8px] font-bold text-white">
+                                        Layout Plan
+                                    </div>
+                                </div>
+                                <div className="relative h-[100px] rounded-xl overflow-hidden border border-[#E1DDF0]">
+                                    <img 
+                                        src={propertyHeroImage} 
+                                        alt="Elevation View" 
+                                        className="w-full h-full object-cover brightness-90" 
+                                    />
+                                    <div className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[8px] font-bold text-white">
+                                        Elevation View
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
                             <div className="rounded-2xl border border-gray-100 bg-linear-to-br from-[#6F4BFF]/10 to-white p-6">
                                 <div className="flex items-start gap-4">
@@ -1539,6 +1576,7 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
 
 const Clients = () => {
     const dispatch = useDispatch();
+    const location = useLocation();
     const { clients } = useSelector((state) => state.clients);
     const [isAddClientOpen, setIsAddClientOpen] = useState(false);
     const [selectedClientId, setSelectedClientId] = useState(null);
@@ -1546,6 +1584,12 @@ const Clients = () => {
     const [dateFilter, setDateFilter] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [clientForm, setClientForm] = useState(clientFormInitialState);
+
+    useEffect(() => {
+        if (location.state?.selectedClientId) {
+            setSelectedClientId(location.state.selectedClientId);
+        }
+    }, [location.state]);
 
     const selectedClient = clients.find((client) => client.id === selectedClientId);
 

@@ -22,10 +22,11 @@ import {
     ShieldAlert,
     Smartphone,
     UserRound,
+    X,
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
 
-const DEALS_PER_PAGE = 2;
+const DEALS_PER_PAGE = 5;
 
 const paymentDeals = [
     {
@@ -146,10 +147,26 @@ const getStatusClass = (status) => {
     return 'bg-[#FFF7E6] text-[#A15A00]';
 };
 
+const parseDealDate = (dateStr) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split(' ');
+    if (parts.length !== 3) return '';
+    const day = parts[0].padStart(2, '0');
+    const months = {
+        Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+        Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+    };
+    const month = months[parts[1]];
+    const year = parts[2];
+    if (!month) return '';
+    return `${year}-${month}-${day}`;
+};
+
 const PaymentMilestones = () => {
     const [selectedDealId, setSelectedDealId] = useState(paymentDeals[0].id);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
+    const [dateFilter, setDateFilter] = useState('');
     const [channel, setChannel] = useState('WhatsApp');
     const [tone, setTone] = useState('Firm');
     const [page, setPage] = useState(1);
@@ -174,9 +191,13 @@ const PaymentMilestones = () => {
                 || deal.project.toLowerCase().includes(query)
                 || deal.unit.toLowerCase().includes(query);
             const matchesFilter = statusFilter === 'All' || deal.paymentSchedule.some((item) => item.status === statusFilter);
-            return matchesSearch && matchesFilter;
+            
+            const dealDate = parseDealDate(deal.createdOn);
+            const matchesDate = !dateFilter || dealDate === dateFilter;
+
+            return matchesSearch && matchesFilter && matchesDate;
         });
-    }, [enrichedDeals, search, statusFilter]);
+    }, [enrichedDeals, search, statusFilter, dateFilter]);
 
     const selectedDeal = enrichedDeals.find((deal) => deal.id === selectedDealId) || filteredDeals[0] || enrichedDeals[0];
     const totalPages = Math.max(1, Math.ceil(filteredDeals.length / DEALS_PER_PAGE));
@@ -235,6 +256,32 @@ const PaymentMilestones = () => {
                                         className="h-9 min-w-0 flex-1 bg-transparent text-xs font-medium outline-none"
                                     />
                                 </div>
+                                <div className="flex items-center gap-2 bg-[#FCFBFF] px-2.5 h-9 rounded-[7px] border border-[#D8D2EB] shrink-0">
+                                    <label className="text-[9px] font-black text-[#7B7486] uppercase tracking-[0.08em] flex items-center gap-1.5">
+                                        <CalendarClock size={13} className="text-[#7B7486]" /> Date:
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={dateFilter}
+                                        onChange={(event) => {
+                                            setDateFilter(event.target.value);
+                                            setPage(1);
+                                        }}
+                                        className="border-none bg-transparent text-xs font-medium text-[#15121F] outline-none cursor-pointer"
+                                    />
+                                    {dateFilter && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDateFilter('');
+                                                setPage(1);
+                                            }}
+                                            className="p-1 hover:bg-[#FDECEC] rounded text-[#B42318] transition-colors"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    )}
+                                </div>
                                 <div className="flex flex-wrap gap-1.5">
                                     {filterOptions.map((option) => (
                                         <button
@@ -252,7 +299,7 @@ const PaymentMilestones = () => {
                                 </div>
                             </div>
 
-                            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            <div className="mt-3 flex flex-col gap-3">
                                 {paginatedDeals.map((deal) => (
                                     <button
                                         key={deal.id}
@@ -267,6 +314,7 @@ const PaymentMilestones = () => {
                                             <div className="min-w-0">
                                                 <p className="break-words text-sm font-black text-[#171327]">{deal.dealCode} / {deal.customer}</p>
                                                 <p className="mt-1 break-words text-xs font-bold leading-4 text-[#615C71]">{deal.project} / {deal.unit}</p>
+                                                <p className="mt-1 text-[10px] font-bold text-[#8B8498]">Created: {deal.createdOn}</p>
                                             </div>
                                             <StatusPill status={deal.nextMilestone?.status || 'Paid'} />
                                         </div>
@@ -377,7 +425,7 @@ const PaymentMilestones = () => {
 
                             <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
                                 <SectionHeader icon={CreditCard} title="Milestone schedule" helper="Normalized from project-panel fields: payment_schedule, milestone_title, due_date, collected_amount, and receipt details." />
-                                <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                                <div className="mt-3 flex flex-col gap-2">
                                     {visibleSchedule.map((milestone, index) => {
                                         const total = getMilestoneAmount(milestone);
                                         const collected = getCollectedAmount(milestone);
