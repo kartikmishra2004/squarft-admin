@@ -865,23 +865,6 @@ const DealDetailView = ({ deal, onBack }) => {
                                             </Badge>
                                         </div>
                                     </div>
-                                    
-                                    <div className="pt-4 border-t border-gray-50 mt-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const newStatus = deal.commissionStatus === 'Paid' ? 'Pending' : 'Paid';
-                                                updateDeal({ commissionStatus: newStatus });
-                                            }}
-                                            className={`w-full py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg border transition-all cursor-pointer ${
-                                                deal.commissionStatus === 'Paid'
-                                                    ? 'border-amber-200 bg-amber-50/60 text-amber-700 hover:bg-amber-100/80'
-                                                    : 'border-emerald-200 bg-emerald-50/60 text-emerald-700 hover:bg-emerald-100/80'
-                                            }`}
-                                        >
-                                            {deal.commissionStatus === 'Paid' ? 'Mark as Pending' : 'Mark as Paid'}
-                                        </button>
-                                    </div>
                                 </div>
                             </Card>
                         )}
