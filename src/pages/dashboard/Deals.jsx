@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
-    Filter, Eye, Trash2, ArrowRight, PhoneCall, Check, X, 
+    Eye, Trash2, ArrowRight, PhoneCall, Check, X,
     FileText, MoreVertical, Building2, MapPin, CreditCard, 
     History, MessageSquare, Calendar, User, ClipboardList,
     Settings, Search, IndianRupee, Briefcase, Clock,
@@ -114,6 +114,133 @@ const toAmount = (value) => Number(value || 0);
 const formatAmount = (value) => `Rs. ${toAmount(value).toLocaleString('en-IN')}`;
 
 const todayDate = () => new Date().toISOString().slice(0, 10);
+
+const normalizeDealStatus = (status = '') => String(status).trim().toUpperCase();
+
+const getSearchableDealText = (deal) => [
+    deal.dealCode,
+    deal.customer,
+    deal.customerPhone,
+    deal.property,
+    deal.city,
+    deal.prefLocation,
+    deal.propType,
+    deal.status,
+    deal.salesOfficer,
+    deal.salesOfficerMobile,
+    deal.broker,
+    deal.brokerMobile,
+    deal.createdOn,
+].filter(Boolean).join(' ').toLowerCase();
+
+const dealStatusMatchers = {
+    all: () => true,
+    inProcess: (deal) => {
+        const status = normalizeDealStatus(deal.status);
+        const remainingBalance = Number(deal.remainingBalance || 0);
+        return status === 'DEAL IN PROCESS'
+            || status === 'NEGOTIATING'
+            || status === 'FINALIZED'
+            || (remainingBalance > 0 && status !== 'PAYMENT SCHEDULE' && status !== 'DEAL COMPLETED');
+    },
+    completed: (deal) => {
+        const status = normalizeDealStatus(deal.status);
+        const remainingBalance = Number(deal.remainingBalance || 0);
+        return ['COMPLETED', 'CLOSURE', 'DEAL COMPLETED'].includes(status) || remainingBalance === 0;
+    },
+    paymentSchedule: (deal) => {
+        const status = normalizeDealStatus(deal.status);
+        const payments = deal.payments || [];
+        const pendingPayments = payments.some((payment) => normalizeDealStatus(payment.status) !== 'COMPLETED');
+        return status === 'PAYMENT SCHEDULE' || pendingPayments || payments.length > 1;
+    },
+};
+
+const requiredUserDealDocuments = [
+    {
+        id: 'kyc_aadhaar',
+        name: 'Aadhaar Card',
+        category: 'IDENTITY & KYC',
+        source: 'user',
+        uploadedBy: 'user',
+        status: 'pending',
+        meta: 'Uploaded from user app',
+        visibleToUser: true,
+        fileUrl: '/documents/sample-deal-document.pdf',
+    },
+    {
+        id: 'kyc_address',
+        name: 'Address Proof',
+        category: 'IDENTITY & KYC',
+        source: 'user',
+        uploadedBy: 'user',
+        status: 'required',
+        meta: 'Required in user app',
+        visibleToUser: true,
+        fileUrl: '/documents/sample-deal-document.pdf',
+    },
+];
+
+const normalizeDocumentStatus = (status = '') => String(status).trim().toLowerCase();
+
+const getDocumentName = (document) => document.name || document.title || document.fileName || 'Document';
+
+const getDocumentBadge = (status) => {
+    const normalized = normalizeDocumentStatus(status);
+    if (['verified', 'approved', 'completed'].includes(normalized)) return <Badge variant="green">Approved</Badge>;
+    if (['pending', 'uploaded', 'in review'].includes(normalized)) return <Badge variant="yellow">Pending</Badge>;
+    if (['rejected', 'declined'].includes(normalized)) return <Badge variant="red">Rejected</Badge>;
+    if (['required', 'missing'].includes(normalized)) return <Badge variant="purple">Required</Badge>;
+    return <Badge variant="gray">{status || 'Not set'}</Badge>;
+};
+
+const getDealDocumentsForAdmin = (deal) => {
+    const existingDocuments = deal.documents || [];
+    const seededDocuments = existingDocuments.length ? existingDocuments : [
+        ...requiredUserDealDocuments.map((document) => ({
+            ...document,
+            id: `${deal.dealCode}-${document.id}`,
+            uploadedAt: document.status === 'pending' ? todayDate() : '',
+        })),
+        {
+            id: `${deal.dealCode}-sale-agreement`,
+            name: 'Sale Agreement',
+            category: 'AGREEMENT DOCUMENTS',
+            source: 'admin',
+            uploadedBy: 'admin',
+            status: 'verified',
+            meta: 'Shared by admin',
+            visibleToUser: true,
+            uploadedAt: deal.createdOn || todayDate(),
+            fileUrl: '/documents/sample-deal-document.pdf',
+        },
+        {
+            id: `${deal.dealCode}-allotment-letter`,
+            name: 'Allotment Letter',
+            category: 'AGREEMENT DOCUMENTS',
+            source: 'user',
+            uploadedBy: 'user',
+            status: 'pending',
+            meta: 'Uploaded from user app',
+            visibleToUser: true,
+            uploadedAt: todayDate(),
+            fileUrl: '/documents/sample-deal-document.pdf',
+        },
+    ];
+
+    return seededDocuments.map((document) => ({
+        ...document,
+        id: document.id || `${deal.dealCode}-${getDocumentName(document).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        name: getDocumentName(document),
+        category: document.category || 'DOCUMENTS',
+        source: document.source || document.uploadedBy || 'user',
+        uploadedBy: document.uploadedBy || document.source || 'user',
+        status: normalizeDocumentStatus(document.status || 'pending'),
+        visibleToUser: document.visibleToUser !== false,
+        meta: document.meta || document.fileType || document.type || 'PDF',
+        fileUrl: document.fileUrl || document.file_url || document.url || '/documents/sample-deal-document.pdf',
+    }));
+};
 
 const DealPropertyDetailsModal = ({ deal, projectDetails, propertyNumber, isOpen, onClose }) => (
     <Modal isOpen={isOpen} onClose={onClose} title={`${projectDetails.name} - Full Property Details`} size="xl">
@@ -245,40 +372,25 @@ const Deals = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeDealFilter, setActiveDealFilter] = useState('all');
 
-    const dealFilters = [
-        { id: 'all', label: 'Filter', icon: Filter },
+    const dealFilters = useMemo(() => ([
+        { id: 'all', label: 'All', icon: ClipboardList },
         { id: 'inProcess', label: 'Deal in Process', icon: Briefcase },
         { id: 'completed', label: 'Deal Completed', icon: CheckCircle2 },
         { id: 'paymentSchedule', label: 'Payment Schedule', icon: CreditCard },
-    ];
+    ].map((filter) => ({
+        ...filter,
+        count: deals.filter((deal) => dealStatusMatchers[filter.id](deal)).length,
+    }))), [deals]);
 
-    const getMatchesDealFilter = (deal) => {
-        const normalizedStatus = String(deal.status || '').toUpperCase();
-        const hasRemainingBalance = Number(deal.remainingBalance || 0) > 0;
-        const hasPayments = (deal.payments || []).length > 0;
-        const completedStatuses = ['FINALIZED', 'COMPLETED', 'CLOSURE', 'DEAL COMPLETED'];
-
-        if (activeDealFilter === 'inProcess') {
-            return normalizedStatus === 'DEAL IN PROCESS' || (!completedStatuses.includes(normalizedStatus) && normalizedStatus !== 'PAYMENT SCHEDULE' && normalizedStatus !== 'LOSTED' && hasRemainingBalance);
-        }
-        if (activeDealFilter === 'completed') {
-            return completedStatuses.includes(normalizedStatus);
-        }
-        if (activeDealFilter === 'paymentSchedule') {
-            return normalizedStatus === 'PAYMENT SCHEDULE' || hasPayments;
-        }
-        return true;
-    };
-
-    const filteredDeals = deals.filter((deal) => {
+    const filteredDeals = useMemo(() => {
         const query = searchTerm.trim().toLowerCase();
-        const matchesSearch = !query ||
-            deal.customer.toLowerCase().includes(query) ||
-            deal.dealCode.toLowerCase().includes(query) ||
-            deal.property.toLowerCase().includes(query);
+        const statusMatcher = dealStatusMatchers[activeDealFilter] || dealStatusMatchers.all;
 
-        return matchesSearch && getMatchesDealFilter(deal);
-    });
+        return deals.filter((deal) => {
+            const matchesSearch = !query || getSearchableDealText(deal).includes(query);
+            return matchesSearch && statusMatcher(deal);
+        });
+    }, [activeDealFilter, deals, searchTerm]);
 
     const handleViewDeal = (deal) => {
         dispatch(setSelectedDeal(deal));
@@ -336,7 +448,10 @@ const Deals = () => {
                                             }`}
                                         >
                                             <filter.icon className="w-4 h-4" />
-                                            {filter.label}
+                                            <span>{filter.label}</span>
+                                            <span className={`rounded-full px-2 py-0.5 text-[9px] ${selected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                                {filter.count}
+                                            </span>
                                         </button>
                                     );
                                 })}
@@ -406,7 +521,9 @@ const DealDetailView = ({ deal, onBack }) => {
     const [noteText, setNoteText] = useState('');
     const [tokenForm, setTokenForm] = useState({ amount: '', dueDate: todayDate(), mode: 'Cash' });
     const [paymentForm, setPaymentForm] = useState({ milestone: '', amount: '', dueDate: todayDate(), mode: 'Cash' });
+    const [adminDocumentForm, setAdminDocumentForm] = useState({ name: '', category: 'AGREEMENT DOCUMENTS', file: null });
     const [editingPaymentId, setEditingPaymentId] = useState(null);
+    const [documentTab, setDocumentTab] = useState('user');
     const tabs = ['Meeting', 'Negotiation', 'Notes', 'Timeline', 'Collect Token Money', 'Payment Schedule', 'Payment History', 'Document'];
     const propertyNumber = getDealPropertyNumber(deal);
     const projectDetails = getDealProjectDetails(deal);
@@ -421,6 +538,9 @@ const DealDetailView = ({ deal, onBack }) => {
         ...(tokenPayment?.status === 'COMPLETED' ? [{ ...tokenPayment, milestone: 'Token Amount', type: 'Token Money' }] : []),
         ...collectedPayments.map((payment) => ({ ...payment, type: 'Payment Schedule' })),
     ];
+    const dealDocuments = getDealDocumentsForAdmin(deal);
+    const userDocuments = dealDocuments.filter((document) => document.uploadedBy === 'user' || document.source === 'user');
+    const adminDocuments = dealDocuments.filter((document) => document.uploadedBy === 'admin' || document.source === 'admin');
 
     const updateDeal = (changes) => {
         dispatch(updateDealDetails({ dealCode: deal.dealCode, changes }));
@@ -543,6 +663,51 @@ const DealDetailView = ({ deal, onBack }) => {
                     : payment
             )),
         });
+    };
+
+    const updateDocuments = (documents) => {
+        updateDeal({ documents });
+    };
+
+    const handleDocumentStatus = (documentId, status) => {
+        updateDocuments(dealDocuments.map((document) => (
+            document.id === documentId
+                ? {
+                    ...document,
+                    status,
+                    reviewedAt: todayDate(),
+                    reviewedBy: 'Admin',
+                    visibleToUser: true,
+                    meta: status === 'required' ? 'Re-upload requested' : document.meta,
+                }
+                : document
+        )));
+    };
+
+    const handleShareAdminDocument = (event) => {
+        event.preventDefault();
+        if (!adminDocumentForm.file) return;
+        const uploadedFile = adminDocumentForm.file;
+        const uploadedName = adminDocumentForm.name.trim() || uploadedFile.name.replace(/\.pdf$/i, '');
+        updateDocuments([
+            {
+                id: `${deal.dealCode}-admin-${Date.now()}`,
+                name: uploadedName,
+                category: adminDocumentForm.category,
+                source: 'admin',
+                uploadedBy: 'admin',
+                status: 'verified',
+                meta: uploadedFile.name,
+                visibleToUser: true,
+                uploadedAt: todayDate(),
+                reviewedAt: todayDate(),
+                reviewedBy: 'Admin',
+                fileUrl: URL.createObjectURL(uploadedFile),
+            },
+            ...dealDocuments,
+        ]);
+        setAdminDocumentForm({ name: '', category: 'AGREEMENT DOCUMENTS', file: null });
+        event.currentTarget.reset();
     };
 
     return (
@@ -998,7 +1163,152 @@ const DealDetailView = ({ deal, onBack }) => {
                                 </div>
                             )}
 
-                            {(activeTab === 'Document' || activeTab === 'Timeline') && (
+                            {activeTab === 'Document' && (
+                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                                        <h3 className="text-base font-black text-gray-800 flex items-center gap-2 uppercase tracking-tight">
+                                            <FileText className="w-5 h-5 text-[#6F4BFF]" /> Documents
+                                        </h3>
+                                        <div className="grid grid-cols-2 gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1 w-full sm:w-auto">
+                                            {[
+                                                ['user', 'User Documents'],
+                                                ['upload', 'Upload Documents'],
+                                            ].map(([id, label]) => (
+                                                <button
+                                                    key={id}
+                                                    type="button"
+                                                    onClick={() => setDocumentTab(id)}
+                                                    className={`rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                        documentTab === id
+                                                            ? 'bg-white text-[#6F4BFF] shadow-sm'
+                                                            : 'text-gray-500 hover:text-gray-800'
+                                                    }`}
+                                                >
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {documentTab === 'user' && (
+                                        <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
+                                            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/70">
+                                                <p className="text-xs font-black text-gray-800">Fetched from user app</p>
+                                                <p className="text-[11px] font-bold text-gray-500">Open the dummy PDF and approve uploaded documents.</p>
+                                            </div>
+                                            <div className="divide-y divide-gray-100">
+                                                {userDocuments.map((document) => {
+                                                    const status = normalizeDocumentStatus(document.status);
+                                                    const canApprove = ['pending', 'uploaded', 'in review'].includes(status);
+
+                                                    return (
+                                                        <div key={document.id} className="p-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                                            <div className="flex items-start gap-3 min-w-0">
+                                                                <div className="w-9 h-9 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center shrink-0">
+                                                                    <FileText className="w-4 h-4 text-gray-500" />
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        <p className="text-sm font-black text-gray-900 break-words">{document.name}</p>
+                                                                        {getDocumentBadge(document.status)}
+                                                                    </div>
+                                                                    <p className="mt-1 text-[11px] font-bold text-gray-500 break-words">{document.category} - {document.meta}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2 md:justify-end">
+                                                                <a
+                                                                    href={document.fileUrl}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="h-8 px-3 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-black uppercase tracking-widest text-gray-700 hover:border-[#6F4BFF] hover:text-[#6F4BFF]"
+                                                                >
+                                                                    View PDF
+                                                                </a>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDocumentStatus(document.id, 'verified')}
+                                                                    disabled={!canApprove}
+                                                                    className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-40"
+                                                                >
+                                                                    Approve
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {documentTab === 'upload' && (
+                                        <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
+                                            <form onSubmit={handleShareAdminDocument} className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+                                                <div>
+                                                    <p className="text-xs font-black text-gray-800">Upload for user</p>
+                                                    <p className="text-[11px] font-bold text-gray-500">Choose a PDF and upload it for the user.</p>
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    value={adminDocumentForm.name}
+                                                    onChange={(event) => setAdminDocumentForm({ ...adminDocumentForm, name: event.target.value })}
+                                                    placeholder="Document name (optional)"
+                                                    className="w-full min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold outline-none focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/10"
+                                                />
+                                                <select
+                                                    value={adminDocumentForm.category}
+                                                    onChange={(event) => setAdminDocumentForm({ ...adminDocumentForm, category: event.target.value })}
+                                                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold outline-none focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/10"
+                                                >
+                                                    {['AGREEMENT DOCUMENTS', 'PAYMENT DOCUMENTS', 'PROPERTY DOCUMENTS'].map((category) => <option key={category}>{category}</option>)}
+                                                </select>
+                                                <input
+                                                    type="file"
+                                                    accept="application/pdf,.pdf"
+                                                    onChange={(event) => setAdminDocumentForm({ ...adminDocumentForm, file: event.target.files?.[0] || null })}
+                                                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold outline-none focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/10"
+                                                />
+                                                {adminDocumentForm.file && (
+                                                    <p className="text-[11px] font-bold text-gray-500 break-words">Selected: {adminDocumentForm.file.name}</p>
+                                                )}
+                                                <Button type="submit" disabled={!adminDocumentForm.file} className="w-full h-9 bg-[#6F4BFF] hover:bg-[#5D3FE0] text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-40">Upload</Button>
+                                            </form>
+
+                                            <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
+                                                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/70">
+                                                    <p className="text-xs font-black text-gray-800">Documents user can see</p>
+                                                    <p className="text-[11px] font-bold text-gray-500">Uploaded PDFs appear here immediately.</p>
+                                                </div>
+                                                {adminDocuments.map((document) => (
+                                                    <div key={document.id} className="p-3 border-b border-gray-100 last:border-0 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                                        <div className="min-w-0">
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <p className="text-sm font-black text-gray-900 break-words">{document.name}</p>
+                                                                {getDocumentBadge(document.status)}
+                                                            </div>
+                                                            <p className="mt-1 text-[11px] font-bold text-gray-500 break-words">{document.category} - {document.meta}</p>
+                                                        </div>
+                                                        <a
+                                                            href={document.fileUrl}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="h-8 px-3 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-black uppercase tracking-widest text-gray-700 hover:border-[#6F4BFF] hover:text-[#6F4BFF]"
+                                                        >
+                                                            View PDF
+                                                        </a>
+                                                    </div>
+                                                ))}
+                                                {adminDocuments.length === 0 && (
+                                                    <div className="p-6 text-center">
+                                                        <p className="text-xs font-black uppercase tracking-widest text-gray-400">No admin documents shared yet.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeTab === 'Timeline' && (
                                 <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-3xl bg-gray-50/50 animate-in fade-in duration-300">
                                     <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 mb-4">
                                         <Settings className="w-8 h-8 text-gray-300 animate-spin-slow" />
