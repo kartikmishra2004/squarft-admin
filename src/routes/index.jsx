@@ -11,9 +11,12 @@ import Clients from '../pages/dashboard/Clients';
 import Inventory from '../pages/dashboard/Inventory';
 import Visits from '../pages/dashboard/Visits';
 import Deals from '../pages/dashboard/Deals';
+import PaymentMilestones from '../pages/dashboard/PaymentMilestones';
 import UserList from '../pages/dashboard/UserList';
 import UserAppActivities from '../pages/dashboard/UserAppActivities';
 import PanelOverview from '../pages/dashboard/PanelOverview';
+import BrokerCommission from '../pages/dashboard/BrokerCommission';
+import NotificationCenter from '../pages/dashboard/NotificationCenter';
 import Support from '../pages/dashboard/Support';
 import SettingsPage from '../pages/dashboard/Settings';
 
@@ -99,11 +102,26 @@ const AppRoutes = () => {
         <Route path="inventory" element={<Inventory />} />
         <Route path="visits" element={<Visits />} />
         <Route path="deals" element={<Deals />} />
+        <Route path="payment-milestones" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <PaymentMilestones />
+          </ProtectedRoute>
+        } />
         <Route path="users" element={<UserList />} />
         <Route path="user-app-activities" element={<UserAppActivities />} />
         <Route path="panel-overview" element={
           <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
             <PanelOverview />
+          </ProtectedRoute>
+        } />
+        <Route path="broker-commission" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <BrokerCommission />
+          </ProtectedRoute>
+        } />
+        <Route path="notifications" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <NotificationCenter />
           </ProtectedRoute>
         } />
         <Route path="support" element={

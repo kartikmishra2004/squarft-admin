@@ -1,8 +1,11 @@
 import {
   Activity,
+  BellRing,
+  BadgeIndianRupee,
   Briefcase,
   Building2,
   CalendarDays,
+  CreditCard,
   Filter,
   GitBranch,
   Headphones,
@@ -26,9 +29,12 @@ export const adminLinks = [
   { icon: Building2, label: 'Project Inventory', path: '/dashboard/inventory' },
   { icon: CalendarDays, label: 'Upcoming Visits', path: '/dashboard/visits' },
   { icon: Briefcase, label: 'Deal Management', path: '/dashboard/deals' },
+  { icon: CreditCard, label: 'Payment Milestones', path: '/dashboard/payment-milestones' },
   { icon: UserPlus, label: 'App user list', path: '/dashboard/users' },
   { icon: Activity, label: 'User app activities', path: '/dashboard/user-app-activities' },
   { icon: PanelsTopLeft, label: 'Panel Overview', path: '/dashboard/panel-overview' },
+  { icon: BadgeIndianRupee, label: 'Broker Commission', path: '/dashboard/broker-commission' },
+  { icon: BellRing, label: 'Custom Notifications', path: '/dashboard/notifications' },
   { icon: Headphones, label: 'Support Center', path: '/dashboard/support' },
 ];
 
