@@ -18,11 +18,14 @@ import Support from '../pages/dashboard/Support';
 import SettingsPage from '../pages/dashboard/Settings';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const { isAuthenticated, user, role } = useSelector((state) => state.auth);
   
   if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
   
-  if (allowedRoles && !allowedRoles.includes(user?.role)) {
+  // Use role from auth state (stored separately) instead of user.role
+  const userRole = role || user?.role;
+  
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
     return <Navigate to="/dashboard" replace />;
   }
   
@@ -35,9 +38,12 @@ const PublicRoute = ({ children }) => {
 };
 
 const DashboardRedirect = () => {
-  const { user } = useSelector((state) => state.auth);
+  const { user, role } = useSelector((state) => state.auth);
   
-  if (user?.role === 'super_admin') {
+  // Use role from auth state (stored separately) instead of user.role
+  const userRole = role || user?.role;
+  
+  if (userRole === 'super_admin') {
     return <SuperHome />;
   }
   

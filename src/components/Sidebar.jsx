@@ -61,10 +61,14 @@ const Sidebar = () => {
       <div className="pt-5 mt-5 border-t border-gray-100 shrink-0">
         <div className="flex items-center gap-2.5 px-3 py-2.5 mb-3 bg-gray-50 rounded-xl border border-gray-100">
           <div className="w-9 h-9 rounded-lg bg-brand/10 flex items-center justify-center text-brand font-bold text-sm">
-            {user?.name?.charAt(0)}
+            {user?.first_name?.charAt(0) || user?.name?.charAt(0) || 'U'}
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="text-[13px] font-bold text-gray-800 truncate">{user?.name}</p>
+            <p className="text-[13px] font-bold text-gray-800 truncate">
+              {user?.first_name && user?.last_name 
+                ? `${user.first_name} ${user.last_name}` 
+                : user?.name || 'User'}
+            </p>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
               {user?.role === 'super_admin' ? 'Super Admin' : 'Admin'}
             </p>

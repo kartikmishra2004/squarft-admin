@@ -11,15 +11,23 @@ import {
     Building2,
     Check,
     Loader2,
-    User
+    User,
+    AlertCircle
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { dashboardAccessTabs } from '../../data/navigation';
-import { mockBranches } from '../../data/mockData';
-import { fetchRoles, saveRoles, clearSaveSuccess } from '../../store/rolesSlice';
+import {
+    getAccessibleBranches,
+    getOperatingRoles,
+    getRoleDetail,
+    createNewBranchRole,
+    updatePermissions,
+    clearError,
+    clearSuccess
+} from '../../store/roleAccessSlice';
 
 const SUPER_ADMIN_ID = 'super_admin';
 
@@ -46,114 +54,232 @@ const Toggle = ({ active, disabled, onClick }) => (
 const Roles = () => {
     const dispatch = useDispatch();
 
-    // Redux selectors for auth and roles
-    const { user } = useSelector((state) => state.auth);
-    const { roles, loading, saveSuccess } = useSelector((state) => state.roles);
+    // Redux selectors
+    const { user, role: userRole } = useSelector((state) => state.auth);
+    const { 
+        accessibleBranches, 
+        operatingRoles, 
+        selectedRole, 
+        loading, 
+        error,
+        successMessage 
+    } = useSelector((state) => state.roleAccess);
 
-    const isSuperAdmin = user?.role === 'super_admin';
-    const assignedBranchId = user?.branchId || 'B02';
+    const isSuperAdmin = userRole === 'super_admin' || user?.role === 'super_admin';
     
-    const [selectedBranchId, setSelectedBranchId] = useState('B01');
-    const activeBranchId = isSuperAdmin ? selectedBranchId : assignedBranchId;
-    
-    const activeBranch = useMemo(() => {
-        return mockBranches.find(b => b.id === activeBranchId) || mockBranches[0];
-    }, [activeBranchId]);
-
-    // Local copy of roles to handle updates before sending back to store/API
-    const [localRoles, setLocalRoles] = useState([]);
-    const [activeRoleId, setActiveRoleId] = useState(SUPER_ADMIN_ID);
+    const [selectedBranchId, setSelectedBranchId] = useState(null);
+    const [activeRoleId, setActiveRoleId] = useState(null);
     const [roleName, setRoleName] = useState('');
     const [saveFeedback, setSaveFeedback] = useState(false);
 
-    // Fetch roles when active branch changes
+    // ✅ FIXED: Normalizes operatingRoles safely into a clean array structure
+    const rolesList = useMemo(() => {
+        if (!operatingRoles) return [];
+        if (Array.isArray(operatingRoles)) return operatingRoles;
+        if (operatingRoles.roles && Array.isArray(operatingRoles.roles)) return operatingRoles.roles;
+        if (operatingRoles.data && Array.isArray(operatingRoles.data)) return operatingRoles.data;
+        return [];
+    }, [operatingRoles]);
+
+    // Fetch accessible branches on mount for super admin
     useEffect(() => {
-        dispatch(fetchRoles(activeBranchId));
+        console.group('🔍 [ROLES PAGE] Initial Load - Fetch Branches');
+        console.log('⏱️ Mount Time:', new Date().toISOString());
+        console.log('👤 Is Super Admin:', isSuperAdmin);
+        console.log('👤 User Role:', userRole);
+        console.log('👤 User:', user);
         
-        // Admin only manages sales officer, broker, field officer.
-        // Default to sales_officer for admins, and super_admin for super admins.
-        const defaultRoleId = isSuperAdmin ? SUPER_ADMIN_ID : 'sales_officer';
-        setActiveRoleId(defaultRoleId);
-    }, [activeBranchId, isSuperAdmin, dispatch]);
-
-    // Sync local copy when Redux roles load
-    useEffect(() => {
-        if (roles) {
-            setLocalRoles(roles);
+        if (isSuperAdmin) {
+            console.log('✅ Super Admin detected - Dispatching getAccessibleBranches');
+            dispatch(getAccessibleBranches());
+        } else {
+            console.log('ℹ️ Not Super Admin - Skipping branch fetch');
         }
-    }, [roles]);
+        console.groupEnd();
+    }, [isSuperAdmin, dispatch]);
 
-    // Show temporary checkmark after successful save
+    // Set default branch when branches load
     useEffect(() => {
-        if (saveSuccess) {
+        const branches = accessibleBranches?.data || accessibleBranches || [];
+        const branchesArray = Array.isArray(branches) ? branches : [];
+        if (isSuperAdmin && branchesArray.length > 0 && !selectedBranchId) {
+            setSelectedBranchId(branchesArray[0].id);
+        }
+    }, [accessibleBranches, selectedBranchId, isSuperAdmin]);
+
+    // Fetch roles when branch changes
+    useEffect(() => {
+        console.group('🔍 [ROLES PAGE] Branch Changed - Fetch Roles');
+        console.log('⏱️ Time:', new Date().toISOString());
+        console.log('🏢 Selected Branch ID:', selectedBranchId);
+        
+        if (selectedBranchId) {
+            console.log('✅ Branch ID present - Dispatching getOperatingRoles');
+            dispatch(getOperatingRoles(selectedBranchId));
+        } else {
+            console.log('ℹ️ No Branch ID - Skipping role fetch');
+        }
+        console.groupEnd();
+    }, [selectedBranchId, dispatch]);
+
+    // Set default role when roles load
+    useEffect(() => {
+        if (rolesList.length > 0 && !activeRoleId) {
+            setActiveRoleId(rolesList[0].id);
+        }
+    }, [rolesList, activeRoleId]);
+
+    // Fetch role detail when active role changes
+    useEffect(() => {
+        console.group('🔍 [ROLES PAGE] Role Changed - Fetch Detail');
+        console.log('⏱️ Time:', new Date().toISOString());
+        console.log('🔑 Active Role ID:', activeRoleId);
+        console.log('🏢 Selected Branch ID:', selectedBranchId);
+        
+        if (activeRoleId && selectedBranchId) {
+            console.log('✅ Both IDs present - Dispatching getRoleDetail');
+            dispatch(getRoleDetail({ roleId: activeRoleId, branchId: selectedBranchId }));
+        } else {
+            console.log('ℹ️ Missing ID - Role:', activeRoleId, 'Branch:', selectedBranchId);
+        }
+        console.groupEnd();
+    }, [activeRoleId, selectedBranchId, dispatch]);
+
+    // Clear success message after 3 seconds
+    useEffect(() => {
+        if (successMessage) {
             setSaveFeedback(true);
             const timer = setTimeout(() => {
                 setSaveFeedback(false);
-                dispatch(clearSaveSuccess());
-            }, 2000);
+                dispatch(clearSuccess());
+            }, 3000);
             return () => clearTimeout(timer);
         }
-    }, [saveSuccess, dispatch]);
+    }, [successMessage, dispatch]);
 
-    const activeRole = useMemo(
-        () => localRoles.find((role) => role.id === activeRoleId) || localRoles[0] || { id: '', name: '', tabAccess: [], locked: false },
-        [activeRoleId, localRoles]
-    );
+    // Clear error message after 5 seconds
+    useEffect(() => {
+        if (error) {
+            const timer = setTimeout(() => {
+                dispatch(clearError());
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [error, dispatch]);
 
-    const displayedRoles = useMemo(() => {
-        if (isSuperAdmin) return localRoles;
-        return localRoles.filter(role => ['sales_officer', 'broker', 'field_officer'].includes(role.id));
-    }, [localRoles, isSuperAdmin]);
+    const activeRole = selectedRole || { id: '', name: '', tabs: [], locked: false };
+    
+    const branchesNormalized = useMemo(() => {
+        if (!accessibleBranches) return [];
+        if (Array.isArray(accessibleBranches)) return accessibleBranches;
+        return accessibleBranches.data || [];
+    }, [accessibleBranches]);
 
-    const allowedCount = activeRole.locked ? dashboardAccessTabs.length : (activeRole.tabAccess?.length || 0);
+    const activeBranch = branchesNormalized.find(b => b.id === selectedBranchId) || {};
 
-    const handleCreateRole = (event) => {
+    const handleCreateRole = async (event) => {
         event.preventDefault();
 
+        console.group('🔍 [ROLES PAGE] Create Role Handler');
+        console.log('⏱️ Time:', new Date().toISOString());
+
         const trimmedName = roleName.trim();
-        if (!trimmedName) return;
+        console.log('📝 Role Name (trimmed):', trimmedName);
+        console.log('🏢 Selected Branch ID:', selectedBranchId);
+        
+        if (!trimmedName || !selectedBranchId) {
+            console.warn('⚠️ Validation Failed - Missing required fields');
+            console.warn('   Role Name:', !!trimmedName);
+            console.warn('   Branch ID:', !!selectedBranchId);
+            console.groupEnd();
+            return;
+        }
 
-        const baseId = makeRoleId(trimmedName);
-        const roleId = baseId || `role_${Date.now()}`;
-        const uniqueId = localRoles.some((role) => role.id === roleId) ? `${roleId}_${Date.now()}` : roleId;
-        const newRole = {
-            id: uniqueId,
-            name: trimmedName,
-            description: 'Custom access role',
-            tabAccess: [],
-            locked: false,
-        };
-
-        const updated = [...localRoles, newRole];
-        setLocalRoles(updated);
-        dispatch(saveRoles(activeBranchId, updated));
-        setActiveRoleId(uniqueId);
-        setRoleName('');
+        try {
+            console.log('✅ Validation passed - Creating role...');
+            await dispatch(createNewBranchRole({
+                branchId: selectedBranchId,
+                roleName: trimmedName,
+            })).unwrap();
+            
+            console.log('✅ Role created successfully');
+            setRoleName('');
+            console.log('🔄 Refreshing roles list...');
+            dispatch(getOperatingRoles(selectedBranchId));
+            console.groupEnd();
+        } catch (error) {
+            console.error('❌ Create role failed:', error);
+            console.groupEnd();
+        }
     };
 
-    const handleToggleTab = (path) => {
-        if (activeRole.locked) return;
+    const handleToggleTab = (tabPath) => {
+        if (activeRole.locked || !activeRole.tabs) return;
 
-        const nextRoles = localRoles.map((role) => {
-            if (role.id !== activeRole.id) return role;
+        console.log('=== TOGGLE TAB ===');
+        console.log('Tab Path:', tabPath);
+        console.log('Current tabs:', activeRole.tabs);
 
-            const tabAccess = role.tabAccess || [];
-            const hasAccess = tabAccess.includes(path);
-            return {
-                ...role,
-                tabAccess: hasAccess
-                    ? tabAccess.filter((tabPath) => tabPath !== path)
-                    : [...tabAccess, path],
-            };
-        });
+        const currentTabs = activeRole.tabs || [];
+        const tabIndex = currentTabs.findIndex(t => t.path === tabPath);
+        
+        let updatedTabPaths;
+        if (tabIndex >= 0) {
+            // Remove tab - extract just the paths
+            updatedTabPaths = currentTabs.filter(t => t.path !== tabPath).map(t => t.path);
+        } else {
+            // Add tab - extract paths and add new one
+            updatedTabPaths = [...currentTabs.map(t => t.path), tabPath];
+        }
 
-        setLocalRoles(nextRoles);
-        dispatch(saveRoles(activeBranchId, nextRoles));
+        console.log('Updated tab paths:', updatedTabPaths);
+
+        handleSavePermissions(updatedTabPaths);
     };
 
-    const handleSave = () => {
-        dispatch(saveRoles(activeBranchId, localRoles));
+    const handleSavePermissions = async (tabPaths = null) => {
+        console.group('🔍 [ROLES PAGE] Save Permissions Handler');
+        console.log('⏱️ Time:', new Date().toISOString());
+        console.log('🔑 Active Role ID:', activeRoleId);
+        console.log('🏢 Selected Branch ID:', selectedBranchId);
+        
+        if (!activeRoleId || !selectedBranchId) {
+            console.warn('⚠️ Cannot save: missing roleId or branchId');
+            console.warn('   Role ID:', activeRoleId);
+            console.warn('   Branch ID:', selectedBranchId);
+            console.groupEnd();
+            return;
+        }
+
+        // Extract just the paths from tabs array
+        const tabPathsToSend = tabPaths || (activeRole.tabs || []).map(t => t.path);
+        
+        console.log('📤 Tab paths to send:', tabPathsToSend);
+        console.log('📤 Tab paths count:', tabPathsToSend.length);
+
+        try {
+            console.log('✅ Validation passed - Updating permissions...');
+            await dispatch(updatePermissions({
+                roleId: activeRoleId,
+                permissionsData: {
+                    branchId: selectedBranchId,
+                    tabs: tabPathsToSend
+                }
+            })).unwrap();
+            console.log('✅ Permissions updated successfully');
+            console.groupEnd();
+        } catch (error) {
+            console.error('❌ Save permissions failed:', error);
+            console.groupEnd();
+        }
     };
+
+    const hasTabAccess = (tabPath) => {
+        if (activeRole.locked) return true;
+        return activeRole.tabs?.some(t => t.path === tabPath) || false;
+    };
+
+    const allowedCount = activeRole.locked ? dashboardAccessTabs.length : (activeRole.tabs?.length || 0);
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F5F6FA] font-sans text-gray-900 selection:bg-[#6F4BFF]/20 selection:text-[#6F4BFF]">
@@ -174,12 +300,28 @@ const Roles = () => {
                         </div>
                     </div>
 
+                    {/* Error Message */}
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 shrink-0">
+                            <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+                            <p className="font-bold text-red-900">{error}</p>
+                        </div>
+                    )}
+
+                    {/* Success Message */}
+                    {successMessage && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 shrink-0">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                            <p className="font-bold text-emerald-900">{successMessage}</p>
+                        </div>
+                    )}
+
                     {/* Super Admin Branch Switcher */}
                     {isSuperAdmin && (
                         <div className="space-y-3 shrink-0">
                             <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Select Operating Branch</h3>
                             <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin shrink-0">
-                                {mockBranches.map((branch) => {
+                                {branchesNormalized.map((branch) => {
                                     const isSelected = branch.id === selectedBranchId;
                                     return (
                                         <button
@@ -219,8 +361,7 @@ const Roles = () => {
                         </div>
                     )}
 
-                    {/* Admin Assigned Branch Banner */}
-                    {!isSuperAdmin && (
+                    {!isSuperAdmin && activeBranch && (
                         <div className="bg-linear-to-r from-[#6F4BFF]/5 to-indigo-50/50 border border-[#6F4BFF]/10 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shrink-0 shadow-xs">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-white text-[#6F4BFF] rounded-xl flex items-center justify-center shadow-sm border border-gray-100">
@@ -228,20 +369,10 @@ const Roles = () => {
                                 </div>
                                 <div>
                                     <span className="text-[10px] font-black text-[#6F4BFF] uppercase tracking-widest">Assigned Workspace Branch</span>
-                                    <h3 className="text-xl font-black text-gray-900 tracking-tight mt-0.5">{activeBranch.name}</h3>
+                                    <h3 className="text-xl font-black text-gray-900 tracking-tight mt-0.5">{activeBranch.name || 'Current Branch'}</h3>
                                     <p className="text-xs text-gray-500 font-medium mt-0.5">
-                                        Branch Manager: <strong className="text-gray-700 font-bold">{activeBranch.head}</strong> &bull; Region Status: <strong className="text-emerald-600 font-bold">{activeBranch.status}</strong>
+                                        Manage roles and permissions for your assigned branch
                                     </p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="px-3.5 py-1.5 bg-white rounded-lg border border-gray-100 shadow-2xs text-center min-w-[80px]">
-                                    <p className="text-[9px] text-gray-400 font-bold uppercase">Branch Deals</p>
-                                    <p className="text-sm font-black text-[#6F4BFF]">{activeBranch.activeDeals}</p>
-                                </div>
-                                <div className="px-3.5 py-1.5 bg-white rounded-lg border border-gray-100 shadow-2xs text-center min-w-[80px]">
-                                    <p className="text-[9px] text-gray-400 font-bold uppercase">Revenue</p>
-                                    <p className="text-sm font-black text-emerald-600">{activeBranch.revenue}</p>
                                 </div>
                             </div>
                         </div>
@@ -249,7 +380,7 @@ const Roles = () => {
 
                     {/* Layout Workspace Grid */}
                     <div className="flex flex-col xl:flex-row gap-6 flex-1 min-h-0 relative">
-                        {loading && localRoles.length === 0 ? (
+                        {loading && rolesList.length === 0 ? (
                             <div className="absolute inset-0 bg-white/60 backdrop-blur-xs z-50 flex items-center justify-center rounded-2xl">
                                 <div className="flex flex-col items-center gap-3">
                                     <Loader2 className="w-10 h-10 text-[#6F4BFF] animate-spin" />
@@ -275,12 +406,12 @@ const Roles = () => {
                             </div>
 
                             <div className="p-3 space-y-2 overflow-y-auto flex-1 max-h-[350px] xl:max-h-none">
-                                {displayedRoles.map((role) => (
+                                {rolesList.map((role) => (
                                     <button
                                         key={role.id}
                                         onClick={() => setActiveRoleId(role.id)}
                                         className={`w-full text-left p-3 rounded-xl transition-all border ${
-                                            activeRole.id === role.id
+                                            activeRoleId === role.id
                                                 ? 'bg-[#6F4BFF] text-white border-[#6F4BFF] shadow-md shadow-[#6F4BFF]/25'
                                                 : 'bg-white text-gray-700 border-gray-100 hover:border-[#6F4BFF]/30 hover:bg-[#6F4BFF]/5'
                                         }`}
@@ -288,14 +419,14 @@ const Roles = () => {
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="min-w-0">
                                                 <p className="font-black text-sm truncate">{role.name}</p>
-                                                <p className={`text-xs font-semibold mt-0.5 ${activeRole.id === role.id ? 'text-white/75' : 'text-gray-400'}`}>
-                                                    {role.locked ? 'All tabs enabled' : `${role.tabAccess?.length || 0} tabs enabled`}
+                                                <p className={`text-xs font-semibold mt-0.5 ${activeRoleId === role.id ? 'text-white/75' : 'text-gray-400'}`}>
+                                                    {role.locked ? 'All tabs enabled' : `${role.tabs?.length || 0} tabs enabled`}
                                                 </p>
                                             </div>
                                             {role.locked ? (
-                                                <Key className={`w-4 h-4 shrink-0 ${activeRole.id === role.id ? 'text-amber-200' : 'text-[#6F4BFF]'}`} />
+                                                <Key className={`w-4 h-4 shrink-0 ${activeRoleId === role.id ? 'text-amber-200' : 'text-[#6F4BFF]'}`} />
                                             ) : (
-                                                <Layers className={`w-4 h-4 shrink-0 ${activeRole.id === role.id ? 'text-white/80' : 'text-gray-400'}`} />
+                                                <Layers className={`w-4 h-4 shrink-0 ${activeRoleId === role.id ? 'text-white/80' : 'text-gray-400'}`} />
                                             )}
                                         </div>
                                     </button>
@@ -329,7 +460,7 @@ const Roles = () => {
                             <div className="p-5 md:p-6 border-b border-gray-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h3 className="text-2xl font-black text-gray-900 tracking-tight">{activeRole.name}</h3>
+                                        <h3 className="text-2xl font-black text-gray-900 tracking-tight">{activeRole.name || 'Select a Role'}</h3>
                                         {activeRole.locked && (
                                             <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-amber-700 border border-amber-100">
                                                 <Key className="w-3 h-3" /> Locked
@@ -344,9 +475,9 @@ const Roles = () => {
                                 <Button
                                     icon={saveFeedback ? CheckCircle2 : (loading ? Loader2 : Save)}
                                     variant={saveFeedback ? 'success' : 'primary'}
-                                    disabled={loading}
+                                    disabled={loading || !activeRoleId}
                                     className="px-6 py-3 shadow-md shadow-[#6F4BFF]/10 text-sm font-bold transition-all shrink-0"
-                                    onClick={handleSave}
+                                    onClick={() => handleSavePermissions()}
                                 >
                                     {saveFeedback ? 'Saved Successfully' : (loading ? 'Saving...' : 'Save Access')}
                                 </Button>
@@ -367,9 +498,9 @@ const Roles = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
-                                    {dashboardAccessTabs.map((tab) => {
+                                    ={dashboardAccessTabs.map((tab) => {
                                         const Icon = tab.icon;
-                                        const hasAccess = activeRole.locked || (activeRole.tabAccess || []).includes(tab.path);
+                                        const hasAccess = hasTabAccess(tab.path);
 
                                         return (
                                             <div

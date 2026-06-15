@@ -1,5 +1,4 @@
-import React from 'react';
-import { Globe, Sparkles } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 
@@ -16,7 +15,7 @@ const BranchLeaderboard = ({ branches, onManageClick }) => (
         <div className="flex-1 p-6 bg-white z-10">
             <div className="space-y-6">
                 {branches.map((branch, i) => (
-                    <div key={i} className="relative">
+                    <div key={branch.id || i} className="relative">
                         <div className="flex justify-between items-end mb-2">
                             <div className="flex items-center gap-3">
                                 <span className="text-lg font-black text-gray-300 w-6">#{i + 1}</span>
