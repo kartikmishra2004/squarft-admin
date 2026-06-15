@@ -216,23 +216,64 @@ const Roles = () => {
     const handleToggleTab = (tabPath) => {
         if (activeRole.locked || !activeRole.tabs) return;
 
-        console.log('=== TOGGLE TAB ===');
-        console.log('Tab Path:', tabPath);
-        console.log('Current tabs:', activeRole.tabs);
+        console.group('🔍 [ROLES PAGE] Toggle Tab');
+        console.log('⏱️ Time:', new Date().toISOString());
+        console.log('📍 Tab Path:', tabPath);
+        console.log('📊 Current tabs structure:', activeRole.tabs);
+        console.log('📊 Tabs count:', activeRole.tabs?.length);
 
         const currentTabs = activeRole.tabs || [];
-        const tabIndex = currentTabs.findIndex(t => t.path === tabPath);
+        
+        // Check if this tab is disabled by backend
+        const backendTab = currentTabs.find(t => {
+            const path = typeof t === 'string' ? t : t.path;
+            return path === tabPath;
+        });
+        
+        console.log('🔍 Backend tab found:', backendTab);
+        
+        if (backendTab && typeof backendTab === 'object' && backendTab.disabled === true) {
+            console.warn('⚠️ This tab is disabled by backend - cannot toggle');
+            console.groupEnd();
+            return;
+        }
+        
+        // Find if tab exists (handle both string and object formats)
+        const tabIndex = currentTabs.findIndex(t => {
+            const path = typeof t === 'string' ? t : t.path;
+            return path === tabPath;
+        });
+        
+        console.log('📊 Tab index in current tabs:', tabIndex);
         
         let updatedTabPaths;
         if (tabIndex >= 0) {
-            // Remove tab - extract just the paths
-            updatedTabPaths = currentTabs.filter(t => t.path !== tabPath).map(t => t.path);
+            // Remove tab - extract just the paths where enabled=true or not disabled
+            updatedTabPaths = currentTabs
+                .filter(t => {
+                    const path = typeof t === 'string' ? t : t.path;
+                    const disabled = typeof t === 'object' ? t.disabled : false;
+                    return path !== tabPath && !disabled;
+                })
+                .map(t => typeof t === 'string' ? t : t.path);
+            console.log('➖ Removing tab');
         } else {
-            // Add tab - extract paths and add new one
-            updatedTabPaths = [...currentTabs.map(t => t.path), tabPath];
+            // Add tab - extract paths (excluding disabled ones) and add new one
+            updatedTabPaths = [
+                ...currentTabs
+                    .filter(t => {
+                        const disabled = typeof t === 'object' ? t.disabled : false;
+                        return !disabled;
+                    })
+                    .map(t => typeof t === 'string' ? t : t.path),
+                tabPath
+            ];
+            console.log('➕ Adding tab');
         }
 
-        console.log('Updated tab paths:', updatedTabPaths);
+        console.log('📤 Updated tab paths:', updatedTabPaths);
+        console.log('📤 Count:', updatedTabPaths.length);
+        console.groupEnd();
 
         handleSavePermissions(updatedTabPaths);
     };
@@ -251,8 +292,10 @@ const Roles = () => {
             return;
         }
 
-        // Extract just the paths from tabs array
-        const tabPathsToSend = tabPaths || (activeRole.tabs || []).map(t => t.path);
+        // Extract just the paths from tabs array (handle both string and object formats)
+        const tabPathsToSend = tabPaths || (activeRole.tabs || []).map(t => {
+            return typeof t === 'string' ? t : t.path;
+        });
         
         console.log('📤 Tab paths to send:', tabPathsToSend);
         console.log('📤 Tab paths count:', tabPathsToSend.length);
@@ -276,10 +319,28 @@ const Roles = () => {
 
     const hasTabAccess = (tabPath) => {
         if (activeRole.locked) return true;
-        return activeRole.tabs?.some(t => t.path === tabPath) || false;
+        
+        // tabs can be array of objects with {path, enabled} or {id, path, enabled}
+        if (!activeRole.tabs || !Array.isArray(activeRole.tabs)) return false;
+        
+        return activeRole.tabs.some(t => {
+            // Handle both {path: string} and {id: string, path: string, enabled: boolean} formats
+            const path = typeof t === 'string' ? t : t.path;
+            const enabled = typeof t === 'object' ? (t.enabled !== undefined ? t.enabled : true) : true;
+            return path === tabPath && enabled;
+        });
     };
 
-    const allowedCount = activeRole.locked ? dashboardAccessTabs.length : (activeRole.tabs?.length || 0);
+    const allowedCount = activeRole.locked 
+        ? dashboardAccessTabs.length 
+        : (activeRole.enabledTabsCount !== undefined 
+            ? activeRole.enabledTabsCount 
+            : (activeRole.tabs || []).filter(t => {
+                // Handle both string and object formats
+                const enabled = typeof t === 'object' ? (t.enabled !== undefined ? t.enabled : true) : true;
+                return enabled;
+              }).length
+          );
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F5F6FA] font-sans text-gray-900 selection:bg-[#6F4BFF]/20 selection:text-[#6F4BFF]">
@@ -420,7 +481,7 @@ const Roles = () => {
                                             <div className="min-w-0">
                                                 <p className="font-black text-sm truncate">{role.name}</p>
                                                 <p className={`text-xs font-semibold mt-0.5 ${activeRoleId === role.id ? 'text-white/75' : 'text-gray-400'}`}>
-                                                    {role.locked ? 'All tabs enabled' : `${role.tabs?.length || 0} tabs enabled`}
+                                                    {role.locked ? 'All tabs enabled' : `${role.enabledTabsCount || 0} tabs enabled`}
                                                 </p>
                                             </div>
                                             {role.locked ? (
@@ -498,16 +559,25 @@ const Roles = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
-                                    ={dashboardAccessTabs.map((tab) => {
+                                    {dashboardAccessTabs.map((tab) => {
                                         const Icon = tab.icon;
                                         const hasAccess = hasTabAccess(tab.path);
+                                        
+                                        // Check if this tab exists in backend's tabs list
+                                        const backendTab = activeRole.tabs?.find(t => {
+                                            const path = typeof t === 'string' ? t : t.path;
+                                            return path === tab.path;
+                                        });
+                                        
+                                        // If backend tab has disabled=true, don't allow toggling
+                                        const isDisabledByBackend = backendTab && typeof backendTab === 'object' && backendTab.disabled === true;
 
                                         return (
                                             <div
                                                 key={`${tab.label}-${tab.path}`}
                                                 className={`rounded-xl border p-4 bg-white transition-all ${
                                                     hasAccess ? 'border-[#6F4BFF]/20 shadow-xs' : 'border-gray-100 opacity-80 hover:opacity-100'
-                                                }`}
+                                                } ${isDisabledByBackend ? 'opacity-50' : ''}`}
                                             >
                                                 <div className="flex items-start justify-between gap-4">
                                                     <div className="flex items-start gap-3 min-w-0">
@@ -523,8 +593,8 @@ const Roles = () => {
                                                     </div>
                                                     <Toggle
                                                         active={hasAccess}
-                                                        disabled={activeRole.locked}
-                                                        onClick={() => handleToggleTab(tab.path)}
+                                                        disabled={activeRole.locked || isDisabledByBackend}
+                                                        onClick={() => !isDisabledByBackend && handleToggleTab(tab.path)}
                                                     />
                                                 </div>
                                             </div>
