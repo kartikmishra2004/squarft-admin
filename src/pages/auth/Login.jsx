@@ -1,38 +1,98 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Phone, ArrowRight, Shield, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AlertCircle, Lock, Phone, ArrowRight, Shield, User } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { loginStart, loginSuccess, loginFailure } from '../../store/authSlice';
+import { loginAdmin, loginSuperAdmin, clearError } from '../../store/authSlice';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import loginBg from '../../assets/login-bg.png';
 import logo from '../../assets/logo.png';
 
 const Login = () => {
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState('admin'); // 'admin' or 'super_admin'
+  const [formErrors, setFormErrors] = useState({});
   
-  const { loading, error } = useSelector((state) => state.auth);
+  const { loading, error, isAuthenticated } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    dispatch(loginStart());
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
-    setTimeout(() => {
-      if (selectedRole === 'admin' && mobileNumber === '+919988776655' && password === 'password') {
-        dispatch(loginSuccess({ name: 'Kartik (Admin)', role: 'admin', mobile: mobileNumber, branchId: 'B02' }));
-        navigate('/dashboard');
-      } else if (selectedRole === 'super_admin' && mobileNumber === '+917788996655' && password === 'password') {
-        dispatch(loginSuccess({ name: 'Owner (Super Admin)', role: 'super_admin', mobile: mobileNumber }));
-        navigate('/dashboard');
+  // Clear errors when switching roles
+  useEffect(() => {
+    dispatch(clearError());
+    setFormErrors({});
+  }, [selectedRole, dispatch]);
+
+  // Clear errors when user types
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        dispatch(clearError());
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, dispatch]);
+
+  const validateForm = () => {
+    const errors = {};
+
+    if (!phone.trim()) {
+      errors.phone = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+      errors.phone = 'Please enter a valid 10-digit phone number';
+    }
+
+    if (!password) {
+      errors.password = 'Password is required';
+    } else if (password.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      // Clean phone number (remove non-digits)
+      const cleanPhone = phone.replace(/\D/g, '');
+
+      const credentials = {
+        phone: cleanPhone,
+        password,
+      };
+
+      if (selectedRole === 'admin') {
+        await dispatch(loginAdmin(credentials)).unwrap();
       } else {
-        dispatch(loginFailure(`Invalid ${selectedRole === 'admin' ? 'Admin' : 'Super Admin'} credentials`));
+        await dispatch(loginSuperAdmin(credentials)).unwrap();
       }
-    }, 1000);
+
+      // Navigation is handled by the useEffect hook
+    } catch (err) {
+      console.error('Login error:', err);
+      
+      // Show user-friendly message for inactive account
+      if (err?.status === 403 && err?.message?.includes('inactive')) {
+        // Keep the error as-is, it will be displayed from Redux state
+        console.warn('Account is inactive. Please contact your administrator to activate your account.');
+      }
+    }
   };
 
   return (
@@ -103,6 +163,7 @@ const Login = () => {
             <button 
               type="button"
               onClick={() => setSelectedRole('admin')}
+              disabled={loading}
               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all relative z-10 ${selectedRole === 'admin' ? 'text-brand' : 'text-gray-500 hover:text-gray-700'}`}
             >
               <User size={16} />
@@ -111,6 +172,7 @@ const Login = () => {
             <button 
               type="button"
               onClick={() => setSelectedRole('super_admin')}
+              disabled={loading}
               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all relative z-10 ${selectedRole === 'super_admin' ? 'text-brand' : 'text-gray-500 hover:text-gray-700'}`}
             >
               <Shield size={16} />
@@ -118,15 +180,26 @@ const Login = () => {
             </button>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <p className="text-xs font-medium text-red-900">{error}</p>
+            </div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-4">
-            <Input 
-              label="Mobile Number"
-              placeholder={selectedRole === 'admin' ? '+919988776655' : '+917788996655'}
-              value={mobileNumber}
-              onChange={(e) => setMobileNumber(e.target.value)}
-              icon={Phone}
-              error={error && !mobileNumber ? 'Mobile number is required' : null}
-            />
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-semibold text-gray-600 ml-0.5">Phone Number</label>
+              <Input 
+                placeholder="Enter 10-digit mobile number"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                icon={Phone}
+                error={formErrors.phone}
+                disabled={loading}
+              />
+            </div>
 
             <div className="space-y-1.5">
               <label className="text-[12px] font-semibold text-gray-600 ml-0.5">Password</label>
@@ -136,12 +209,13 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 icon={Lock}
-                error={error ? error : null}
+                error={formErrors.password}
+                disabled={loading}
               />
             </div>
 
-            <Button type="submit" isLoading={loading} className="w-full mt-2">
-              Login as {selectedRole === 'admin' ? 'Admin' : 'Super Admin'}
+            <Button type="submit" isLoading={loading} className="w-full mt-2" disabled={loading}>
+              {loading ? 'Signing in...' : `Login as ${selectedRole === 'admin' ? 'Admin' : 'Super Admin'}`}
             </Button>
 
             <div className="relative flex items-center justify-center my-6">
@@ -152,11 +226,23 @@ const Login = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="google" onClick={() => {}} className="py-2.5">
+              <Button 
+                variant="google" 
+                onClick={() => {}} 
+                className="py-2.5"
+                disabled={loading}
+                type="button"
+              >
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
                 <span className="text-[11px]">Google</span>
               </Button>
-              <Button variant="outline" onClick={() => {}} className="py-2.5">
+              <Button 
+                variant="outline" 
+                onClick={() => {}} 
+                className="py-2.5"
+                disabled={loading}
+                type="button"
+              >
                 <ArrowRight size={16} className="text-gray-400" />
                 <span className="text-[11px]">SSO</span>
               </Button>
@@ -167,6 +253,5 @@ const Login = () => {
     </div>
   );
 };
-
 
 export default Login;
