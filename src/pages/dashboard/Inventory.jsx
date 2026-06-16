@@ -4,7 +4,7 @@ import {
     Plus, Search, Building2, MapPin, ArrowRight, FileText, 
     Layers, Settings, Calendar, X, Maximize, Edit2, Save,
     IndianRupee, Zap, Sparkles, Check, XCircle, CheckCircle2,
-    Trash2, Users, FileIcon, UserPlus
+    Trash2, Users, FileIcon, UserPlus, Filter
 } from 'lucide-react';
 import { setSelectedProject, setFilters } from '../../store/inventorySlice';
 import { mockProjects } from '../../data/mockData';
@@ -37,6 +37,10 @@ const Inventory = () => {
 
     const handleSearch = (e) => {
         dispatch(setFilters({ search: e.target.value }));
+    };
+
+    const handlePropertySourceFilter = (source) => {
+        dispatch(setFilters({ propertySource: source }));
     };
 
     const handleProjectClick = (project) => {
@@ -75,6 +79,46 @@ const Inventory = () => {
                                 />
                             </div>
                             <Button icon={Plus}>Add Project</Button>
+                        </div>
+                    </div>
+
+                    {/* Property Source Filter */}
+                    <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                        <div className="flex items-center gap-2 text-sm text-gray-600 font-bold">
+                            <Filter className="w-4 h-4" />
+                            <span>Filter by Source:</span>
+                        </div>
+                        <div className="flex gap-6 ml-4">
+                            <button
+                                onClick={() => handlePropertySourceFilter('all')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                                    filters.propertySource === 'all'
+                                        ? 'bg-[#6F4BFF] text-white shadow-lg shadow-[#6F4BFF]/20'
+                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-[#6F4BFF]/40'
+                                }`}
+                            >
+                                All Properties
+                            </button>
+                            <button
+                                onClick={() => handlePropertySourceFilter('builder')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                                    filters.propertySource === 'builder'
+                                        ? 'bg-[#6F4BFF] text-white shadow-lg shadow-[#6F4BFF]/20'
+                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-[#6F4BFF]/40'
+                                }`}
+                            >
+                                Added by Builder
+                            </button>
+                            <button
+                                onClick={() => handlePropertySourceFilter('broker')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                                    filters.propertySource === 'broker'
+                                        ? 'bg-[#6F4BFF] text-white shadow-lg shadow-[#6F4BFF]/20'
+                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-[#6F4BFF]/40'
+                                }`}
+                            >
+                                Added by Broker
+                            </button>
                         </div>
                     </div>
 

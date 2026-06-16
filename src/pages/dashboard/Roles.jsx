@@ -93,10 +93,15 @@ const Roles = () => {
             console.log('✅ Super Admin detected - Dispatching getAccessibleBranches');
             dispatch(getAccessibleBranches());
         } else {
-            console.log('ℹ️ Not Super Admin - Skipping branch fetch');
+            console.log('ℹ️ Regular Admin - Setting branch from user data');
+            // For non-super-admins, set their assigned branch
+            if (user?.branchId) {
+                console.log('🏢 Setting user branch ID:', user.branchId);
+                setSelectedBranchId(user.branchId);
+            }
         }
         console.groupEnd();
-    }, [isSuperAdmin, dispatch]);
+    }, [isSuperAdmin, dispatch, user]);
 
     // Set default branch when branches load
     useEffect(() => {
@@ -457,7 +462,7 @@ const Roles = () => {
                                     <div>
                                         <h3 className="font-black text-gray-900 tracking-tight">Operating Roles</h3>
                                         <p className="text-xs text-gray-500 font-semibold mt-1">
-                                            {isSuperAdmin ? 'Create & edit custom branch roles' : 'Predefined branch entities'}
+                                            Create & edit roles for your branch
                                         </p>
                                     </div>
                                     <div className="h-10 w-10 rounded-xl bg-[#6F4BFF]/10 text-[#6F4BFF] flex items-center justify-center">
@@ -494,26 +499,24 @@ const Roles = () => {
                                 ))}
                             </div>
 
-                            {/* Create Custom Role form - Super Admin Only */}
-                            {isSuperAdmin && (
-                                <form onSubmit={handleCreateRole} className="p-4 mt-auto border-t border-gray-100 bg-gray-50/60">
-                                    <label htmlFor="role-name" className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-2">
-                                        Create Branch Role
-                                    </label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            id="role-name"
-                                            value={roleName}
-                                            onChange={(event) => setRoleName(event.target.value)}
-                                            placeholder="Enter role name"
-                                            className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none transition-all focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/15"
-                                        />
-                                        <Button type="submit" icon={Plus} className="px-3" disabled={!roleName.trim()}>
-                                            Add
-                                        </Button>
-                                    </div>
-                                </form>
-                            )}
+                            {/* Create Custom Role form - Available for All Admins */}
+                            <form onSubmit={handleCreateRole} className="p-4 mt-auto border-t border-gray-100 bg-gray-50/60">
+                                <label htmlFor="role-name" className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-2">
+                                    Create Branch Role
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        id="role-name"
+                                        value={roleName}
+                                        onChange={(event) => setRoleName(event.target.value)}
+                                        placeholder="Enter role name"
+                                        className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none transition-all focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/15"
+                                    />
+                                    <Button type="submit" icon={Plus} className="px-3" disabled={!roleName.trim()}>
+                                        Add
+                                    </Button>
+                                </div>
+                            </form>
                         </Card>
 
                         {/* Access Grid Controls */}

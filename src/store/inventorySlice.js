@@ -10,6 +10,7 @@ const initialState = {
   filters: {
     search: '',
     status: 'All',
+    propertySource: 'all', // 'all', 'builder', 'broker'
   }
 };
 
@@ -26,14 +27,15 @@ const inventorySlice = createSlice({
     },
     setFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
-      const { search, status } = state.filters;
+      const { search, status, propertySource } = state.filters;
       
       state.filteredProjects = state.projects.filter(project => {
         const matchesSearch = project.name.toLowerCase().includes(search.toLowerCase()) || 
                              project.builder.toLowerCase().includes(search.toLowerCase()) ||
                              project.location.toLowerCase().includes(search.toLowerCase());
         const matchesStatus = status === 'All' || project.status === status;
-        return matchesSearch && matchesStatus;
+        const matchesSource = propertySource === 'all' || project.addedBy === propertySource;
+        return matchesSearch && matchesStatus && matchesSource;
       });
     },
     updateProjectStatus: (state, action) => {
