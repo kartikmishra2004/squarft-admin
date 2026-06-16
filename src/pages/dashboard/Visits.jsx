@@ -6,7 +6,6 @@ import {
     Search, ShieldCheck, TrendingUp, User, XCircle
 } from 'lucide-react';
 import { addVisit, addVisitNote, updateVisit, updateVisitStatus } from '../../store/visitsSlice';
-import { mockProjects } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -56,15 +55,6 @@ const getVisitPropertyCount = (visit) => visit.propertyCount || visit.properties
 
 const normalizeText = (value = '') => String(value).trim().toLowerCase();
 
-const getVisitProjectName = (visit) => (
-    visit.projectName
-    || visit.project?.name
-    || visit.project?.projectName
-    || visit.property?.projectName
-    || visit.property?.name
-    || ''
-);
-
 const getVisitProperties = (visit) => (
     Array.isArray(visit.properties) && visit.properties.length
         ? visit.properties
@@ -73,17 +63,15 @@ const getVisitProperties = (visit) => (
             : []
 );
 
-const getProjectProperties = (project) => (
-    project.inventory?.map((item, index) => ({
-        id: `${project.id}-${index}`,
-        name: item.type,
-        type: project.specs || project.configs?.join(', ') || 'Property',
-        config: item.type,
-        address: project.location,
-        price: item.basePrice,
-        size: item.size,
-        availableUnits: item.availableUnits,
-    })) || []
+const getVisitPhotos = (visit) => (
+    visit?.propertyPhotos
+    || visit?.uploadedPhotos
+    || (visit?.status === 'Completed'
+        ? [
+            { url: '/inventory-images/project-main.png', label: 'Uploaded site photo' },
+            { url: '/inventory-images/project-main.png', label: 'Property view' },
+        ]
+        : [])
 );
 
 const mapVisitToForm = (visit) => ({
@@ -125,8 +113,8 @@ const buildVisitPayload = (formState) => ({
 const Visits = () => {
     const dispatch = useDispatch();
     const { visits } = useSelector((state) => state.visits);
-    const [selectedProjectId, setSelectedProjectId] = useState(mockProjects[0]?.id || null);
-    const [selectedVisitId, setSelectedVisitId] = useState(visits[0]?.id || null);
+    const [selectedClientKey, setSelectedClientKey] = useState(null);
+    const [selectedVisitRowId, setSelectedVisitRowId] = useState(null);
     const [filter, setFilter] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [newNote, setNewNote] = useState('');
@@ -152,47 +140,49 @@ const Visits = () => {
         });
     }, [filter, searchQuery, visits]);
 
-    const projectCards = useMemo(() => mockProjects.map((project) => {
-        const projectName = normalizeText(project.name);
-        const allProjectVisits = visits.filter((visit) => normalizeText(getVisitProjectName(visit)) === projectName);
-        const visibleVisits = filteredVisits.filter((visit) => normalizeText(getVisitProjectName(visit)) === projectName);
-        const activeVisits = allProjectVisits.filter((visit) => !['Completed', 'Cancelled'].includes(visit.status));
-        const projectProperties = getProjectProperties(project);
+    const clientCards = useMemo(() => {
+        const grouped = filteredVisits.reduce((acc, visit) => {
+            const key = `${normalizeText(visit.customerName)}-${normalizeText(visit.customerPhone)}`;
+            if (!acc[key]) {
+                acc[key] = {
+                    key,
+                    name: visit.customerName,
+                    phone: visit.customerPhone,
+                    visits: [],
+                    propertyRows: [],
+                };
+            }
 
-        return {
-            ...project,
-            visits: visibleVisits,
-            allVisits: allProjectVisits,
-            activeVisits,
-            properties: projectProperties,
-            propertyTotal: Math.max(
-                projectProperties.length,
-                allProjectVisits.reduce((total, visit) => total + getVisitPropertyCount(visit), 0),
-            ),
-        };
-    }).filter((project) => (
-        project.visits.length > 0
-        || !searchQuery.trim()
-        || [
-            project.name,
-            project.builder,
-            project.location,
-            project.specs,
-            ...(project.configs || []),
-        ].filter(Boolean).some((value) => normalizeText(value).includes(normalizeText(searchQuery)))
-    )), [filteredVisits, searchQuery, visits]);
+            const properties = getVisitProperties(visit);
+            acc[key].visits.push(visit);
+            properties.forEach((property, index) => {
+                acc[key].propertyRows.push({
+                    id: `${visit.id}-${index}`,
+                    visit,
+                    property,
+                });
+            });
 
-    const selectedProject = projectCards.find((project) => project.id === selectedProjectId) || projectCards[0] || null;
-    const selectedProjectVisits = selectedProject?.visits || [];
-    const selectedVisit = selectedProjectVisits.find((visit) => visit.id === selectedVisitId) || selectedProjectVisits[0] || null;
-    const selectedProjectPropertyRows = selectedProjectVisits.length
-        ? selectedProjectVisits.flatMap((visit) => getVisitProperties(visit).map((property, index) => ({ visit, property, id: `${visit.id}-${index}` })))
-        : (selectedProject?.properties || []).map((property) => ({ visit: null, property, id: property.id }));
+            return acc;
+        }, {});
 
-    const handleProjectSelect = (projectId) => {
-        const nextProject = projectCards.find((project) => project.id === projectId);
-        setSelectedProjectId(projectId);
-        setSelectedVisitId(nextProject?.visits?.[0]?.id || null);
+        return Object.values(grouped).map((client) => ({
+            ...client,
+            activeVisits: client.visits.filter((visit) => !['Completed', 'Cancelled'].includes(visit.status)),
+            visited: client.visits.filter((visit) => visit.status === 'Completed'),
+        }));
+    }, [filteredVisits]);
+
+    const selectedClient = clientCards.find((client) => client.key === selectedClientKey) || clientCards[0] || null;
+    const selectedPropertyRows = selectedClient?.propertyRows || [];
+    const selectedPropertyRow = selectedPropertyRows.find((row) => row.id === selectedVisitRowId) || selectedPropertyRows[0] || null;
+    const selectedVisit = selectedPropertyRow?.visit || null;
+    const selectedProperty = selectedPropertyRow?.property || selectedVisit?.property || null;
+
+    const handleClientSelect = (clientKey) => {
+        const nextClient = clientCards.find((client) => client.key === clientKey);
+        setSelectedClientKey(clientKey);
+        setSelectedVisitRowId(nextClient?.propertyRows?.[0]?.id || null);
     };
 
     const visitMetrics = useMemo(() => ([
@@ -288,7 +278,7 @@ const Visits = () => {
 
         if (editingVisitId) {
             dispatch(updateVisit({ id: editingVisitId, changes: payload }));
-            setSelectedVisitId(editingVisitId);
+            setSelectedVisitRowId((current) => current || `${editingVisitId}-0`);
         } else {
             dispatch(addVisit(payload));
         }
@@ -297,7 +287,7 @@ const Visits = () => {
 
     const handleUpdateStatus = (id, status) => {
         dispatch(updateVisitStatus({ id, status }));
-        setSelectedVisitId(id);
+        setSelectedVisitRowId((current) => current || `${id}-0`);
     };
 
     const handleAddNote = () => {
@@ -345,9 +335,10 @@ const Visits = () => {
                                 type="button"
                                 onClick={() => {
                                     const slotVisit = visits.find((visit) => visit.id === slot.id);
-                                    const project = mockProjects.find((item) => normalizeText(item.name) === normalizeText(getVisitProjectName(slotVisit || {})));
-                                    if (project) handleProjectSelect(project.id);
-                                    setSelectedVisitId(slot.id);
+                                    if (!slotVisit) return;
+                                    const clientKey = `${normalizeText(slotVisit.customerName)}-${normalizeText(slotVisit.customerPhone)}`;
+                                    setSelectedClientKey(clientKey);
+                                    setSelectedVisitRowId(`${slotVisit.id}-0`);
                                 }}
                                 className={`min-h-[96px] rounded-lg border bg-white p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${
                                     slot.isActive ? 'border-[#3024E8] ring-1 ring-[#3024E8]/20' : slot.muted ? 'border-gray-200 opacity-60' : 'border-violet-100'
@@ -373,9 +364,9 @@ const Visits = () => {
                             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                                 <div>
                                     <h2 className="flex items-center gap-2 text-lg font-black text-gray-950">
-                                        <Building2 className="h-4 w-4 text-[#3024E8]" /> Project Visits
+                                        <Building2 className="h-4 w-4 text-[#3024E8]" /> Property visits
                                     </h2>
-                                    <p className="mt-0.5 text-xs font-semibold text-gray-500">Select a project first, then review each property visit inside it.</p>
+                                    <p className="mt-0.5 text-xs font-semibold text-gray-500">Select a client, review their properties to visit, then inspect visit result.</p>
                                 </div>
                                 <Button icon={Plus} className="w-full justify-center px-2.5 py-1.5 text-xs sm:w-auto" onClick={openCreateModal}>New Visit</Button>
                             </div>
@@ -386,7 +377,7 @@ const Visits = () => {
                                         value={searchQuery}
                                         onChange={(event) => setSearchQuery(event.target.value)}
                                         className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30"
-                                        placeholder="Search projects, customer, officer, location..."
+                                        placeholder="Search client, property, officer, location..."
                                     />
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
@@ -399,30 +390,34 @@ const Visits = () => {
                             </div>
                         </div>
 
-                        <div className="grid gap-3 p-3 xl:grid-cols-[320px_minmax(0,1fr)]">
+                        <div className="grid gap-3 p-3 xl:grid-cols-[260px_minmax(0,1fr)_360px]">
                             <div className="space-y-2">
-                                {projectCards.length === 0 ? (
-                                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs font-semibold text-gray-500">No matching projects found.</div>
-                                ) : projectCards.map((project) => {
-                                    const isSelected = selectedProject?.id === project.id;
+                                <div className="flex items-center justify-between gap-2">
+                                    <h3 className="text-xs font-black uppercase text-gray-500">Clients</h3>
+                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-600">{clientCards.length}</span>
+                                </div>
+                                {clientCards.length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs font-semibold text-gray-500">No matching clients found.</div>
+                                ) : clientCards.map((client) => {
+                                    const isSelected = selectedClient?.key === client.key;
                                     return (
                                         <button
-                                            key={project.id}
+                                            key={client.key}
                                             type="button"
-                                            onClick={() => handleProjectSelect(project.id)}
+                                            onClick={() => handleClientSelect(client.key)}
                                             className={`w-full rounded-lg border p-3 text-left transition-all ${isSelected ? 'border-[#3024E8] bg-[#F7F5FF] shadow-sm ring-1 ring-[#3024E8]/15' : 'border-gray-200 bg-white hover:border-[#3024E8]/40 hover:bg-gray-50'}`}
                                         >
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-black leading-tight text-gray-950 break-words">{project.name}</p>
-                                                    <p className="mt-1 text-xs font-semibold text-gray-500 break-words">{project.builder} - {project.location}</p>
+                                                    <p className="text-sm font-black leading-tight text-gray-950 break-words">{client.name}</p>
+                                                    <p className="mt-1 text-xs font-semibold text-gray-500 break-words">{client.phone}</p>
                                                 </div>
                                                 <ChevronRight className={`mt-1 h-4 w-4 shrink-0 ${isSelected ? 'text-[#3024E8]' : 'text-gray-400'}`} />
                                             </div>
                                             <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
-                                                <MiniCount label="Visits" value={project.allVisits.length} />
-                                                <MiniCount label="Active" value={project.activeVisits.length} />
-                                                <MiniCount label="Props" value={project.propertyTotal} />
+                                                <MiniCount label="Visits" value={client.visits.length} />
+                                                <MiniCount label="Active" value={client.activeVisits.length} />
+                                                <MiniCount label="Visited" value={client.visited.length} />
                                             </div>
                                         </button>
                                     );
@@ -430,150 +425,130 @@ const Visits = () => {
                             </div>
 
                             <div className="min-w-0 space-y-3">
-                                {selectedProject ? (
+                                {selectedClient ? (
                                     <>
                                         <div className="rounded-lg border border-gray-200 bg-white p-3">
                                             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                                 <div className="min-w-0">
-                                                    <p className="text-[10px] font-black uppercase text-[#3024E8]">Selected project</p>
-                                                    <h3 className="mt-0.5 text-lg font-black tracking-tight text-gray-950 break-words">{selectedProject.name}</h3>
+                                                    <p className="text-[10px] font-black uppercase text-[#3024E8]">Selected client</p>
+                                                    <h3 className="mt-0.5 text-lg font-black tracking-tight text-gray-950 break-words">{selectedClient.name}</h3>
                                                     <p className="mt-1 flex items-start gap-1.5 text-xs font-semibold text-gray-500">
-                                                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
-                                                        <span className="break-words">{selectedProject.location}</span>
+                                                        <PhoneCall className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                                                        <span className="break-words">{selectedClient.phone}</span>
                                                     </p>
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:w-[320px] lg:shrink-0">
-                                                    <MiniCount label="Units" value={selectedProject.units} />
-                                                    <MiniCount label="Available" value={selectedProject.available} />
-                                                    <MiniCount label="Visits" value={selectedProject.allVisits.length} />
-                                                    <MiniCount label="Properties" value={selectedProject.propertyTotal} />
+                                                <div className="grid grid-cols-3 gap-1.5 lg:w-[240px] lg:shrink-0">
+                                                    <MiniCount label="Visits" value={selectedClient.visits.length} />
+                                                    <MiniCount label="Active" value={selectedClient.activeVisits.length} />
+                                                    <MiniCount label="Visited" value={selectedClient.visited.length} />
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.82fr)]">
-                                            <div className="space-y-2">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <h3 className="text-xs font-black uppercase text-gray-500">Property visits</h3>
-                                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-600">{selectedProjectPropertyRows.length} items</span>
-                                                </div>
-                                                {selectedProjectPropertyRows.length === 0 ? (
-                                                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs font-semibold text-gray-500">No properties available for this project.</div>
-                                                ) : selectedProjectPropertyRows.map(({ visit, property, id }) => {
-                                                    const isSelected = selectedVisit?.id === visit?.id;
-                                                    const sources = visit ? getVisitSources(visit) : [];
-                                                    return (
-                                                        <button
-                                                            key={id}
-                                                            type="button"
-                                                            onClick={() => visit && setSelectedVisitId(visit.id)}
-                                                            className={`w-full rounded-lg border bg-white p-3 text-left shadow-sm transition-all ${isSelected ? 'border-[#3024E8] ring-1 ring-[#3024E8]/15' : 'border-gray-200 hover:border-[#3024E8]/40'} ${!visit ? 'cursor-default' : ''}`}
-                                                        >
-                                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                                                <div className="min-w-0">
-                                                                    <p className="text-sm font-black text-gray-950 break-words">{property.name || selectedProject.name}</p>
-                                                                    <p className="mt-1 text-xs font-semibold text-gray-500 break-words">{property.config || property.type || selectedProject.specs}</p>
-                                                                </div>
-                                                                {visit ? getStatusBadge(visit.status) : <Badge variant="gray">No visit</Badge>}
-                                                            </div>
-                                                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                                                                <DetailChip label="Customer" value={visit?.customerName || 'Not scheduled'} />
-                                                                <DetailChip label="Slot" value={visit ? `${visit.date} - ${visit.time}` : 'No slot'} />
-                                                                <DetailChip label="Officer" value={visit?.officerName || 'Unassigned'} />
-                                                                <DetailChip label="Price" value={property.price || 'Price on request'} />
-                                                            </div>
-                                                            {visit && (
-                                                                <div className="mt-3 flex flex-wrap gap-1.5">
-                                                                    {(Array.isArray(sources) ? sources : [sources]).map((source) => (
-                                                                        <span key={source} className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-[#3024E8]">{source}</span>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </button>
-                                                    );
-                                                })}
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <h3 className="text-xs font-black uppercase text-gray-500">Properties they are about to visit</h3>
+                                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-600">{selectedPropertyRows.length} items</span>
                                             </div>
-
-                                            <div className="min-w-0 space-y-3">
-                                                {!selectedVisit ? (
-                                                    <Card className="flex min-h-[220px] flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 text-center">
-                                                        <Calendar className="mb-2 h-9 w-9 text-gray-300" />
-                                                        <h3 className="text-sm font-black text-gray-700">No visit selected</h3>
-                                                        <p className="mt-1 max-w-sm text-xs font-semibold text-gray-500">This project has inventory, but no matching property visit for the current filters.</p>
-                                                    </Card>
-                                                ) : (
-                                                    <Card noPadding className="overflow-hidden border-gray-200 shadow-sm">
-                                                        <div className="border-b border-gray-100 bg-white p-3">
-                                                            <div className="flex flex-col gap-2">
-                                                                <div>
-                                                                    <div className="flex flex-wrap items-center gap-1.5">
-                                                                        <h2 className="text-lg font-black text-gray-950 break-words">Visit #{selectedVisit.id}</h2>
-                                                                        {getStatusBadge(selectedVisit.status)}
-                                                                    </div>
-                                                                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
-                                                                        <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5 text-gray-400" /> {selectedVisit.date}</span>
-                                                                        <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-gray-400" /> {selectedVisit.time}</span>
-                                                                    </p>
-                                                                </div>
-                                                                <div className="flex flex-wrap gap-1.5">
-                                                                    <Button variant="secondary" icon={Edit2} onClick={() => openEditModal(selectedVisit)} className="px-2.5 py-1.5 text-xs shadow-sm border-gray-300 hover:bg-gray-100 text-gray-700">Edit</Button>
-                                                                    {selectedVisit.status === 'Scheduled' && (
-                                                                        <>
-                                                                            <Button variant="success" icon={CheckCircle2} onClick={() => handleUpdateStatus(selectedVisit.id, 'Completed')} className="px-2.5 py-1.5 text-xs shadow-sm">Complete</Button>
-                                                                            <Button variant="secondary" icon={Clock} onClick={() => openEditModal(selectedVisit)} className="px-2.5 py-1.5 text-xs shadow-sm border-gray-300 hover:bg-gray-100 text-gray-700">Reschedule</Button>
-                                                                            <Button variant="danger" icon={XCircle} onClick={() => handleUpdateStatus(selectedVisit.id, 'Cancelled')} className="px-2.5 py-1.5 text-xs shadow-sm">Cancel</Button>
-                                                                        </>
-                                                                    )}
-                                                                    {selectedVisit.status === 'Completed' && (
-                                                                        <Button variant="primary" icon={TrendingUp} className="px-2.5 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 shadow-md">Convert to Deal</Button>
-                                                                    )}
-                                                                </div>
+                                            {selectedPropertyRows.length === 0 ? (
+                                                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs font-semibold text-gray-500">No property visits for this client.</div>
+                                            ) : selectedPropertyRows.map(({ visit, property, id }) => {
+                                                const isSelected = selectedPropertyRow?.id === id;
+                                                return (
+                                                    <button
+                                                        key={id}
+                                                        type="button"
+                                                        onClick={() => setSelectedVisitRowId(id)}
+                                                        className={`w-full rounded-lg border bg-white p-3 text-left shadow-sm transition-all ${isSelected ? 'border-[#3024E8] ring-1 ring-[#3024E8]/15' : 'border-gray-200 hover:border-[#3024E8]/40'}`}
+                                                    >
+                                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-black text-gray-950 break-words">{property.name}</p>
+                                                                <p className="mt-1 text-xs font-semibold text-gray-500 break-words">{property.config || property.type}</p>
                                                             </div>
+                                                            {getStatusBadge(visit.status)}
                                                         </div>
-
-                                                        <div className="space-y-3 bg-gray-50/50 p-3">
-                                                            <div className="grid gap-2 sm:grid-cols-2">
-                                                                <InfoCard title="Customer" name={selectedVisit.customerName} phone={selectedVisit.customerPhone} icon={User} color="blue" />
-                                                                <InfoCard title="Assigned Officer" name={selectedVisit.officerName} phone={selectedVisit.officerPhone} icon={HardHat} color="purple" />
-                                                            </div>
-
-                                                            <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-                                                                <h3 className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
-                                                                    <Building2 className="h-4 w-4 text-gray-400" /> Property details
-                                                                </h3>
-                                                                <div className="grid gap-2 text-xs font-bold text-gray-700 sm:grid-cols-2">
-                                                                    <DetailBlock label="Property" value={selectedVisit.property?.name} />
-                                                                    <DetailBlock label="Configuration" value={selectedVisit.property?.config} />
-                                                                    <DetailBlock label="Type" value={selectedVisit.property?.type} />
-                                                                    <DetailBlock label="Price" value={selectedVisit.property?.price} />
-                                                                    <DetailBlock label="Address" value={selectedVisit.property?.address} wide />
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-                                                                <h3 className="mb-3 flex items-center gap-2 text-sm font-black text-gray-800">
-                                                                    <FileText className="h-4 w-4 text-gray-400" /> Visit notes and follow-up
-                                                                </h3>
-                                                                <div className="mb-3 rounded-md border border-amber-100 bg-amber-50/50 p-3">
-                                                                    <p className="whitespace-pre-wrap break-words text-xs text-gray-700">{selectedVisit.notes || 'No notes yet.'}</p>
-                                                                </div>
-                                                                {selectedVisit.status !== 'Cancelled' && (
-                                                                    <div className="flex flex-col gap-2 border-t border-gray-100 pt-3">
-                                                                        <label className="text-[10px] font-bold uppercase text-gray-500">Add internal update</label>
-                                                                        <textarea value={newNote} onChange={(event) => setNewNote(event.target.value)} rows="2" className="w-full rounded-md border border-gray-300 p-2 text-xs font-medium outline-none focus:ring-2 focus:ring-[#6F4BFF]/50" />
-                                                                        <Button onClick={handleAddNote} icon={Save} className="w-full justify-center px-2.5 py-1.5 text-xs shadow-sm sm:w-fit">Save Note</Button>
-                                                                    </div>
-                                                                )}
-                                                            </div>
+                                                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                                                            <DetailChip label="Slot" value={`${visit.date} - ${visit.time}`} />
+                                                            <DetailChip label="Officer" value={visit.officerName || 'Unassigned'} />
+                                                            <DetailChip label="Price" value={property.price || 'Price on request'} />
                                                         </div>
-                                                    </Card>
-                                                )}
-
-                                            </div>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs font-semibold text-gray-500">Select a project to see property visits.</div>
+                                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs font-semibold text-gray-500">Select a client to see property visits.</div>
+                                )}
+                            </div>
+
+                            <div className="min-w-0">
+                                {!selectedVisit ? (
+                                    <Card className="flex min-h-[260px] flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50 text-center">
+                                        <Calendar className="mb-2 h-9 w-9 text-gray-300" />
+                                        <h3 className="text-sm font-black text-gray-700">No visit selected</h3>
+                                        <p className="mt-1 max-w-sm text-xs font-semibold text-gray-500">Select a property visit to see the result.</p>
+                                    </Card>
+                                ) : (
+                                    <Card noPadding className="overflow-hidden border-gray-200 shadow-sm">
+                                        <div className="border-b border-gray-100 bg-white p-3">
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                <h2 className="text-lg font-black text-gray-950 break-words">{selectedProperty?.name || 'Property visit'}</h2>
+                                                {getStatusBadge(selectedVisit.status)}
+                                            </div>
+                                            <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
+                                                <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5 text-gray-400" /> {selectedVisit.date}</span>
+                                                <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-gray-400" /> {selectedVisit.time}</span>
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-3 bg-gray-50/50 p-3">
+                                            <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                                                <div className="grid gap-2 text-xs font-bold text-gray-700">
+                                                    <DetailBlock label="Client" value={selectedVisit.customerName} />
+                                                    <DetailBlock label="Configuration" value={selectedProperty?.config || selectedProperty?.type} />
+                                                    <DetailBlock label="Address" value={selectedProperty?.address} wide />
+                                                </div>
+                                            </div>
+
+                                            {selectedVisit.status !== 'Completed' ? (
+                                                <div className="rounded-lg border border-dashed border-gray-200 bg-white p-5 text-center">
+                                                    <Clock className="mx-auto mb-2 h-8 w-8 text-gray-300" />
+                                                    <p className="text-sm font-black text-gray-900">Not visited yet</p>
+                                                    <p className="mt-1 text-xs font-semibold text-gray-500">Review and uploaded photos will appear after the visit is completed.</p>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                                                        <h3 className="mb-2 text-sm font-black text-gray-800">Client review</h3>
+                                                        {selectedVisit.userRating && (
+                                                            <div className="mb-2 flex gap-0.5">
+                                                                {[0, 1, 2, 3, 4].map((index) => (
+                                                                    <span key={index} className={`text-sm ${index < selectedVisit.userRating ? 'text-amber-400' : 'text-gray-200'}`}>★</span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <p className="text-xs font-semibold leading-5 text-gray-700">{selectedVisit.userReview || selectedVisit.notes || 'Visit completed. Review not added yet.'}</p>
+                                                    </div>
+
+                                                    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                                                        <h3 className="mb-3 text-sm font-black text-gray-800">Uploaded property photos</h3>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {getVisitPhotos(selectedVisit).map((image, index) => (
+                                                                <div key={`${image.url}-${index}`} className="overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                                                                    <img src={image.url} alt={image.label} className="h-24 w-full object-cover" />
+                                                                    <p className="truncate px-2 py-1 text-[10px] font-bold text-gray-500">{image.label}</p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <Button variant="primary" icon={TrendingUp} className="w-full justify-center px-2.5 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 shadow-md">Convert to Deal</Button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </Card>
                                 )}
                             </div>
                         </div>

@@ -230,6 +230,27 @@ const BrokerCommission = () => {
     const selectedWithdrawals = selectedBroker.withdrawals;
     const getWithdrawalStatus = (withdrawal) => withdrawalActions[withdrawal.id]?.status || withdrawal.status;
 
+    const brokerCommissionSummary = useMemo(() => brokerCommissionData.map((broker) => {
+        const totalCommission = broker.commissions.reduce((sum, commission) => sum + commission.amount, 0);
+        const paidCommission = broker.commissions
+            .filter((commission) => commission.status === 'Paid')
+            .reduce((sum, commission) => sum + commission.amount, 0);
+        const pendingCommission = broker.commissions
+            .filter((commission) => commission.status !== 'Paid')
+            .reduce((sum, commission) => sum + commission.amount, 0);
+
+        return {
+            id: broker.id,
+            name: broker.name,
+            agency: broker.agency,
+            status: broker.brokerStatus,
+            commissionCount: broker.commissions.length,
+            totalCommission,
+            paidCommission,
+            pendingCommission,
+        };
+    }), []);
+
     const totals = brokerCommissionData.reduce((summary, broker) => ({
         brokers: summary.brokers + 1,
         properties: summary.properties + broker.stats.total_properties,
@@ -261,10 +282,56 @@ const BrokerCommission = () => {
 
     return (
         <div className="flex h-full flex-1 flex-col bg-[#F5F6FA] text-[#15121F]">
-            <Header title="Broker Commission" />
+            <Header title="Broker" />
 
             <main className="flex-1 overflow-y-auto p-4">
                 <div className="mx-auto max-w-[1600px] space-y-4">
+                    <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
+                        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#2717D7]">Broker Commissions</p>
+                                <h2 className="mt-1 text-lg font-black text-[#171327]">All brokers and commission amount</h2>
+                            </div>
+                            <p className="text-xs font-bold text-[#615C71]">Click a broker to inspect their properties, clients, wallet, and payouts.</p>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            {brokerCommissionSummary.map((broker) => {
+                                const selected = broker.id === selectedBroker.id;
+
+                                return (
+                                    <button
+                                        key={broker.id}
+                                        type="button"
+                                        onClick={() => setSelectedBrokerId(broker.id)}
+                                        className={`rounded-[8px] border p-3 text-left transition-all ${selected ? 'border-[#2717D7] bg-[#F4F1FF] shadow-[0_10px_24px_rgba(39,23,215,0.08)]' : 'border-[#E1DDF0] bg-[#FCFBFF] hover:border-[#2717D7]'}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-black text-[#171327]">{broker.name}</p>
+                                                <p className="mt-0.5 truncate text-[10px] font-bold text-[#615C71]">{broker.agency}</p>
+                                            </div>
+                                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider ${getStatusClass(broker.status)}`}>
+                                                {broker.status}
+                                            </span>
+                                        </div>
+
+                                        <div className="mt-3 rounded-[8px] bg-white p-3">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[#8B8498]">Total Commission</p>
+                                            <p className="mt-1 text-xl font-black tracking-tight text-[#2717D7]">{formatCurrency(broker.totalCommission)}</p>
+                                        </div>
+
+                                        <div className="mt-3 grid grid-cols-3 gap-2">
+                                            <MiniStat label="Paid" value={formatCurrency(broker.paidCommission)} />
+                                            <MiniStat label="Pending" value={formatCurrency(broker.pendingCommission)} />
+                                            <MiniStat label="Deals" value={broker.commissionCount} />
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
+
                     <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
                         <div className="flex flex-col gap-3.5 xl:flex-row xl:items-center xl:justify-between">
                             <div>

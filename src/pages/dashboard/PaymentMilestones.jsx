@@ -6,22 +6,15 @@ import {
     BellRing,
     Bot,
     CalendarClock,
-    CheckCircle2,
-    CircleDollarSign,
     CreditCard,
-    FileText,
-    Home,
-    IndianRupee,
     ListChecks,
     Mail,
     MessageSquareText,
-    Phone,
     ReceiptText,
     Search,
     Send,
     ShieldAlert,
     Smartphone,
-    UserRound,
     X,
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
@@ -383,18 +376,39 @@ const PaymentMilestones = () => {
                             </button>
                             <div className="grid gap-3 lg:grid-cols-[1fr_360px]">
                                 <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
-                                    <SectionHeader icon={Home} title="Deal payment details" helper="Deal summary mirrors the project-panel payment schedule modal." />
-                                    <div className="mt-3 grid gap-2 md:grid-cols-2">
-                                        <DetailItem icon={UserRound} label="Customer" value={selectedDeal.customer} helper={selectedDeal.customerPhone} />
-                                        <DetailItem icon={Home} label="Project unit" value={selectedDeal.project} helper={selectedDeal.unit} />
-                                        <DetailItem icon={FileText} label="Deal" value={selectedDeal.dealCode} helper={`${selectedDeal.status} / ${selectedDeal.createdOn}`} />
-                                        <DetailItem icon={Phone} label="Owner team" value={selectedDeal.salesOfficer} helper={`Broker: ${selectedDeal.broker}`} />
-                                    </div>
-                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                                        <MetricTile icon={IndianRupee} label="Deal value" value={formatCompactCurrency(selectedDeal.dealValue)} />
-                                        <MetricTile icon={CheckCircle2} label="Collected" value={formatCompactCurrency(selectedDeal.collected)} />
-                                        <MetricTile icon={CircleDollarSign} label="Pending" value={formatCompactCurrency(selectedDeal.pending)} />
-                                        <MetricTile icon={CalendarClock} label="Progress" value={`${selectedDeal.progress}%`} />
+                                    <SectionHeader icon={ReceiptText} title="Payment collection history" helper="Compact receipt trail for this deal." />
+                                    <div className="mt-3 space-y-2">
+                                        {selectedDeal.transactions.map((transaction) => (
+                                            <div key={transaction.id} className="rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-2.5">
+                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-black text-[#171327]">{transaction.milestone}</p>
+                                                        <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">{transaction.id} / {transaction.collectedOn}</p>
+                                                    </div>
+                                                    <p className="text-sm font-black text-[#0C6B39]">{formatCompactCurrency(transaction.amount)}</p>
+                                                </div>
+                                                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-[#E1DDF0] pt-2">
+                                                    <div>
+                                                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-[#8B8498]">{transaction.mode}</p>
+                                                        <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">{transaction.receipt} / {transaction.collector}</p>
+                                                    </div>
+                                                    <a
+                                                        href={transaction.receiptPdfUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="inline-flex rounded-[6px] border border-[#D8D2EB] bg-white px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-[#2717D7] hover:border-[#2717D7]"
+                                                    >
+                                                        View PDF
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {selectedDeal.transactions.length === 0 && (
+                                            <div className="rounded-[8px] border border-dashed border-[#D8D2EB] bg-[#FCFBFF] p-4 text-center">
+                                                <p className="text-xs font-black text-[#171327]">No payment collected yet</p>
+                                                <p className="mt-1 text-[10px] font-bold text-[#615C71]">Receipts will appear here after collection.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -465,34 +479,7 @@ const PaymentMilestones = () => {
                                 </div>
                             </div>
 
-                            <div className="grid gap-3 xl:grid-cols-2">
-                                <DataTable
-                                    icon={ReceiptText}
-                                    title="Payment collection history"
-                                    helper="Collected milestone transactions and receipt trail."
-                                    columns={['Milestone', 'Amount', 'Mode', 'Receipt']}
-                                    rows={selectedDeal.transactions.map((transaction) => [
-                                        <div key="milestone">
-                                            <p className="font-black text-[#171327]">{transaction.milestone}</p>
-                                            <p className="mt-1 text-[10px] font-bold text-[#615C71]">{transaction.id} / {transaction.collectedOn}</p>
-                                        </div>,
-                                        <span key="amount" className="font-black text-[#0C6B39]">{formatCurrency(transaction.amount)}</span>,
-                                        transaction.mode,
-                                        <div key="receipt">
-                                            <p className="font-black text-[#171327]">{transaction.receipt}</p>
-                                            <p className="mt-1 text-[10px] font-bold text-[#615C71]">{transaction.collector}</p>
-                                            <a
-                                                href={transaction.receiptPdfUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="mt-1 inline-flex rounded-[6px] border border-[#D8D2EB] bg-white px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-[#2717D7] hover:border-[#2717D7]"
-                                            >
-                                                View PDF
-                                            </a>
-                                        </div>,
-                                    ])}
-                                />
-
+                            <div className="grid gap-3">
                                 <DataTable
                                     icon={BellRing}
                                     title="Reminder history"
@@ -537,21 +524,6 @@ const SectionHeader = ({ icon: Icon, title, helper }) => (
         </div>
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[7px] bg-[#F0EDFF] text-[#2717D7]">
             <Icon size={16} />
-        </div>
-    </div>
-);
-
-const DetailItem = ({ icon: Icon, label, value, helper }) => (
-    <div className="min-w-0 rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-2.5">
-        <div className="flex items-start gap-2">
-            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] bg-[#F0EDFF] text-[#2717D7]">
-                <Icon className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-                <p className="text-[8px] font-black uppercase tracking-[0.1em] text-[#8B8498]">{label}</p>
-                <p className="mt-0.5 break-words text-xs font-black leading-4 text-[#171327]">{value}</p>
-                <p className="mt-0.5 break-words text-[10px] font-bold leading-4 text-[#615C71]">{helper}</p>
-            </div>
         </div>
     </div>
 );

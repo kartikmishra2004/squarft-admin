@@ -25,6 +25,17 @@ export const mockProjects = [
     },
     {
         id: 'P002', name: 'Green Valley Phase 2', builder: 'EcoHomes Ltd', location: 'HSR Layout, Bangalore', priceRange: '85 L - 1.5 Cr', configs: ['Villa Plots', '3BHK'], status: 'Active', units: 80, available: 12, progress: 100, officer: 'Sneha P.', updated: '1 day ago', specs: 'Villa Plots & Open Spaces', docs: 8, addedBy: 'broker',
+        brokerProfile: {
+            fullName: 'Karan Malhotra',
+            phone: '+91 98765 44012',
+            location: 'Bangalore, Karnataka',
+            agencyName: 'Aarambh Realty',
+            brokerType: 'Channel Partner',
+            reraNumber: 'KA/RERA/AG/2024/01129',
+            coverage: 'Bangalore, Chennai',
+            verifiedAt: 'Verified 4 days ago',
+            about: 'Broker partner handling plotted communities, villas, and luxury residential inventory across South India.',
+        },
         inventory: [
             { type: '30x40 Plot', size: '1,200 Sq.Ft', basePrice: '85 Lacs', totalUnits: 50, availableUnits: 5 },
             { type: '40x60 Plot', size: '2,400 Sq.Ft', basePrice: '1.50 Cr', totalUnits: 30, availableUnits: 7 }
@@ -53,6 +64,17 @@ export const mockProjects = [
     },
     {
         id: 'P004', name: 'Ocean View Luxury', builder: 'Coastal Reality', location: 'ECR, Chennai', priceRange: '4.2 Cr - 6 Cr', configs: ['4BHK', 'Penthouse'], status: 'Approved', units: 30, available: 8, progress: 100, officer: 'Vikram S.', updated: '1 week ago', specs: 'Ultra Luxury Sea-facing', docs: 6, addedBy: 'broker',
+        brokerProfile: {
+            fullName: 'Karan Malhotra',
+            phone: '+91 98765 44012',
+            location: 'Bangalore, Karnataka',
+            agencyName: 'Aarambh Realty',
+            brokerType: 'Channel Partner',
+            reraNumber: 'KA/RERA/AG/2024/01129',
+            coverage: 'Bangalore, Chennai',
+            verifiedAt: 'Verified 4 days ago',
+            about: 'Broker partner handling plotted communities, villas, and luxury residential inventory across South India.',
+        },
         inventory: [
             { type: '4BHK Seaview', size: '3,200 Sq.Ft', basePrice: '4.20 Cr', totalUnits: 25, availableUnits: 7 },
             { type: 'Penthouse', size: '5,500 Sq.Ft', basePrice: '6.00 Cr', totalUnits: 5, availableUnits: 1 }

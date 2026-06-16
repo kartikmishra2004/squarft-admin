@@ -33,7 +33,7 @@ export const adminLinks = [
   { icon: UserPlus, label: 'App user list', path: '/dashboard/users' },
   { icon: Activity, label: 'User app activities', path: '/dashboard/user-app-activities' },
   { icon: PanelsTopLeft, label: 'Panel Overview', path: '/dashboard/panel-overview' },
-  { icon: BadgeIndianRupee, label: 'Broker Commission', path: '/dashboard/broker-commission' },
+  { icon: BadgeIndianRupee, label: 'Broker', path: '/dashboard/broker-commission' },
   { icon: BellRing, label: 'Custom Notifications', path: '/dashboard/notifications' },
   { icon: Headphones, label: 'Support Center', path: '/dashboard/support' },
 ];
