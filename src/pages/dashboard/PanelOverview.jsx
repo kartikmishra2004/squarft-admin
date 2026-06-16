@@ -577,6 +577,124 @@ const PanelOverview = () => {
     );
     const [officerActiveStep, setOfficerActiveStep] = useState(1);
 
+    // Task Management Sub-tab States
+    const [tasks, setTasks] = useState([
+        {
+            id: "T-005",
+            title: "Verify project boundary and entrance access",
+            projectName: "Green Valley Plots",
+            location: "Palasia, Indore",
+            due: "Today",
+            time: "10:30 AM",
+            status: "In Progress",
+            priority: "High",
+            officerId: "FO-002",
+            officerName: "Sneha Patel",
+            note: "Capture boundary photos and confirm entrance access before panel review.",
+            tracking: { latitude: 22.7196, longitude: 75.8577 }
+        },
+        {
+            id: "T-006",
+            title: "Capture site photos for onboarding approval",
+            projectName: "Sunrise Heights",
+            location: "Rau Road, Indore",
+            due: "Today",
+            time: "01:00 PM",
+            status: "Scheduled",
+            priority: "Medium",
+            officerId: "FO-003",
+            officerName: "Rahul Mehta",
+            note: "Upload front elevation, entry road, amenities, and construction progress photos.",
+            tracking: { latitude: 22.7528, longitude: 75.8937 }
+        },
+        {
+            id: "T-007",
+            title: "Meet builder for pending KYC originals",
+            projectName: "Royal Greens Township",
+            location: "Vijay Nagar, Indore",
+            due: "Tomorrow",
+            time: "11:15 AM",
+            status: "Pending",
+            priority: "High",
+            officerId: "FO-001",
+            officerName: "Amit Verma",
+            note: "Collect GST, RERA, PAN, and authorization letter originals for admin closure.",
+            tracking: { latitude: 22.6924, longitude: 75.8790 }
+        },
+        {
+            id: "T-008",
+            title: "Confirm sales office location pin",
+            projectName: "Apex Buildcon",
+            location: "Bypass Road, Indore",
+            due: "This week",
+            time: "04:00 PM",
+            status: "New",
+            priority: "Low",
+            officerId: "FO-002",
+            officerName: "Sneha Patel",
+            note: "Confirm the exact sales office map pin and note landmark visibility.",
+            tracking: { latitude: 22.7359, longitude: 75.9176 }
+        }
+    ]);
+
+    const [taskTitle, setTaskTitle] = useState('');
+    const [taskProject, setTaskProject] = useState('');
+    const [taskLocation, setTaskLocation] = useState('');
+    const [taskPriority, setTaskPriority] = useState('Medium');
+    const [taskDue, setTaskDue] = useState('Today');
+    const [taskTime, setTaskTime] = useState('12:00 PM');
+    const [taskNote, setTaskNote] = useState('');
+    const [taskOfficerId, setTaskOfficerId] = useState(fieldOfficerWorkflowData[0]?.id || '');
+    const [taskActiveFilter, setTaskActiveFilter] = useState('all');
+
+    // Live tracking map locations
+    const [officerLocations, setOfficerLocations] = useState({
+        'FO-001': { name: 'Amit Verma', lat: 22.7196, lng: 75.8577, status: 'Moving' },
+        'FO-002': { name: 'Sneha Patel', lat: 22.7528, lng: 75.8937, status: 'On Site' },
+        'FO-003': { name: 'Rahul Mehta', lat: 22.6924, lng: 75.8790, status: 'Idle' },
+    });
+
+    const handleAssignTask = (e) => {
+        e.preventDefault();
+        if (!taskTitle.trim() || !taskProject.trim() || !taskLocation.trim()) return;
+
+        const assignedOfficer = fieldOfficerWorkflowData.find(fo => fo.id === taskOfficerId) || fieldOfficerWorkflowData[0];
+        const randomLat = 22.68 + Math.random() * 0.1;
+        const randomLng = 75.80 + Math.random() * 0.15;
+
+        const newTask = {
+            id: `T-${String(tasks.length + 5).padStart(3, '0')}`,
+            title: taskTitle,
+            projectName: taskProject,
+            location: taskLocation,
+            due: taskDue,
+            time: taskTime,
+            status: 'Pending',
+            priority: taskPriority,
+            officerId: taskOfficerId,
+            officerName: assignedOfficer.name,
+            note: taskNote,
+            tracking: { latitude: parseFloat(randomLat.toFixed(4)), longitude: parseFloat(randomLng.toFixed(4)) }
+        };
+
+        setTasks(prev => [newTask, ...prev]);
+        setTaskTitle('');
+        setTaskProject('');
+        setTaskLocation('');
+        setTaskPriority('Medium');
+        setTaskDue('Today');
+        setTaskTime('12:00 PM');
+        setTaskNote('');
+    };
+
+    const handleCompleteTask = (taskId) => {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Completed' } : t));
+    };
+
+    const handleDeleteTask = (taskId) => {
+        setTasks(prev => prev.filter(t => t.id !== taskId));
+    };
+
     const handleProjectOnboardTabChange = (tab) => {
         setProjectOnboardTab(tab);
         const filtered = projectOnboarding.filter(p => tab === 'done' ? p.isCompleted : !p.isCompleted);
@@ -690,6 +808,142 @@ const PanelOverview = () => {
     // Audio Playback State & Handlers
     const [playingId, setPlayingId] = useState(null);
     const audioRef = useRef(null);
+
+    const mapRef = useRef(null);
+    const mapInstance = useRef(null);
+    const markersRef = useRef({});
+    const [leafletLoaded, setLeafletLoaded] = useState(!!window.L);
+
+    useEffect(() => {
+        if (window.L) {
+            setLeafletLoaded(true);
+            return;
+        }
+
+        // Load Leaflet CSS
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+
+        // Load Leaflet JS
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.async = true;
+        document.body.appendChild(script);
+
+        // Inject custom animations CSS
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes pulse {
+                0% { transform: scale(0.9); opacity: 0.9; }
+                50% { transform: scale(1.15); opacity: 0.3; }
+                100% { transform: scale(1.4); opacity: 0; }
+            }
+            .custom-officer-icon {
+                background: none !important;
+                border: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+
+        script.onload = () => {
+            setLeafletLoaded(true);
+        };
+
+        return () => {
+            if (link.parentNode) link.parentNode.removeChild(link);
+            if (script.parentNode) script.parentNode.removeChild(script);
+            if (style.parentNode) style.parentNode.removeChild(style);
+        };
+    }, []);
+
+    useEffect(() => {
+        const L = window.L;
+        if (activeTab === 'fieldOfficer' && activeOfficerSubTab === 'tasks' && L && mapRef.current && !mapInstance.current) {
+            const selectedLoc = officerLocations[selectedOfficerId];
+            const initialView = selectedLoc ? [selectedLoc.lat, selectedLoc.lng] : [22.7196, 75.8577];
+            const initialZoom = selectedLoc ? 13 : 12;
+
+            const map = L.map(mapRef.current).setView(initialView, initialZoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            mapInstance.current = map;
+
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 200);
+            
+            // Render initial markers
+            Object.entries(officerLocations).forEach(([id, fo]) => {
+                const color = id === 'FO-001' ? '#2717D7' : id === 'FO-002' ? '#10B981' : '#F59E0B';
+                const initial = fo.name.split(' ').map(n => n[0]).join('');
+                
+                const customIcon = L.divIcon({
+                    className: 'custom-officer-icon',
+                    html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 9px; font-weight: 900; position: relative;">
+                             <span style="position: absolute; width: 32px; height: 32px; border-radius: 50%; border: 2px solid ${color}; top: -6px; left: -6px; opacity: 0.4; animation: pulse 2s infinite;"></span>
+                             ${initial}
+                           </div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+
+                const marker = L.marker([fo.lat, fo.lng], { icon: customIcon }).addTo(map)
+                    .bindPopup(`<b>${fo.name}</b><br/>Status: ${fo.status}<br/>Coordinates: ${fo.lat}, ${fo.lng}`);
+                markersRef.current[id] = marker;
+            });
+        }
+
+        return () => {
+            if (mapInstance.current) {
+                mapInstance.current.remove();
+                mapInstance.current = null;
+                markersRef.current = {};
+            }
+        };
+    }, [activeTab, activeOfficerSubTab, leafletLoaded]);
+
+    useEffect(() => {
+        const L = window.L;
+        if (!L || !mapInstance.current) return;
+
+        const selectedLoc = officerLocations[selectedOfficerId];
+        if (selectedLoc) {
+            mapInstance.current.panTo([selectedLoc.lat, selectedLoc.lng]);
+        }
+    }, [selectedOfficerId]);
+
+    useEffect(() => {
+        const L = window.L;
+        if (!L || !mapInstance.current) return;
+
+        Object.entries(officerLocations).forEach(([id, fo]) => {
+            const color = id === 'FO-001' ? '#2717D7' : id === 'FO-002' ? '#10B981' : '#F59E0B';
+            const initial = fo.name.split(' ').map(n => n[0]).join('');
+            
+            const customIcon = L.divIcon({
+                className: 'custom-officer-icon',
+                html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 9px; font-weight: 900; position: relative;">
+                         <span style="position: absolute; width: 32px; height: 32px; border-radius: 50%; border: 2px solid ${color}; top: -6px; left: -6px; opacity: 0.4; animation: pulse 2s infinite;"></span>
+                         ${initial}
+                       </div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+
+            if (markersRef.current[id]) {
+                markersRef.current[id].setLatLng([fo.lat, fo.lng]);
+                markersRef.current[id].setIcon(customIcon);
+                markersRef.current[id].getPopup().setContent(`<b>${fo.name}</b><br/>Status: ${fo.status}<br/>Coordinates: ${fo.lat}, ${fo.lng}`);
+            } else {
+                const marker = L.marker([fo.lat, fo.lng], { icon: customIcon }).addTo(mapInstance.current)
+                    .bindPopup(`<b>${fo.name}</b><br/>Status: ${fo.status}<br/>Coordinates: ${fo.lat}, ${fo.lng}`);
+                markersRef.current[id] = marker;
+            }
+        });
+    }, [officerLocations]);
 
     useEffect(() => {
         return () => {
@@ -1434,10 +1688,295 @@ const PanelOverview = () => {
                                                 </div>
                                             )}
                                         </div>
+                                    ) : activeOfficerSubTab === 'tasks' ? (
+                                        <div className="space-y-6 pt-2">
+                                            <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+                                                {/* Left Column: Form (2 cols) */}
+                                                <div className="xl:col-span-2 rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
+                                                    <div>
+                                                        <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[#2717D7]">Assign New Task</h3>
+                                                        <p className="text-[10px] text-[#5E5A71] font-bold mt-0.5">Assign site visits and compliance checks to field officers.</p>
+                                                    </div>
+                                                    
+                                                    <form onSubmit={handleAssignTask} className="space-y-3">
+                                                        <div>
+                                                            <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Task Title</label>
+                                                            <input 
+                                                                type="text" 
+                                                                value={taskTitle}
+                                                                onChange={(e) => setTaskTitle(e.target.value)}
+                                                                placeholder="e.g. Verify property boundaries" 
+                                                                className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
+                                                                required
+                                                            />
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Project Name</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={taskProject}
+                                                                    onChange={(e) => setTaskProject(e.target.value)}
+                                                                    placeholder="e.g. Skyline Residency" 
+                                                                    className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
+                                                                    required
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Location</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={taskLocation}
+                                                                    onChange={(e) => setTaskLocation(e.target.value)}
+                                                                    placeholder="e.g. Vijay Nagar, Indore" 
+                                                                    className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Select Field Officer</label>
+                                                                <select 
+                                                                    value={taskOfficerId}
+                                                                    onChange={(e) => setTaskOfficerId(e.target.value)}
+                                                                    className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
+                                                                >
+                                                                    {fieldOfficerWorkflowData.map((fo) => (
+                                                                        <option key={fo.id} value={fo.id}>{fo.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Priority</label>
+                                                                <select 
+                                                                    value={taskPriority}
+                                                                    onChange={(e) => setTaskPriority(e.target.value)}
+                                                                    className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
+                                                                >
+                                                                    <option value="High">High</option>
+                                                                    <option value="Medium">Medium</option>
+                                                                    <option value="Low">Low</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Due Date</label>
+                                                                <select 
+                                                                    value={taskDue}
+                                                                    onChange={(e) => setTaskDue(e.target.value)}
+                                                                    className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
+                                                                >
+                                                                    <option value="Today">Today</option>
+                                                                    <option value="Tomorrow">Tomorrow</option>
+                                                                    <option value="This week">This Week</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Time</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={taskTime}
+                                                                    onChange={(e) => setTaskTime(e.target.value)}
+                                                                    placeholder="e.g. 10:30 AM" 
+                                                                    className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Task Notes</label>
+                                                            <textarea 
+                                                                rows="2"
+                                                                value={taskNote}
+                                                                onChange={(e) => setTaskNote(e.target.value)}
+                                                                placeholder="e.g. Collect copy of original RERA certificate..." 
+                                                                className="w-full mt-1 rounded-[6px] border border-[#D8D2EB] bg-white p-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
+                                                            />
+                                                        </div>
+
+                                                        <button 
+                                                            type="submit" 
+                                                            className="w-full h-9 mt-2 rounded-[6px] bg-[#2717D7] hover:bg-[#1a0fa3] text-white text-xs font-black uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
+                                                        >
+                                                            Assign Task
+                                                        </button>
+                                                    </form>
+                                                </div>
+
+                                                {/* Right Column: Google Maps & Live Tracking (3 cols) */}
+                                                <div className="xl:col-span-3 rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div>
+                                                            <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[#2717D7]">GPS Live Tracking Map</h3>
+                                                            <p className="text-[10px] text-[#5E5A71] font-bold mt-0.5">Coordinates and locations of active field officers.</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                            <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">GPS Signal Active</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Real Interactive Leaflet Live Map */}
+                                                    <div className="relative w-full h-[280px] rounded-[8px] overflow-hidden border border-[#E1DDF0] bg-gray-50 flex-1">
+                                                        <div ref={mapRef} className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }} />
+                                                        {/* GPS Coordinates Overlay Overlay */}
+                                                        <div className="absolute top-2 left-2 bg-[#171327]/90 text-white rounded p-3 text-[10px] font-mono border border-white/10 space-y-1.5 shadow-lg backdrop-blur-xs max-w-[240px]" style={{ zIndex: 10 }}>
+                                                            <p className="font-bold text-amber-400 uppercase tracking-wide pb-1 border-b border-white/10">Active Positions</p>
+                                                            {Object.entries(officerLocations).map(([id, fo]) => (
+                                                                <div key={id} className="flex justify-between items-center gap-4">
+                                                                    <span className="font-bold text-white/90">{fo.name}:</span>
+                                                                    <span className="text-emerald-400">{fo.lat}, {fo.lng}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Legend / Status details */}
+                                                    <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-[#EFEAF8] text-center">
+                                                        {Object.entries(officerLocations).map(([id, fo]) => (
+                                                            <div key={id} className="bg-[#F8F9FF] border border-[#E1DDF0] rounded p-2 flex flex-col items-center">
+                                                                <span className="text-[10px] font-black text-[#171327]">{fo.name}</span>
+                                                                <span className="text-[8px] font-mono text-[#797298] mt-0.5">({fo.lat.toFixed(4)}, {fo.lng.toFixed(4)})</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Bottom Task List */}
+                                            <div className="rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EFEAF8] pb-3">
+                                                    <div>
+                                                        <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[#2717D7]">All Active Field Tasks</h3>
+                                                        <p className="text-[10px] text-[#5E5A71] font-bold mt-0.5">Track execution and completion metrics for all assigned tasks.</p>
+                                                    </div>
+                                                    
+                                                    {/* Filter Button Tabs */}
+                                                    <div className="flex gap-1.5 bg-[#F8F9FF] border border-[#E1DDF0] rounded-lg p-1">
+                                                        {['all', 'Pending', 'In Progress', 'Completed'].map((filter) => (
+                                                            <button
+                                                                key={filter}
+                                                                type="button"
+                                                                onClick={() => setTaskActiveFilter(filter)}
+                                                                className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
+                                                                    taskActiveFilter === filter
+                                                                        ? 'bg-white border border-[#D8D2EB] text-[#2717D7] shadow-xs'
+                                                                        : 'text-[#797298] hover:text-[#2717D7]'
+                                                                }`}
+                                                            >
+                                                                {filter}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Tasks List */}
+                                                {tasks.filter(t => taskActiveFilter === 'all' ? true : t.status === taskActiveFilter).length === 0 ? (
+                                                    <div className="text-center py-10 border border-dashed border-[#E1DDF0] rounded-[8px] bg-[#FCFBFF]">
+                                                        <CheckCircle2 className="mx-auto h-8 w-8 text-[#A49DB8]" />
+                                                        <p className="text-xs font-black text-[#171327] mt-3">No tasks found</p>
+                                                        <p className="text-[10px] text-[#5E5A71] mt-1">Try switching status filters or assigning a new task.</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="overflow-x-auto border border-[#E1DDF0] rounded-[8px]">
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="bg-[#F8F9FF] border-b border-[#E1DDF0] text-[9px] font-black uppercase tracking-[0.1em] text-[#5E5A71]">
+                                                                    <th className="px-4 py-3">Task ID</th>
+                                                                    <th className="px-4 py-3">Title / Details</th>
+                                                                    <th className="px-4 py-3">Project & Location</th>
+                                                                    <th className="px-4 py-3">Assigned To</th>
+                                                                    <th className="px-4 py-3">Due Schedule</th>
+                                                                    <th className="px-4 py-3 text-center">Priority</th>
+                                                                    <th className="px-4 py-3 text-center">Status</th>
+                                                                    <th className="px-4 py-3 text-right">Actions</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-[#EFEAF8] text-xs font-bold text-[#171327]">
+                                                                {tasks.filter(t => taskActiveFilter === 'all' ? true : t.status === taskActiveFilter).map((task) => (
+                                                                    <tr key={task.id} className="hover:bg-[#FCFBFF] transition-colors">
+                                                                        <td className="px-4 py-3.5 font-mono font-black text-[#2717D7]">{task.id}</td>
+                                                                        <td className="px-4 py-3.5 max-w-[220px]">
+                                                                            <div>
+                                                                                <p className="text-xs font-black text-[#171327]">{task.title}</p>
+                                                                                {task.note && <p className="text-[10px] font-normal text-[#5E5A71] mt-0.5 truncate">{task.note}</p>}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-4 py-3.5">
+                                                                            <div>
+                                                                                <p className="text-xs font-black text-[#171327]">{task.projectName}</p>
+                                                                                <p className="text-[10px] text-[#5E5A71] mt-0.5 font-normal">{task.location}</p>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-4 py-3.5">
+                                                                            <span className="inline-flex items-center bg-[#F4F1FF] text-[#2717D7] border border-[#D8D2EB] rounded px-2 py-0.5 text-[10px] font-black">
+                                                                                {task.officerName}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3.5 text-[#5E5A71]">
+                                                                            <span className="flex items-center gap-1">
+                                                                                <Clock className="h-3.5 w-3.5 shrink-0 text-[#797298]" />
+                                                                                {task.due}, {task.time}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3.5 text-center">
+                                                                            <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                                                                task.priority === 'High' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                                                task.priority === 'Medium' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                                                                'bg-blue-50 text-blue-600 border border-blue-100'
+                                                                            }`}>
+                                                                                {task.priority}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3.5 text-center">
+                                                                            <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                                                                task.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                                                task.status === 'In Progress' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
+                                                                                'bg-blue-50 text-blue-600 border border-blue-100'
+                                                                            }`}>
+                                                                                {task.status}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3.5 text-right">
+                                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                                {task.status !== 'Completed' && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleCompleteTask(task.id)}
+                                                                                        className="h-7 px-2.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                                                                                        title="Complete Task"
+                                                                                    >
+                                                                                        Complete
+                                                                                    </button>
+                                                                                )}
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleDeleteTask(task.id)}
+                                                                                    className="h-7 px-2.5 rounded border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                                                                                    title="Delete Task"
+                                                                                >
+                                                                                    Delete
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     ) : (
                                         <div className="rounded-[8px] border border-dashed border-[#D8D2EB] bg-[#FCFBFF] p-8 text-center">
                                             <p className="text-sm font-black text-[#5E5A71]">
-                                                {activeOfficerSubTab === 'live' ? 'Live Content (Empty)' : 'Tasks Content (Empty)'}
+                                                {activeOfficerSubTab === 'live' ? 'Live Content (Empty)' : 'Unsupported Subtab'}
                                             </p>
                                         </div>
                                     )}
