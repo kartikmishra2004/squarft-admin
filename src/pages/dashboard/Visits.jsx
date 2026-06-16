@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-    Building2, Calendar, CalendarCheck, CheckCircle2, ChevronRight, Clock, Edit2, FileText,
-    HardHat, KeyRound, LoaderCircle, MapPin, PhoneCall, Plus, Save,
-    Search, ShieldCheck, TrendingUp, User, XCircle
+    Building2, Calendar, CalendarCheck, CheckCircle2, ChevronRight, Clock,
+    KeyRound, LoaderCircle, PhoneCall, Plus, Save,
+    Search, ShieldCheck, TrendingUp
 } from 'lucide-react';
 import { addVisit, addVisitNote, updateVisit, updateVisitStatus } from '../../store/visitsSlice';
 import Card from '../../components/ui/Card';
@@ -49,8 +49,48 @@ const isTodayVisit = (date = '') => {
     return Number(day) === today.getDate() && Number(month) === today.getMonth() + 1 && fullYear === today.getFullYear();
 };
 
+const parseVisitDateStr = (dateStr) => {
+    if (!dateStr) return null;
+    const normalized = String(dateStr).trim().toLowerCase();
+    
+    if (normalized === 'today') {
+        const today = new Date();
+        return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    }
+    
+    if (normalized === 'tomorrow') {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    }
+
+    const parts = dateStr.split(/[/-]/).map(p => p.trim());
+    if (parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        let year = parts[2];
+        if (year.length === 2) {
+            year = `20${year}`;
+        }
+        return `${year}-${month}-${day}`;
+    }
+
+    try {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+            return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+        }
+    } catch {
+        // Ignore
+    }
+
+    return null;
+};
+
+// eslint-disable-next-line no-unused-vars
 const getVisitSources = (visit) => visit.sources || visit.source || ['Mobile', 'App'];
 
+// eslint-disable-next-line no-unused-vars
 const getVisitPropertyCount = (visit) => visit.propertyCount || visit.properties?.length || (visit.property ? 1 : 0);
 
 const normalizeText = (value = '') => String(value).trim().toLowerCase();
@@ -116,6 +156,8 @@ const Visits = () => {
     const [selectedClientKey, setSelectedClientKey] = useState(null);
     const [selectedVisitRowId, setSelectedVisitRowId] = useState(null);
     const [filter, setFilter] = useState('All');
+    const [dateFilterType, setDateFilterType] = useState('all');
+    const [customDate, setCustomDate] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [newNote, setNewNote] = useState('');
     const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
@@ -127,6 +169,29 @@ const Visits = () => {
         return visits.filter((visit) => {
             const visitProperties = getVisitProperties(visit);
             const matchesStatus = filter === 'All' || visit.status === filter;
+            
+            let matchesDate = true;
+            if (dateFilterType !== 'all') {
+                const visitIsoDate = parseVisitDateStr(visit.date);
+                if (!visitIsoDate) {
+                    matchesDate = false;
+                } else {
+                    const today = new Date();
+                    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    
+                    if (dateFilterType === 'today') {
+                        matchesDate = visitIsoDate === todayIso;
+                    } else if (dateFilterType === 'thisWeek') {
+                        const visitTime = new Date(visitIsoDate).getTime();
+                        const startOfToday = new Date(todayIso).getTime();
+                        const sevenDaysLater = startOfToday + 7 * 24 * 60 * 60 * 1000;
+                        matchesDate = visitTime >= startOfToday && visitTime <= sevenDaysLater;
+                    } else if (dateFilterType === 'custom') {
+                        matchesDate = customDate ? visitIsoDate === customDate : true;
+                    }
+                }
+            }
+
             const matchesQuery = !query || [
                 visit.customerName,
                 visit.customerPhone,
@@ -136,9 +201,9 @@ const Visits = () => {
                 ...visitProperties.flatMap((property) => [property.name, property.config, property.address, property.type]),
                 visit.purpose,
             ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
-            return matchesStatus && matchesQuery;
+            return matchesStatus && matchesDate && matchesQuery;
         });
-    }, [filter, searchQuery, visits]);
+    }, [filter, dateFilterType, customDate, searchQuery, visits]);
 
     const clientCards = useMemo(() => {
         const grouped = filteredVisits.reduce((acc, visit) => {
@@ -256,6 +321,7 @@ const Visits = () => {
         setIsVisitModalOpen(true);
     };
 
+    // eslint-disable-next-line no-unused-vars
     const openEditModal = (visit) => {
         setEditingVisitId(visit.id);
         setVisitForm(mapVisitToForm(visit));
@@ -285,11 +351,13 @@ const Visits = () => {
         closeVisitModal();
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleUpdateStatus = (id, status) => {
         dispatch(updateVisitStatus({ id, status }));
         setSelectedVisitRowId((current) => current || `${id}-0`);
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleAddNote = () => {
         if (!selectedVisit || !newNote.trim()) return;
         dispatch(addVisitNote({ id: selectedVisit.id, note: newNote.trim() }));
@@ -370,7 +438,7 @@ const Visits = () => {
                                 </div>
                                 <Button icon={Plus} className="w-full justify-center px-2.5 py-1.5 text-xs sm:w-auto" onClick={openCreateModal}>New Visit</Button>
                             </div>
-                            <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto] items-center">
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                                     <input
@@ -379,6 +447,27 @@ const Visits = () => {
                                         className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30"
                                         placeholder="Search client, property, officer, location..."
                                     />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider hidden sm:inline">Date:</span>
+                                    <select
+                                        value={dateFilterType}
+                                        onChange={(e) => setDateFilterType(e.target.value)}
+                                        className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30 text-gray-700"
+                                    >
+                                        <option value="all">All Dates</option>
+                                        <option value="today">Today</option>
+                                        <option value="thisWeek">Next 7 Days</option>
+                                        <option value="custom">Custom Date...</option>
+                                    </select>
+                                    {dateFilterType === 'custom' && (
+                                        <input
+                                            type="date"
+                                            value={customDate}
+                                            onChange={(e) => setCustomDate(e.target.value)}
+                                            className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30 text-gray-700"
+                                        />
+                                    )}
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
                                     {['All', 'Scheduled', 'In Progress', 'Completed', 'Cancelled'].map((item) => (
@@ -635,6 +724,7 @@ const DetailBlock = ({ label, value, wide = false }) => (
     </div>
 );
 
+// eslint-disable-next-line no-unused-vars
 const InfoCard = ({ title, name, phone, icon: Icon, color }) => {
     const colorClass = color === 'blue' ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-purple-100 border-purple-200 text-purple-600';
 
