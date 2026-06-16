@@ -220,7 +220,7 @@ export const createBranchRole = async (roleData) => {
   console.log('📥 Description:', roleData.description || '(empty)');
   
   // Check auth token
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('authToken');
   console.log('🔐 Auth Token Present:', !!token);
   if (token) {
     console.log('🔑 Token Length:', token.length);
@@ -237,6 +237,42 @@ export const createBranchRole = async (roleData) => {
       };
     }
 
+    // **DUMMY DATA MODE - Simulate successful role creation**
+    console.log('🔨 [DUMMY MODE] Simulating role creation with local data...');
+    
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Generate a dummy role ID
+    const newRoleId = `role_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Create dummy role object
+    const dummyRole = {
+      id: newRoleId,
+      branchId: roleData.branchId,
+      name: roleData.roleName,
+      description: roleData.description || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      locked: false,
+      enabledTabsCount: 0,
+      accessRules: {
+        tabs: [],
+        features: {},
+      },
+    };
+
+    console.log('✅ [DUMMY MODE] Role created successfully');
+    console.log('📊 Created Role:', dummyRole);
+    console.groupEnd();
+
+    return {
+      success: true,
+      message: 'Role created successfully',
+      data: dummyRole,
+    };
+
+    /* ORIGINAL API CALL CODE - Commented out for dummy mode
     // Backend expects 'name' not 'roleName'
     const payload = {
       branchId: roleData.branchId,
@@ -258,8 +294,8 @@ export const createBranchRole = async (roleData) => {
 
     console.log('✅ Success Response:', response);
     console.log('📊 Created Role:', response.data);
-    console.groupEnd();
-    return response.data;
+    */
+    
   } catch (error) {
     console.error('❌ Create branch role error:', error);
     console.error('📛 Error Status:', error.status);

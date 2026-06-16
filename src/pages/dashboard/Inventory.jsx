@@ -4,9 +4,9 @@ import {
     Plus, Search, Building2, MapPin, ArrowRight, FileText, 
     Layers, Settings, Calendar, X, Maximize, Edit2, Save,
     IndianRupee, Zap, Sparkles, Check, XCircle, CheckCircle2,
-    Trash2, Users, FileIcon, UserPlus, Filter
+    Trash2, Users, FileIcon, UserPlus, Filter, ChevronDown, Briefcase
 } from 'lucide-react';
-import { setSelectedProject, setFilters } from '../../store/inventorySlice';
+import { setSelectedProject, setSelectedBuilder, setViewMode, setFilters } from '../../store/inventorySlice';
 import { mockProjects } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -33,7 +33,36 @@ const getStatusBadge = (status) => {
 
 const Inventory = () => {
     const dispatch = useDispatch();
-    const { filteredProjects, selectedProject, filters } = useSelector((state) => state.inventory);
+    const { filteredProjects, selectedProject, selectedBuilder, viewMode, filters } = useSelector((state) => state.inventory);
+    const [showPriceDropdown, setShowPriceDropdown] = useState(false);
+    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+
+    // Get unique locations from projects
+    const uniqueLocations = [...new Set(mockProjects.map(p => p.location.split(',').pop().trim()))];
+
+    // Get unique builders from projects that were added by builders
+    const uniqueBuilders = mockProjects
+        .filter(p => p.addedBy === 'builder' && p.builderProfile)
+        .reduce((acc, project) => {
+            const existing = acc.find(b => b.companyName === project.builder);
+            if (!existing) {
+                acc.push({
+                    ...project.builderProfile,
+                    projectCount: 1,
+                    projects: [project]
+                });
+            } else {
+                existing.projectCount++;
+                existing.projects.push(project);
+            }
+            return acc;
+        }, []);
+
+    console.log('🏗️ [INVENTORY] Unique Builders Generated:', uniqueBuilders);
+    console.log('🏗️ [INVENTORY] Builder Count:', uniqueBuilders.length);
+    uniqueBuilders.forEach((builder, idx) => {
+        console.log(`🏗️ [INVENTORY] Builder ${idx + 1}:`, builder.companyName, 'Projects:', builder.projects?.length);
+    });
 
     const handleSearch = (e) => {
         dispatch(setFilters({ search: e.target.value }));
@@ -41,19 +70,80 @@ const Inventory = () => {
 
     const handlePropertySourceFilter = (source) => {
         dispatch(setFilters({ propertySource: source }));
+        dispatch(setViewMode('projects')); // Reset view mode when changing source
+        dispatch(setSelectedBuilder(null));
+    };
+
+    const handlePriceRangeFilter = (range) => {
+        dispatch(setFilters({ priceRange: range }));
+        setShowPriceDropdown(false);
+    };
+
+    const handleLocationFilter = (location) => {
+        dispatch(setFilters({ location: location }));
+        setShowLocationDropdown(false);
     };
 
     const handleProjectClick = (project) => {
         dispatch(setSelectedProject(project));
     };
 
-    const handleBack = () => {
-        dispatch(setSelectedProject(null));
+    const handleBuilderClick = (builder) => {
+        console.log('🏗️ [INVENTORY] Builder Card Clicked');
+        console.log('📊 Builder Object:', builder);
+        console.log('📊 Builder Company Name:', builder.companyName);
+        console.log('📊 Builder Project Count:', builder.projectCount);
+        console.log('📊 Builder Projects Array:', builder.projects);
+        console.log('📊 Projects Length:', builder.projects?.length);
+        
+        dispatch(setSelectedBuilder(builder));
+        dispatch(setViewMode('builderProjects'));
+        
+        console.log('✅ Dispatched setSelectedBuilder and setViewMode("builderProjects")');
     };
 
+    const handleBack = () => {
+        if (viewMode === 'builderProjects') {
+            dispatch(setViewMode('projects'));
+            dispatch(setSelectedBuilder(null));
+        } else {
+            dispatch(setSelectedProject(null));
+        }
+    };
+
+    // Get display label for price range
+    const getPriceRangeLabel = () => {
+        switch(filters.priceRange) {
+            case 'under-1cr': return 'Under 1 Cr';
+            case '1cr-2cr': return '1-2 Cr';
+            case '2cr-5cr': return '2-5 Cr';
+            case '5cr-plus': return '5 Cr+';
+            default: return 'All Prices';
+        }
+    };
+
+    // Get display label for location
+    const getLocationLabel = () => {
+        return filters.location === 'all' ? 'All Locations' : filters.location;
+    };
+
+    // Show builder projects view
+    console.log('🔍 [INVENTORY] Checking View Mode:', viewMode);
+    console.log('🔍 [INVENTORY] Selected Builder:', selectedBuilder);
+    console.log('🔍 [INVENTORY] Should Show BuilderProjectsView:', viewMode === 'builderProjects' && selectedBuilder);
+    
+    if (viewMode === 'builderProjects' && selectedBuilder) {
+        console.log('✅ [INVENTORY] Rendering BuilderProjectsView');
+        return <BuilderProjectsView builder={selectedBuilder} onBack={handleBack} />;
+    }
+
+    // Show project detail view
     if (selectedProject) {
         return <ProjectDetailView project={selectedProject} onBack={handleBack} />;
     }
+
+    // Determine what to show: builders or projects
+    const showBuilders = filters.propertySource === 'builder';
 
     return (
         <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
@@ -88,7 +178,7 @@ const Inventory = () => {
                             <Filter className="w-4 h-4" />
                             <span>Filter by Source:</span>
                         </div>
-                        <div className="flex gap-6 ml-4">
+                        <div className="flex gap-2">
                             <button
                                 onClick={() => handlePropertySourceFilter('all')}
                                 className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
@@ -122,47 +212,218 @@ const Inventory = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                        {filteredProjects.map((p, i) => (
-                            <Card key={p.id} noPadding className="group cursor-pointer hover:border-[#6F4BFF]/40 hover:shadow-xl transition-all flex flex-col h-full overflow-hidden border-gray-100" >
-                                <div className="h-40 relative overflow-hidden bg-linear-to-br from-indigo-100 via-purple-50 to-pink-50" onClick={() => handleProjectClick(p)}>
-                                    <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]"></div>
-                                    <Building2 className="absolute -bottom-6 -right-6 w-32 h-32 text-[#6F4BFF]/10 rotate-12 transition-transform group-hover:scale-110 duration-700" />
-                                    <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl text-[10px] font-black text-gray-800 shadow-sm uppercase tracking-widest border border-white">
-                                        {p.builder}
+                    {/* Additional Filters: Price Range & Location - Only show when NOT viewing builders */}
+                    {!showBuilders && (
+                        <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                            <div className="flex items-center gap-2 text-sm text-gray-600 font-bold">
+                                <Filter className="w-4 h-4" />
+                                <span>More Filters:</span>
+                            </div>
+                            <div className="flex gap-2">
+                            {/* Price Range Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => {
+                                        setShowPriceDropdown(!showPriceDropdown);
+                                        setShowLocationDropdown(false);
+                                    }}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                                        filters.priceRange !== 'all'
+                                            ? 'bg-[#6F4BFF] text-white shadow-lg shadow-[#6F4BFF]/20'
+                                            : 'bg-white text-gray-600 border border-gray-200 hover:border-[#6F4BFF]/40'
+                                    }`}
+                                >
+                                    <IndianRupee className="w-3 h-3" />
+                                    {getPriceRangeLabel()}
+                                    <ChevronDown className="w-3 h-3" />
+                                </button>
+                                {showPriceDropdown && (
+                                    <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[200px] overflow-hidden">
+                                        <button
+                                            onClick={() => handlePriceRangeFilter('all')}
+                                            className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors"
+                                        >
+                                            All Prices
+                                        </button>
+                                        <button
+                                            onClick={() => handlePriceRangeFilter('under-1cr')}
+                                            className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                        >
+                                            Under 1 Cr
+                                        </button>
+                                        <button
+                                            onClick={() => handlePriceRangeFilter('1cr-2cr')}
+                                            className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                        >
+                                            1 Cr - 2 Cr
+                                        </button>
+                                        <button
+                                            onClick={() => handlePriceRangeFilter('2cr-5cr')}
+                                            className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                        >
+                                            2 Cr - 5 Cr
+                                        </button>
+                                        <button
+                                            onClick={() => handlePriceRangeFilter('5cr-plus')}
+                                            className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                        >
+                                            5 Cr & Above
+                                        </button>
                                     </div>
-                                    <div className="absolute top-4 right-4">
-                                        {getStatusBadge(p.status)}
-                                    </div>
-                                    <div className="absolute bottom-4 left-4 bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-black shadow-lg shadow-emerald-500/20 uppercase tracking-widest border border-emerald-400">
-                                        {p.available} Units Left
-                                    </div>
-                                </div>
-                                <div className="p-6 flex-1 flex flex-col">
-                                    <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-[#6F4BFF] transition-colors tracking-tight" onClick={() => handleProjectClick(p)}>{p.name}</h3>
-                                    <p className="text-sm text-gray-500 font-bold flex items-center gap-1.5 mb-6">
-                                        <MapPin className="w-4 h-4 text-gray-400" /> {p.location}
-                                    </p>
+                                )}
+                            </div>
 
-                                    <div className="mt-auto pt-5 border-t border-gray-100 flex items-center justify-between">
-                                        <div>
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Base Pricing</p>
-                                            <p className="font-black text-gray-900 text-lg tracking-tight">{p.priceRange}</p>
+                            {/* Location Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => {
+                                        setShowLocationDropdown(!showLocationDropdown);
+                                        setShowPriceDropdown(false);
+                                    }}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                                        filters.location !== 'all'
+                                            ? 'bg-[#6F4BFF] text-white shadow-lg shadow-[#6F4BFF]/20'
+                                            : 'bg-white text-gray-600 border border-gray-200 hover:border-[#6F4BFF]/40'
+                                    }`}
+                                >
+                                    <MapPin className="w-3 h-3" />
+                                    {getLocationLabel()}
+                                    <ChevronDown className="w-3 h-3" />
+                                </button>
+                                {showLocationDropdown && (
+                                    <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[200px] max-h-[300px] overflow-y-auto">
+                                        <button
+                                            onClick={() => handleLocationFilter('all')}
+                                            className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors"
+                                        >
+                                            All Locations
+                                        </button>
+                                        {uniqueLocations.map((loc, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => handleLocationFilter(loc)}
+                                                className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                            >
+                                                {loc}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Clear All Filters Button */}
+                            {(filters.propertySource !== 'all' || filters.priceRange !== 'all' || filters.location !== 'all' || filters.search !== '') && (
+                                <button
+                                    onClick={() => dispatch(setFilters({ propertySource: 'all', priceRange: 'all', location: 'all', search: '' }))}
+                                    className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
+                                >
+                                    <X className="w-3 h-3 inline mr-1" />
+                                    Clear All
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    )}
+
+                    {/* Builder Cards Grid - Show when "Added by Builder" is selected */}
+                    {showBuilders && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            {uniqueBuilders.map((builder, i) => (
+                                <Card key={i} className="group cursor-pointer hover:border-[#6F4BFF]/40 hover:shadow-xl transition-all" onClick={() => handleBuilderClick(builder)}>
+                                    <div className="p-6">
+                                        <div className="flex items-start gap-4 mb-4">
+                                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                                                <Users className="w-8 h-8 text-[#6F4BFF]" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-[#6F4BFF] transition-colors tracking-tight">
+                                                    {builder.companyName}
+                                                </h3>
+                                                <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">
+                                                    {builder.builderType}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className="flex gap-1.5">
-                                            {p.configs.map(c => (
-                                                <span key={c} className="text-[10px] font-black bg-gray-100 text-gray-600 px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                                                    {c}
-                                                </span>
-                                            ))}
+
+                                        <div className="space-y-3 mb-4">
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <UserPlus className="w-4 h-4 text-gray-400" />
+                                                <span className="text-gray-600 font-medium">{builder.fullName}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <MapPin className="w-4 h-4 text-gray-400" />
+                                                <span className="text-gray-600 font-medium">{builder.location}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <FileText className="w-4 h-4 text-gray-400" />
+                                                <span className="text-gray-600 font-medium">RERA: {builder.reraNumber}</span>
+                                            </div>
+                                        </div>
+
+                                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                                            {builder.about}
+                                        </p>
+
+                                        <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Projects</p>
+                                                <p className="font-black text-gray-900 text-2xl">{builder.projectCount}</p>
+                                            </div>
+                                            <Button variant="secondary" size="sm" className="font-black uppercase tracking-widest text-xs">
+                                                View Properties
+                                                <ArrowRight className="w-4 h-4 ml-2" />
+                                            </Button>
                                         </div>
                                     </div>
-                                </div>
-                            </Card>
-                        ))}
-                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Project Cards Grid - Show when "All Properties" or "Added by Broker" is selected */}
+                    {!showBuilders && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            {filteredProjects.map((p, i) => (
+                                <Card key={p.id} noPadding className="group cursor-pointer hover:border-[#6F4BFF]/40 hover:shadow-xl transition-all flex flex-col h-full overflow-hidden border-gray-100" >
+                                    <div className="h-40 relative overflow-hidden bg-linear-to-br from-indigo-100 via-purple-50 to-pink-50" onClick={() => handleProjectClick(p)}>
+                                        <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]"></div>
+                                        <Building2 className="absolute -bottom-6 -right-6 w-32 h-32 text-[#6F4BFF]/10 rotate-12 transition-transform group-hover:scale-110 duration-700" />
+                                        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl text-[10px] font-black text-gray-800 shadow-sm uppercase tracking-widest border border-white">
+                                            {p.builder}
+                                        </div>
+                                        <div className="absolute top-4 right-4">
+                                            {getStatusBadge(p.status)}
+                                        </div>
+                                        <div className="absolute bottom-4 left-4 bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-black shadow-lg shadow-emerald-500/20 uppercase tracking-widest border border-emerald-400">
+                                            {p.available} Units Left
+                                        </div>
+                                    </div>
+                                    <div className="p-6 flex-1 flex flex-col">
+                                        <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-[#6F4BFF] transition-colors tracking-tight" onClick={() => handleProjectClick(p)}>{p.name}</h3>
+                                        <p className="text-sm text-gray-500 font-bold flex items-center gap-1.5 mb-6">
+                                            <MapPin className="w-4 h-4 text-gray-400" /> {p.location}
+                                        </p>
+
+                                        <div className="mt-auto pt-5 border-t border-gray-100 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Base Pricing</p>
+                                                <p className="font-black text-gray-900 text-lg tracking-tight">{p.priceRange}</p>
+                                            </div>
+                                            <div className="flex gap-1.5">
+                                                {p.configs.map(c => (
+                                                    <span key={c} className="text-[10px] font-black bg-gray-100 text-gray-600 px-2.5 py-1 rounded-lg uppercase tracking-wider">
+                                                        {c}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                    )}
                     
-                    {filteredProjects.length === 0 && (
+                    {filteredProjects.length === 0 && !showBuilders && (
                         <Card className="p-20 text-center flex flex-col items-center gap-4">
                             <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 shadow-inner">
                                 <Search className="w-8 h-8 text-gray-300" />
@@ -170,6 +431,18 @@ const Inventory = () => {
                             <div>
                                 <p className="text-lg font-black text-gray-800">No projects found</p>
                                 <p className="text-sm text-gray-500 font-medium">Try adjusting your search query.</p>
+                            </div>
+                        </Card>
+                    )}
+
+                    {uniqueBuilders.length === 0 && showBuilders && (
+                        <Card className="p-20 text-center flex flex-col items-center gap-4">
+                            <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 shadow-inner">
+                                <Users className="w-8 h-8 text-gray-300" />
+                            </div>
+                            <div>
+                                <p className="text-lg font-black text-gray-800">No builders found</p>
+                                <p className="text-sm text-gray-500 font-medium">No builder profiles available.</p>
                             </div>
                         </Card>
                     )}
@@ -533,6 +806,332 @@ const ProjectDetailView = ({ project, onBack }) => {
                             </div>
                         </Card>
                     )}
+                </div>
+            </main>
+        </div>
+    );
+};
+
+// Builder Projects View Component - Shows all properties from a specific builder
+const BuilderProjectsView = ({ builder, onBack }) => {
+    const dispatch = useDispatch();
+    const [showPriceDropdown, setShowPriceDropdown] = useState(false);
+    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+    const [localFilters, setLocalFilters] = useState({
+        priceRange: 'all',
+        location: 'all',
+        search: ''
+    });
+
+    // Debug: Log builder data
+    console.log('🏗️ BuilderProjectsView - Builder:', builder);
+    console.log('🏗️ BuilderProjectsView - Projects:', builder.projects);
+    console.log('🏗️ BuilderProjectsView - Project Count:', builder.projectCount);
+
+    // Get unique locations from this builder's projects
+    const uniqueLocations = [...new Set((builder.projects || []).map(p => p.location.split(',').pop().trim()))];
+
+    // Filter projects based on local filters
+    const filteredBuilderProjects = (builder.projects || []).filter(project => {
+        // Search filter
+        const matchesSearch = localFilters.search === '' || 
+                             project.name.toLowerCase().includes(localFilters.search.toLowerCase()) || 
+                             project.location.toLowerCase().includes(localFilters.search.toLowerCase());
+        
+        // Price range filter
+        let matchesPriceRange = true;
+        if (localFilters.priceRange !== 'all') {
+            const priceStr = project.priceRange.toLowerCase();
+            let minPrice = 0;
+            
+            if (priceStr.includes('cr')) {
+                const match = priceStr.match(/(\d+\.?\d*)\s*cr/i);
+                if (match) minPrice = parseFloat(match[1]) * 100;
+            } else if (priceStr.includes('l')) {
+                const match = priceStr.match(/(\d+)\s*l/i);
+                if (match) minPrice = parseFloat(match[1]);
+            }
+            
+            switch(localFilters.priceRange) {
+                case 'under-1cr':
+                    matchesPriceRange = minPrice < 100;
+                    break;
+                case '1cr-2cr':
+                    matchesPriceRange = minPrice >= 100 && minPrice < 200;
+                    break;
+                case '2cr-5cr':
+                    matchesPriceRange = minPrice >= 200 && minPrice < 500;
+                    break;
+                case '5cr-plus':
+                    matchesPriceRange = minPrice >= 500;
+                    break;
+            }
+        }
+        
+        // Location filter
+        let matchesLocation = true;
+        if (localFilters.location !== 'all') {
+            matchesLocation = project.location.toLowerCase().includes(localFilters.location.toLowerCase());
+        }
+        
+        return matchesSearch && matchesPriceRange && matchesLocation;
+    });
+
+    const handleProjectClick = (project) => {
+        dispatch(setSelectedProject(project));
+    };
+
+    const handlePriceRangeFilter = (range) => {
+        setLocalFilters({ ...localFilters, priceRange: range });
+        setShowPriceDropdown(false);
+    };
+
+    const handleLocationFilter = (location) => {
+        setLocalFilters({ ...localFilters, location: location });
+        setShowLocationDropdown(false);
+    };
+
+    const handleSearchChange = (e) => {
+        setLocalFilters({ ...localFilters, search: e.target.value });
+    };
+
+    const getPriceRangeLabel = () => {
+        switch(localFilters.priceRange) {
+            case 'under-1cr': return 'Under 1 Cr';
+            case '1cr-2cr': return '1-2 Cr';
+            case '2cr-5cr': return '2-5 Cr';
+            case '5cr-plus': return '5 Cr+';
+            default: return 'All Prices';
+        }
+    };
+
+    const getLocationLabel = () => {
+        return localFilters.location === 'all' ? 'All Locations' : localFilters.location;
+    };
+
+    return (
+        <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
+            <Header title="Builder Properties" showBack onBack={onBack} />
+
+            <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
+                <div className="max-w-[1600px] mx-auto space-y-6">
+                    
+                    {/* Builder Profile Header */}
+                    <Card className="p-8 border-gray-100 shadow-xl shadow-gray-200/50 animate-in fade-in slide-in-from-top-4 duration-500">
+                        <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+                            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                                <Users className="w-10 h-10 text-[#6F4BFF]" />
+                            </div>
+                            <div className="flex-1">
+                                <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">{builder.companyName}</h2>
+                                <p className="text-sm text-gray-500 font-bold uppercase tracking-widest mb-4">{builder.builderType}</p>
+                                <p className="text-sm text-gray-600 leading-relaxed max-w-3xl">{builder.about}</p>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <Badge variant="gradient" className="font-black uppercase tracking-widest text-xs">
+                                    {builder.projectCount} {builder.projectCount === 1 ? 'Property' : 'Properties'}
+                                </Badge>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8 pt-8 border-t border-gray-100">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                    <UserPlus className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Contact Person</p>
+                                    <p className="text-sm font-bold text-gray-900">{builder.fullName}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                                    <MapPin className="w-5 h-5 text-green-600" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Location</p>
+                                    <p className="text-sm font-bold text-gray-900">{builder.location}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                                    <FileText className="w-5 h-5 text-purple-600" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">RERA Number</p>
+                                    <p className="text-sm font-bold text-gray-900">{builder.reraNumber}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                                    <Briefcase className="w-5 h-5 text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Brand Name</p>
+                                    <p className="text-sm font-bold text-gray-900">{builder.brandName || builder.companyName}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Search and Filters for Builder Properties */}
+                    <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                        {/* Search Bar */}
+                        <div className="relative flex-1">
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Search properties..."
+                                className="pl-9 pr-4 py-2.5 w-full bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] transition-all shadow-sm"
+                                value={localFilters.search}
+                                onChange={handleSearchChange}
+                            />
+                        </div>
+
+                        {/* Price Range Dropdown */}
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    setShowPriceDropdown(!showPriceDropdown);
+                                    setShowLocationDropdown(false);
+                                }}
+                                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${
+                                    localFilters.priceRange !== 'all'
+                                        ? 'bg-[#6F4BFF] text-white shadow-lg shadow-[#6F4BFF]/20'
+                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-[#6F4BFF]/40'
+                                }`}
+                            >
+                                <IndianRupee className="w-3 h-3" />
+                                {getPriceRangeLabel()}
+                                <ChevronDown className="w-3 h-3" />
+                            </button>
+                            {showPriceDropdown && (
+                                <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[200px] overflow-hidden">
+                                    <button onClick={() => handlePriceRangeFilter('all')} className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors">All Prices</button>
+                                    <button onClick={() => handlePriceRangeFilter('under-1cr')} className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100">Under 1 Cr</button>
+                                    <button onClick={() => handlePriceRangeFilter('1cr-2cr')} className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100">1 Cr - 2 Cr</button>
+                                    <button onClick={() => handlePriceRangeFilter('2cr-5cr')} className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100">2 Cr - 5 Cr</button>
+                                    <button onClick={() => handlePriceRangeFilter('5cr-plus')} className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100">5 Cr & Above</button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Location Dropdown */}
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    setShowLocationDropdown(!showLocationDropdown);
+                                    setShowPriceDropdown(false);
+                                }}
+                                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${
+                                    localFilters.location !== 'all'
+                                        ? 'bg-[#6F4BFF] text-white shadow-lg shadow-[#6F4BFF]/20'
+                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-[#6F4BFF]/40'
+                                }`}
+                            >
+                                <MapPin className="w-3 h-3" />
+                                {getLocationLabel()}
+                                <ChevronDown className="w-3 h-3" />
+                            </button>
+                            {showLocationDropdown && (
+                                <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[200px] max-h-[300px] overflow-y-auto">
+                                    <button onClick={() => handleLocationFilter('all')} className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors">All Locations</button>
+                                    {uniqueLocations.map((loc, index) => (
+                                        <button key={index} onClick={() => handleLocationFilter(loc)} className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100">
+                                            {loc}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Clear Filters Button */}
+                        {(localFilters.priceRange !== 'all' || localFilters.location !== 'all' || localFilters.search !== '') && (
+                            <button
+                                onClick={() => setLocalFilters({ priceRange: 'all', location: 'all', search: '' })}
+                                className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 whitespace-nowrap"
+                            >
+                                <X className="w-3 h-3 inline mr-1" />
+                                Clear
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Properties Section */}
+                    <div>
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="text-xl font-black text-gray-900">Properties by {builder.companyName}</h3>
+                                <p className="text-sm text-gray-500 mt-1 font-medium">
+                                    Showing {filteredBuilderProjects.length} of {builder.projectCount} {builder.projectCount === 1 ? 'property' : 'properties'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Project Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            {filteredBuilderProjects.map((p, i) => (
+                                <Card 
+                                    key={p.id} 
+                                    noPadding 
+                                    className="group cursor-pointer hover:border-[#6F4BFF]/40 hover:shadow-xl transition-all flex flex-col h-full overflow-hidden border-gray-100"
+                                    onClick={() => handleProjectClick(p)}
+                                >
+                                    <div className="h-40 relative overflow-hidden bg-linear-to-br from-indigo-100 via-purple-50 to-pink-50">
+                                        <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]"></div>
+                                        <Building2 className="absolute -bottom-6 -right-6 w-32 h-32 text-[#6F4BFF]/10 rotate-12 transition-transform group-hover:scale-110 duration-700" />
+                                        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl text-[10px] font-black text-gray-800 shadow-sm uppercase tracking-widest border border-white">
+                                            {p.builder}
+                                        </div>
+                                        <div className="absolute top-4 right-4">
+                                            {getStatusBadge(p.status)}
+                                        </div>
+                                        <div className="absolute bottom-4 left-4 bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-black shadow-lg shadow-emerald-500/20 uppercase tracking-widest border border-emerald-400">
+                                            {p.available} Units Left
+                                        </div>
+                                    </div>
+                                    <div className="p-6 flex-1 flex flex-col">
+                                        <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-[#6F4BFF] transition-colors tracking-tight">
+                                            {p.name}
+                                        </h3>
+                                        <p className="text-sm text-gray-500 font-bold flex items-center gap-1.5 mb-6">
+                                            <MapPin className="w-4 h-4 text-gray-400" /> {p.location}
+                                        </p>
+
+                                        <div className="mt-auto pt-5 border-t border-gray-100 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Base Pricing</p>
+                                                <p className="font-black text-gray-900 text-lg tracking-tight">{p.priceRange}</p>
+                                            </div>
+                                            <div className="flex gap-1.5">
+                                                {p.configs.map(c => (
+                                                    <span key={c} className="text-[10px] font-black bg-gray-100 text-gray-600 px-2.5 py-1 rounded-lg uppercase tracking-wider">
+                                                        {c}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+
+                        {filteredBuilderProjects.length === 0 && (
+                            <Card className="p-20 text-center flex flex-col items-center gap-4">
+                                <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 shadow-inner">
+                                    <Building2 className="w-8 h-8 text-gray-300" />
+                                </div>
+                                <div>
+                                    <p className="text-lg font-black text-gray-800">No properties found</p>
+                                    <p className="text-sm text-gray-500 font-medium">
+                                        {(localFilters.priceRange !== 'all' || localFilters.location !== 'all' || localFilters.search !== '') 
+                                            ? 'Try adjusting your filters.' 
+                                            : 'This builder has no properties listed yet.'}
+                                    </p>
+                                </div>
+                            </Card>
+                        )}
+                    </div>
                 </div>
             </main>
         </div>

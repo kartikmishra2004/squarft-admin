@@ -3,6 +3,20 @@ import { Zap, IndianRupee, Globe, Users, Briefcase } from 'lucide-react';
 export const mockProjects = [
     {
         id: 'P001', name: 'Skyline Residency', builder: 'Apex Buildcon', location: 'Andheri West, Mumbai', priceRange: '1.2 Cr - 2.5 Cr', configs: ['2BHK', '3BHK', '4BHK'], status: 'Active', units: 120, available: 45, progress: 100, officer: 'Rahul M.', updated: '2 hours ago', specs: 'Premium Residential', docs: 4, addedBy: 'builder',
+        builderProfile: {
+            fullName: 'Arjun Mehra',
+            phone: '+91 98231 44001',
+            location: 'Mumbai, Maharashtra',
+            companyName: 'Apex Buildcon',
+            companyType: 'Builder',
+            reraNumber: 'MHRERA-P51800044791',
+            builderType: 'Developer Company',
+            brandName: 'Apex Living',
+            gstNumber: '27AAGCA4455K1ZQ',
+            panNumber: 'AAGCA4455K',
+            establishedYear: '2012',
+            about: 'Premium residential developer focused on mid-to-luxury apartment communities across Mumbai.',
+        },
         inventory: [
             { type: '2BHK Classic', size: '1,100 Sq.Ft', basePrice: '1.20 Cr', totalUnits: 60, availableUnits: 12 },
             { type: '3BHK Premium', size: '1,550 Sq.Ft', basePrice: '1.85 Cr', totalUnits: 40, availableUnits: 25 },
@@ -18,6 +32,20 @@ export const mockProjects = [
     },
     {
         id: 'P003', name: 'Metro Heights', builder: 'CityScape', location: 'Connaught Place, Delhi', priceRange: '3.5 Cr - 8 Cr', configs: ['Office Space', 'Retail'], status: 'In Review', units: 50, available: 5, progress: 60, officer: 'Rahul M.', updated: '3 days ago', specs: 'Premium Commercial', docs: 2, addedBy: 'builder',
+        builderProfile: {
+            fullName: 'Raghav Bansal',
+            phone: '+91 98111 55220',
+            location: 'Delhi NCR',
+            companyName: 'CityScape',
+            companyType: 'Builder',
+            reraNumber: 'DLRERA2024P0058',
+            builderType: 'Developer Company',
+            brandName: 'CityScape Commercial',
+            gstNumber: '07AAHCC2210Q1Z8',
+            panNumber: 'AAHCC2210Q',
+            establishedYear: '2009',
+            about: 'Commercial real estate operator with retail and office assets in Delhi NCR.',
+        },
         inventory: [
             { type: 'Retail Shop', size: '800 Sq.Ft', basePrice: '3.50 Cr', totalUnits: 20, availableUnits: 2 },
             { type: 'Office Space', size: '2,000 Sq.Ft', basePrice: '8.00 Cr', totalUnits: 30, availableUnits: 3 }
@@ -32,9 +60,153 @@ export const mockProjects = [
     },
     {
         id: 'P005', name: 'Parkside Avenues', builder: 'Apex Buildcon', location: 'Andheri East, Mumbai', priceRange: '90 L - 1.8 Cr', configs: ['1BHK', '2BHK'], status: 'Pending', units: 200, available: 89, progress: 25, officer: 'Neha K.', updated: '5 hours ago', specs: 'Compact Modern Living', docs: 1, addedBy: 'builder',
+        builderProfile: {
+            fullName: 'Nisha Sethi',
+            phone: '+91 98109 88210',
+            location: 'Mumbai, Maharashtra',
+            companyName: 'Apex Buildcon',
+            companyType: 'Builder',
+            reraNumber: 'MHRERA-P51800051342',
+            builderType: 'Developer Company',
+            brandName: 'Apex Smart Homes',
+            gstNumber: '27AAGCA4455K1ZQ',
+            panNumber: 'AAGCA4455K',
+            establishedYear: '2012',
+            about: 'Affordable compact living project under Apex Buildcon with shared compliance credentials.',
+        },
         inventory: [
             { type: '1BHK Smart', size: '650 Sq.Ft', basePrice: '90 Lacs', totalUnits: 120, availableUnits: 40 },
             { type: '2BHK Classic', size: '950 Sq.Ft', basePrice: '1.45 Cr', totalUnits: 80, availableUnits: 49 }
+        ]
+    },
+    // Additional properties for Apex Buildcon
+    {
+        id: 'P006', name: 'Sunrise Heights', builder: 'Apex Buildcon', location: 'Powai, Mumbai', priceRange: '1.8 Cr - 3.2 Cr', configs: ['2BHK', '3BHK'], status: 'Active', units: 150, available: 65, progress: 100, officer: 'Rahul M.', updated: '3 days ago', specs: 'Lake View Apartments', docs: 5, addedBy: 'builder',
+        builderProfile: {
+            fullName: 'Arjun Mehra',
+            phone: '+91 98231 44001',
+            location: 'Mumbai, Maharashtra',
+            companyName: 'Apex Buildcon',
+            companyType: 'Builder',
+            reraNumber: 'MHRERA-P51800044791',
+            builderType: 'Developer Company',
+            brandName: 'Apex Living',
+            gstNumber: '27AAGCA4455K1ZQ',
+            panNumber: 'AAGCA4455K',
+            establishedYear: '2012',
+            about: 'Premium residential developer focused on mid-to-luxury apartment communities across Mumbai.',
+        },
+        inventory: [
+            { type: '2BHK Lake View', size: '1,250 Sq.Ft', basePrice: '1.80 Cr', totalUnits: 90, availableUnits: 35 },
+            { type: '3BHK Luxury', size: '1,750 Sq.Ft', basePrice: '2.65 Cr', totalUnits: 60, availableUnits: 30 }
+        ]
+    },
+    {
+        id: 'P007', name: 'Crystal Palace', builder: 'Apex Buildcon', location: 'Bandra West, Mumbai', priceRange: '2.5 Cr - 5 Cr', configs: ['3BHK', '4BHK', 'Penthouse'], status: 'Active', units: 80, available: 22, progress: 100, officer: 'Neha K.', updated: '1 day ago', specs: 'Ultra Luxury Apartments', docs: 7, addedBy: 'builder',
+        builderProfile: {
+            fullName: 'Arjun Mehra',
+            phone: '+91 98231 44001',
+            location: 'Mumbai, Maharashtra',
+            companyName: 'Apex Buildcon',
+            companyType: 'Builder',
+            reraNumber: 'MHRERA-P51800044791',
+            builderType: 'Developer Company',
+            brandName: 'Apex Living',
+            gstNumber: '27AAGCA4455K1ZQ',
+            panNumber: 'AAGCA4455K',
+            establishedYear: '2012',
+            about: 'Premium residential developer focused on mid-to-luxury apartment communities across Mumbai.',
+        },
+        inventory: [
+            { type: '3BHK Sea View', size: '1,950 Sq.Ft', basePrice: '2.80 Cr', totalUnits: 40, availableUnits: 12 },
+            { type: '4BHK Premium', size: '2,800 Sq.Ft', basePrice: '4.20 Cr', totalUnits: 30, availableUnits: 8 },
+            { type: 'Penthouse', size: '4,500 Sq.Ft', basePrice: '6.50 Cr', totalUnits: 10, availableUnits: 2 }
+        ]
+    },
+    // Additional properties for CityScape
+    {
+        id: 'P008', name: 'Capital Square', builder: 'CityScape', location: 'Nehru Place, Delhi', priceRange: '2.5 Cr - 6 Cr', configs: ['Office Space', 'Retail'], status: 'Active', units: 75, available: 18, progress: 100, officer: 'Rahul M.', updated: '2 days ago', specs: 'Commercial Complex', docs: 6, addedBy: 'builder',
+        builderProfile: {
+            fullName: 'Raghav Bansal',
+            phone: '+91 98111 55220',
+            location: 'Delhi NCR',
+            companyName: 'CityScape',
+            companyType: 'Builder',
+            reraNumber: 'DLRERA2024P0058',
+            builderType: 'Developer Company',
+            brandName: 'CityScape Commercial',
+            gstNumber: '07AAHCC2210Q1Z8',
+            panNumber: 'AAHCC2210Q',
+            establishedYear: '2009',
+            about: 'Commercial real estate operator with retail and office assets in Delhi NCR.',
+        },
+        inventory: [
+            { type: 'Retail Shop', size: '600 Sq.Ft', basePrice: '2.50 Cr', totalUnits: 35, availableUnits: 8 },
+            { type: 'Office Space', size: '1,500 Sq.Ft', basePrice: '5.50 Cr', totalUnits: 40, availableUnits: 10 }
+        ]
+    },
+    {
+        id: 'P009', name: 'Tech Hub Plaza', builder: 'CityScape', location: 'Cyber City, Gurgaon', priceRange: '4 Cr - 10 Cr', configs: ['Office Space'], status: 'Active', units: 60, available: 15, progress: 100, officer: 'Vikram S.', updated: '4 days ago', specs: 'Premium Office Spaces', docs: 8, addedBy: 'builder',
+        builderProfile: {
+            fullName: 'Raghav Bansal',
+            phone: '+91 98111 55220',
+            location: 'Delhi NCR',
+            companyName: 'CityScape',
+            companyType: 'Builder',
+            reraNumber: 'DLRERA2024P0058',
+            builderType: 'Developer Company',
+            brandName: 'CityScape Commercial',
+            gstNumber: '07AAHCC2210Q1Z8',
+            panNumber: 'AAHCC2210Q',
+            establishedYear: '2009',
+            about: 'Commercial real estate operator with retail and office assets in Delhi NCR.',
+        },
+        inventory: [
+            { type: 'Office Space Small', size: '1,200 Sq.Ft', basePrice: '4.00 Cr', totalUnits: 30, availableUnits: 8 },
+            { type: 'Office Space Large', size: '2,500 Sq.Ft', basePrice: '9.50 Cr', totalUnits: 30, availableUnits: 7 }
+        ]
+    },
+    // New Builder: GreenLeaf Developers
+    {
+        id: 'P010', name: 'Emerald Gardens', builder: 'GreenLeaf Developers', location: 'Whitefield, Bangalore', priceRange: '75 L - 1.2 Cr', configs: ['2BHK', '3BHK'], status: 'Active', units: 180, available: 92, progress: 100, officer: 'Sneha P.', updated: '1 day ago', specs: 'Eco-Friendly Apartments', docs: 6, addedBy: 'builder',
+        builderProfile: {
+            fullName: 'Priya Nair',
+            phone: '+91 99801 33445',
+            location: 'Bangalore, Karnataka',
+            companyName: 'GreenLeaf Developers',
+            companyType: 'Builder',
+            reraNumber: 'PRM/KA/RERA/1251/309/PR/230526/006890',
+            builderType: 'Developer Company',
+            brandName: 'GreenLeaf',
+            gstNumber: '29AAGCG5512P1Z9',
+            panNumber: 'AAGCG5512P',
+            establishedYear: '2015',
+            about: 'Eco-friendly residential developer specializing in sustainable living communities across Bangalore.',
+        },
+        inventory: [
+            { type: '2BHK Green', size: '1,050 Sq.Ft', basePrice: '75 Lacs', totalUnits: 100, availableUnits: 52 },
+            { type: '3BHK Eco', size: '1,450 Sq.Ft', basePrice: '1.10 Cr', totalUnits: 80, availableUnits: 40 }
+        ]
+    },
+    {
+        id: 'P011', name: 'Nature View Villas', builder: 'GreenLeaf Developers', location: 'Sarjapur Road, Bangalore', priceRange: '1.5 Cr - 2.8 Cr', configs: ['Villa'], status: 'Active', units: 50, available: 18, progress: 100, officer: 'Amit K.', updated: '2 days ago', specs: 'Premium Eco Villas', docs: 5, addedBy: 'builder',
+        builderProfile: {
+            fullName: 'Priya Nair',
+            phone: '+91 99801 33445',
+            location: 'Bangalore, Karnataka',
+            companyName: 'GreenLeaf Developers',
+            companyType: 'Builder',
+            reraNumber: 'PRM/KA/RERA/1251/309/PR/230526/006890',
+            builderType: 'Developer Company',
+            brandName: 'GreenLeaf',
+            gstNumber: '29AAGCG5512P1Z9',
+            panNumber: 'AAGCG5512P',
+            establishedYear: '2015',
+            about: 'Eco-friendly residential developer specializing in sustainable living communities across Bangalore.',
+        },
+        inventory: [
+            { type: '3BHK Villa', size: '2,200 Sq.Ft', basePrice: '1.75 Cr', totalUnits: 30, availableUnits: 10 },
+            { type: '4BHK Villa', size: '3,000 Sq.Ft', basePrice: '2.50 Cr', totalUnits: 20, availableUnits: 8 }
         ]
     },
 ];
