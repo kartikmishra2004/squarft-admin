@@ -272,7 +272,18 @@ const roleAccessSlice = createSlice({
         console.log('✅ [REDUX STATE] getRoleDetail.fulfilled');
         console.log('📊 Role Detail:', action.payload);
         state.loading = false;
-        state.selectedRole = action.payload;
+        
+        // Backend returns {branch, role, tabs}, transform to flat structure
+        if (action.payload.role && action.payload.tabs) {
+          state.selectedRole = {
+            ...action.payload.role,
+            tabs: action.payload.tabs,
+            locked: action.payload.role.locked || false
+          };
+          console.log('📊 Transformed Selected Role:', state.selectedRole);
+        } else {
+          state.selectedRole = action.payload;
+        }
       })
       .addCase(getRoleDetail.rejected, (state, action) => {
         console.error('❌ [REDUX STATE] getRoleDetail.rejected');
@@ -292,9 +303,22 @@ const roleAccessSlice = createSlice({
         console.log('✅ [REDUX STATE] createNewBranchRole.fulfilled');
         console.log('📊 New Role:', action.payload);
         state.loading = false;
-        state.operatingRoles.push(action.payload);
+        
+        // Backend returns {branch, role}, we need to add role to the roles array
+        const newRole = action.payload.role || action.payload;
+        
+        // operatingRoles can be an object {branch, roles: []} or array
+        if (state.operatingRoles && typeof state.operatingRoles === 'object' && state.operatingRoles.roles) {
+          state.operatingRoles.roles.push(newRole);
+          console.log('📊 Roles Count After Add:', state.operatingRoles.roles.length);
+        } else if (Array.isArray(state.operatingRoles)) {
+          state.operatingRoles.push(newRole);
+          console.log('📊 Roles Count After Add:', state.operatingRoles.length);
+        } else {
+          console.warn('⚠️ operatingRoles has unexpected structure:', state.operatingRoles);
+        }
+        
         state.successMessage = 'Role created successfully';
-        console.log('📊 Roles Count After Add:', state.operatingRoles.length);
       })
       .addCase(createNewBranchRole.rejected, (state, action) => {
         console.error('❌ [REDUX STATE] createNewBranchRole.rejected');
@@ -322,7 +346,21 @@ const roleAccessSlice = createSlice({
         console.log('✅ [REDUX STATE] updatePermissions.fulfilled');
         console.log('📊 Updated Role:', action.payload);
         state.loading = false;
-        state.selectedRole = action.payload;
+        
+        // Backend returns {branch, role, tabAccess}, transform to match selectedRole structure
+        if (action.payload.role && action.payload.tabAccess) {
+          // Convert tabAccess array of paths to tabs array with objects
+          const tabs = action.payload.tabAccess.map(path => ({ path, enabled: true }));
+          state.selectedRole = {
+            ...action.payload.role,
+            tabs: tabs,
+            locked: action.payload.role.locked || false
+          };
+          console.log('📊 Transformed Selected Role after update:', state.selectedRole);
+        } else {
+          state.selectedRole = action.payload;
+        }
+        
         state.successMessage = 'Permissions updated successfully';
       })
       .addCase(updatePermissions.rejected, (state, action) => {

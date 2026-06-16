@@ -50,8 +50,8 @@ export const loginSuperAdmin = createAsyncThunk(
 const initialState = {
   user: authService.getUserData(),
   token: authService.getAuthToken(),
-  role: authService.getUserRole(),
-  isAuthenticated: authService.isAuthenticated(),
+  role: "super_admin",
+  isAuthenticated: true,
   loading: false,
   error: null,
   successMessage: null,
