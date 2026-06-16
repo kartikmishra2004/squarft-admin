@@ -2,7 +2,7 @@ import { Zap, IndianRupee, Globe, Users, Briefcase } from 'lucide-react';
 
 export const mockProjects = [
     {
-        id: 'P001', name: 'Skyline Residency', builder: 'Apex Buildcon', location: 'Andheri West, Mumbai', priceRange: '1.2 Cr - 2.5 Cr', configs: ['2BHK', '3BHK', '4BHK'], status: 'Active', units: 120, available: 45, progress: 100, officer: 'Rahul M.', updated: '2 hours ago', specs: 'Premium Residential', docs: 4,
+        id: 'P001', name: 'Skyline Residency', builder: 'Apex Buildcon', location: 'Andheri West, Mumbai', priceRange: '1.2 Cr - 2.5 Cr', configs: ['2BHK', '3BHK', '4BHK'], status: 'Active', units: 120, available: 45, progress: 100, officer: 'Rahul M.', updated: '2 hours ago', specs: 'Premium Residential', docs: 4, source: 'Broker',
         inventory: [
             { type: '2BHK Classic', size: '1,100 Sq.Ft', basePrice: '1.20 Cr', totalUnits: 60, availableUnits: 12 },
             { type: '3BHK Premium', size: '1,550 Sq.Ft', basePrice: '1.85 Cr', totalUnits: 40, availableUnits: 25 },
@@ -10,28 +10,28 @@ export const mockProjects = [
         ]
     },
     {
-        id: 'P002', name: 'Green Valley Phase 2', builder: 'EcoHomes Ltd', location: 'HSR Layout, Bangalore', priceRange: '85 L - 1.5 Cr', configs: ['Villa Plots', '3BHK'], status: 'Active', units: 80, available: 12, progress: 100, officer: 'Sneha P.', updated: '1 day ago', specs: 'Villa Plots & Open Spaces', docs: 8,
+        id: 'P002', name: 'Green Valley Phase 2', builder: 'EcoHomes Ltd', location: 'HSR Layout, Bangalore', priceRange: '85 L - 1.5 Cr', configs: ['Villa Plots', '3BHK'], status: 'Active', units: 80, available: 12, progress: 100, officer: 'Sneha P.', updated: '1 day ago', specs: 'Villa Plots & Open Spaces', docs: 8, source: 'Website',
         inventory: [
             { type: '30x40 Plot', size: '1,200 Sq.Ft', basePrice: '85 Lacs', totalUnits: 50, availableUnits: 5 },
             { type: '40x60 Plot', size: '2,400 Sq.Ft', basePrice: '1.50 Cr', totalUnits: 30, availableUnits: 7 }
         ]
     },
     {
-        id: 'P003', name: 'Metro Heights', builder: 'CityScape', location: 'Connaught Place, Delhi', priceRange: '3.5 Cr - 8 Cr', configs: ['Office Space', 'Retail'], status: 'In Review', units: 50, available: 5, progress: 60, officer: 'Rahul M.', updated: '3 days ago', specs: 'Premium Commercial', docs: 2,
+        id: 'P003', name: 'Metro Heights', builder: 'CityScape', location: 'Connaught Place, Delhi', priceRange: '3.5 Cr - 8 Cr', configs: ['Office Space', 'Retail'], status: 'In Review', units: 50, available: 5, progress: 60, officer: 'Rahul M.', updated: '3 days ago', specs: 'Premium Commercial', docs: 2, source: 'Sales Officer',
         inventory: [
             { type: 'Retail Shop', size: '800 Sq.Ft', basePrice: '3.50 Cr', totalUnits: 20, availableUnits: 2 },
             { type: 'Office Space', size: '2,000 Sq.Ft', basePrice: '8.00 Cr', totalUnits: 30, availableUnits: 3 }
         ]
     },
     {
-        id: 'P004', name: 'Ocean View Luxury', builder: 'Coastal Reality', location: 'ECR, Chennai', priceRange: '4.2 Cr - 6 Cr', configs: ['4BHK', 'Penthouse'], status: 'Approved', units: 30, available: 8, progress: 100, officer: 'Vikram S.', updated: '1 week ago', specs: 'Ultra Luxury Sea-facing', docs: 6,
+        id: 'P004', name: 'Ocean View Luxury', builder: 'Coastal Reality', location: 'ECR, Chennai', priceRange: '4.2 Cr - 6 Cr', configs: ['4BHK', 'Penthouse'], status: 'Approved', units: 30, available: 8, progress: 100, officer: 'Vikram S.', updated: '1 week ago', specs: 'Ultra Luxury Sea-facing', docs: 6, source: 'Meta Ads',
         inventory: [
             { type: '4BHK Seaview', size: '3,200 Sq.Ft', basePrice: '4.20 Cr', totalUnits: 25, availableUnits: 7 },
             { type: 'Penthouse', size: '5,500 Sq.Ft', basePrice: '6.00 Cr', totalUnits: 5, availableUnits: 1 }
         ]
     },
     {
-        id: 'P005', name: 'Parkside Avenues', builder: 'Apex Buildcon', location: 'Andheri East, Mumbai', priceRange: '90 L - 1.8 Cr', configs: ['1BHK', '2BHK'], status: 'Pending', units: 200, available: 89, progress: 25, officer: 'Neha K.', updated: '5 hours ago', specs: 'Compact Modern Living', docs: 1,
+        id: 'P005', name: 'Parkside Avenues', builder: 'Apex Buildcon', location: 'Andheri East, Mumbai', priceRange: '90 L - 1.8 Cr', configs: ['1BHK', '2BHK'], status: 'Pending', units: 200, available: 89, progress: 25, officer: 'Neha K.', updated: '5 hours ago', specs: 'Compact Modern Living', docs: 1, source: 'Broker',
         inventory: [
             { type: '1BHK Smart', size: '650 Sq.Ft', basePrice: '90 Lacs', totalUnits: 120, availableUnits: 40 },
             { type: '2BHK Classic', size: '950 Sq.Ft', basePrice: '1.45 Cr', totalUnits: 80, availableUnits: 49 }
@@ -942,6 +942,7 @@ export const sample2Clients = [
         id: 'C001', name: 'Vikash Singh', phone: '+91 9876543212', budget: '3 Cr - 5 Cr',
         listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '10/04/26', time: '11:00 - 12:00 PM',
         req: { type: 'Residential', bhk: ['3BHK', '4BHK'], loc: ['Chennai', 'ECR'], timeline: '30 Days' },
+        source: 'Broker',
         status: 'Active', officer: 'Neha K.',
         score: 'Hot', visitToday: true, nextFollowUp: '2026-06-06',
         latestNote: 'Client is highly interested in east-facing units. Scheduled for site visit today at 4 PM.',
@@ -966,6 +967,7 @@ export const sample2Clients = [
         id: 'C002', name: 'Ankit Sharma', phone: '+91 9876543213', budget: '1 Cr - 2 Cr',
         listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '08/04/26', time: '04:00 - 05:00 PM',
         req: { type: 'Residential', bhk: ['2BHK'], loc: ['Mumbai', 'Andheri'], timeline: '60 Days' },
+        source: 'Meta Ads',
         status: 'Negotiating', officer: 'Rahul M.',
         score: 'Warm', visitToday: false, nextFollowUp: '2026-06-10',
         latestNote: 'Completed site visit for Green Valley. Awaiting feedback.',
@@ -984,6 +986,7 @@ export const sample2Clients = [
         id: 'C003', name: 'Priya Verma', phone: '+91 9876543214', budget: '80 L - 1.2 Cr',
         listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '06/06/26', time: '10:00 - 11:00 AM',
         req: { type: 'Residential', bhk: ['2BHK'], loc: ['Bangalore', 'HSR Layout'], timeline: 'Immediate' },
+        source: 'Website',
         status: 'Active', officer: 'Sneha P.',
         score: 'Hot', visitToday: true, nextFollowUp: '2026-06-06',
         latestNote: 'Site visit confirmed for Green Valley Phase 2 today morning. Need to show corner plots.',
@@ -997,6 +1000,7 @@ export const sample2Clients = [
         id: 'C004', name: 'Rohan Mehta', phone: '+91 9876543215', budget: '1.2 Cr - 1.8 Cr',
         listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '09/06/26', time: '01:00 - 02:00 PM',
         req: { type: 'Residential', bhk: ['3BHK'], loc: ['Mumbai', 'Andheri East'], timeline: '45 Days' },
+        source: 'Sales Officer',
         status: 'Active', officer: '',
         score: 'Warm', visitToday: false, nextFollowUp: '2026-06-12',
         latestNote: 'New client awaiting sales officer assignment before property dispatch.',
@@ -1315,7 +1319,29 @@ export const mockVisits = [
 ];
 
 export const sample2Visits = [
-    { id: 'V001', officerName: 'Manas', officerPhone: '7691962521', customerName: 'Vikash Singh', customerPhone: '8225000092', purpose: 'BUY', date: '05/04/26', time: '10:00 - 11:00 AM', status: 'Scheduled', property: { name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '3BHK Premium', address: 'Andheri West, Mumbai', price: '₹ 1.85 Cr' }, notes: 'Client highly interested in park facing units.' },
+    { id: 'V001', officerName: 'Manas', officerPhone: '7691962521', customerName: 'Vikash Singh', customerPhone: '8225000092', purpose: 'BUY', date: '05/04/26', time: '10:00 - 11:00 AM', status: 'Scheduled',
+        property: {
+            name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '3BHK Premium',
+            address: 'Andheri West, Mumbai', price: '₹ 1.85 Cr',
+            builder: 'Apex Buildcon', totalUnits: 120, availableUnits: 45,
+            size: '1,550 Sq.Ft', possession: 'Dec 2027', rera: 'P001-RERA-2026',
+            amenities: 'Swimming Pool, Gym, Clubhouse, Park, 24/7 Security',
+        },
+        notes: 'Client highly interested in park facing units.',
+    },
+    { id: 'V006', officerName: 'Neha K.', officerPhone: '9000011111', customerName: 'Vikash Singh', customerPhone: '8225000092', purpose: 'BUY', date: '02/04/26', time: '11:00 AM - 12:00 PM', status: 'Completed',
+        arrivalTime: '11:12 AM',
+        userReview: 'Property location is excellent. The 3BHK layout was very spacious and the park facing view was exactly what we wanted. Pricing seems a bit high but negotiable.',
+        userRating: 4,
+        property: {
+            name: 'Ocean View Luxury', type: 'APARTMENT/FLATS', config: '4BHK Seaview',
+            address: 'ECR, Chennai', price: '₹ 4.20 Cr',
+            builder: 'Coastal Reality', totalUnits: 30, availableUnits: 8,
+            size: '3,200 Sq.Ft', possession: 'Dec 2027', rera: 'P004-RERA-2026',
+            amenities: 'Swimming Pool, Gym, Sea View, Clubhouse',
+        },
+        notes: 'Client loved the sea view. Likely to close deal soon.',
+    },
     { id: 'V002', officerName: 'Manas', officerPhone: '7691962521', customerName: 'Ankit Sharma', customerPhone: '8224004000', purpose: 'BUY', date: '09/03/26', time: '10:00 - 11:00 AM', status: 'Completed', property: { name: 'Green Valley Phase 2', type: 'VILLA PLOTS', config: '40x60 Plot', address: 'HSR Layout, Bangalore', price: '₹ 1.50 Cr' }, notes: 'Showed corner plots. Client will discuss with family.' },
     { id: 'V003', officerName: 'Rajesh Gurjar', officerPhone: '8224004000', customerName: 'Pawan Sharma', customerPhone: '8224004000', purpose: 'RENT', date: '28/02/26', time: '11:00 - 12:00 PM', status: 'Cancelled', property: { name: 'Metro Heights', type: 'COMMERCIAL', config: 'Retail Shop', address: 'Connaught Place, Delhi', price: '₹ 2.5 L / month' }, notes: 'Client cancelled due to emergency.' },
     { id: 'V004', officerName: 'Neha K.', officerPhone: '9000011111', customerName: 'Rohit Sharma', customerPhone: '9820012345', purpose: 'BUY', date: '09/06/26', time: '02:00 - 03:00 PM', status: 'In Progress', otpStatus: 'Verified', sources: ['Mobile', 'App'], propertyCount: 4, property: { name: 'Parkside Avenues', type: 'APARTMENT/FLATS', config: '2BHK Garden View', address: 'Andheri East, Mumbai', price: 'Rs. 1.25 Cr' }, notes: 'Officer has reached the site and customer OTP is verified.' },

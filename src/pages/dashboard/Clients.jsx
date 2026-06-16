@@ -9,7 +9,7 @@ import {
     CheckCircle2,
     Eye,
     FileText,
-    Heart,
+    
     IndianRupee,
     Layers,
     MapPin,
@@ -19,8 +19,6 @@ import {
     Plus,
     Search,
     Sparkles,
-    ThumbsDown,
-    TrendingUp,
     User,
     UserCheck,
     Users,
@@ -33,6 +31,7 @@ import {
     addClientNote,
     updateClient,
 } from '../../store/clientsSlice';
+import { addVisit } from '../../store/visitsSlice';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -46,6 +45,7 @@ const clientFormInitialState = {
     name: '',
     phone: '',
     budget: '',
+    source: '',
     listingType: 'Buy',
     listingKind: 'Residential',
     propType: 'APARTMENT/FLATS',
@@ -86,7 +86,7 @@ const requirementInitialState = {
     contactVerified: false,
 };
 
-const requirementTypes = ['Buy', 'Rent/Lease', 'Paying Guest'];
+const requirementTypes = ['Buy', 'Rent/Lease'];
 const propertyCategories = ['Residential', 'Commercial'];
 const propertyTypesByCategory = {
     Residential: ['Plot', 'Villa', 'Apartment', 'Rowhouse'],
@@ -145,9 +145,26 @@ const buildInventoryWithUnits = (project) => (project.inventory || []).map((conf
 
 const getSelectedUnitLabel = (assignment) => `${assignment.configType} - Unit ${assignment.unitNumber}`;
 
-const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdateClient, onAddNote, onAddMeeting }) => {
-    const [activeProfileTab, setActiveProfileTab] = useState('Overview & Pipeline');
+const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdateClient, onAddNote, onAddMeeting, onScheduleVisit }) => {
+    const [activeProfileTab, setActiveProfileTab] = useState('Selected Properties');
     const [newNote, setNewNote] = useState('');
+    const [isEditingProperty, setIsEditingProperty] = useState(false);
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [profileEditForm, setProfileEditForm] = useState({
+        name: client.name || '',
+        phone: client.phone || '',
+        budget: client.budget || '',
+        status: client.status || 'Active',
+        score: client.score || 'Warm',
+        officer: client.officer || '',
+        location: client.req?.loc?.[0] || '',
+        timeline: client.req?.timeline || '30 Days',
+        nextFollowUp: client.nextFollowUp || '',
+    });
+    const [propertyTypeEdit, setPropertyTypeEdit] = useState({
+        category: client.listingKind || 'Residential',
+        bhkOptions: client.req?.bhk || ['3BHK'],
+    });
     const [followUpForm, setFollowUpForm] = useState({
         type: 'Call Note',
         nextFollowUp: client.nextFollowUp || '',
@@ -156,6 +173,7 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
     const [meetingForm, setMeetingForm] = useState(meetingInitialState);
     const [editingMeetingIndex, setEditingMeetingIndex] = useState(null);
     const [assignedOfficer, setAssignedOfficer] = useState('');
+    const [isChangingOfficer, setIsChangingOfficer] = useState(false);
     const [selectedProps, setSelectedProps] = useState([]);
     const [assignmentSuccess, setAssignmentSuccess] = useState(false);
     const [pendingDealIndex, setPendingDealIndex] = useState(null);
@@ -163,6 +181,23 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [expandedConfigByProject, setExpandedConfigByProject] = useState({});
     const [projectDetails, setProjectDetails] = useState(null);
+    const [isScheduleVisitOpen, setIsScheduleVisitOpen] = useState(false);
+    const [visitForm, setVisitForm] = useState({
+        officerName: '',
+        officerPhone: '',
+        customerName: '',
+        customerPhone: '',
+        purpose: 'BUY',
+        date: '',
+        time: '',
+        status: 'Scheduled',
+        propertyName: '',
+        propertyType: 'APARTMENT/FLATS',
+        propertyConfig: '',
+        propertyAddress: '',
+        propertyPrice: '',
+        notes: '',
+    });
     const [requirementForm, setRequirementForm] = useState({
         ...requirementInitialState,
         customerName: client.name || '',
@@ -172,8 +207,10 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
         configuration: client.req?.bhk?.[0] || 'N/A',
         location: client.req?.loc?.[0] || '',
     });
+    const [isEditingRequirement, setIsEditingRequirement] = useState(false);
+    const [editRequirementForm, setEditRequirementForm] = useState(null);
 
-    const tabs = ['Overview & Pipeline', 'Assign Properties', 'Customer Requirement', 'Follow-up & Notes', 'Site Visits', 'Meetings'];
+    const tabs = ['Selected Properties', 'Follow-up & Notes', 'Site Visits', 'Meetings'];
     const clientVisits = visits.filter((visit) => visit.customerName === client.name);
     const selectedSiteVisit = clientVisits.find((visit) => visit.id === selectedSiteVisitId);
     const assignedSalesOfficer = client.officer?.trim();
@@ -212,6 +249,106 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
         });
         setNewNote('');
     };
+
+    const handleSavePropertyType = () => {
+        onUpdateClient({
+            listingKind: propertyTypeEdit.category,
+            req: {
+                ...client.req,
+                type: propertyTypeEdit.category,
+                bhk: propertyTypeEdit.bhkOptions,
+            },
+        });
+        setIsEditingProperty(false);
+    };
+
+    const openEditRequirement = () => {
+        const latest = (client.customerRequirements || [])[0];
+        setEditRequirementForm(latest ? {
+            status: latest.requirement_type || 'Buy',
+            propertyCategory: latest.property_category || 'Residential',
+            propertyType: latest.property_type || 'Plot',
+            configuration: latest.configuration || 'N/A',
+            minArea: latest.min_area || '',
+            maxArea: latest.max_area || '',
+            unit: latest.area_unit || 'Square Feet (Sq. ft)',
+            customerName: latest.customer_name || '',
+            contactNumber: latest.contact_number || '',
+            location: latest.preferred_locations?.[0] || '',
+            budgetMin: String(latest.budget_min || '100000'),
+            budgetMax: String(latest.budget_max || '10000000'),
+            notes: latest.notes || '',
+            otp: '',
+            contactVerified: latest.contact_verified || false,
+            _id: latest.id,
+        } : {
+            ...requirementInitialState,
+            customerName: client.name || '',
+            contactNumber: client.phone || '',
+            propertyCategory: client.req?.type || client.listingKind || 'Residential',
+            propertyType: client.propType || 'Plot',
+            location: client.req?.loc?.[0] || '',
+        });
+        setIsEditingRequirement(true);
+    };
+
+    const updateEditRequirementForm = (field, value) => {
+        setEditRequirementForm((current) => {
+            if (field === 'propertyCategory') {
+                const nextPropertyType = propertyTypesByCategory[value]?.[0] || 'Plot';
+                return { ...current, propertyCategory: value, propertyType: nextPropertyType, configuration: 'N/A' };
+            }
+            if (field === 'propertyType') return { ...current, propertyType: value, configuration: 'N/A' };
+            if (field === 'otp') return { ...current, otp: value, contactVerified: value.length === 4 };
+            if (field === 'contactNumber') return { ...current, contactNumber: value, contactVerified: false, otp: '' };
+            return { ...current, [field]: value };
+        });
+    };
+
+    const handleSaveEditRequirement = () => {
+        if (!editRequirementForm?.customerName?.trim() || !editRequirementForm?.contactNumber?.trim()) return;
+        const now = getNowStamp();
+        const updated = {
+            id: editRequirementForm._id || `REQ-${Date.now()}`,
+            customer_name: editRequirementForm.customerName.trim(),
+            contact_number: editRequirementForm.contactNumber.trim(),
+            requirement_type: editRequirementForm.status,
+            property_category: editRequirementForm.propertyCategory,
+            property_type: editRequirementForm.propertyType,
+            configuration: editRequirementForm.configuration,
+            min_area: editRequirementForm.minArea,
+            max_area: editRequirementForm.maxArea,
+            area_unit: editRequirementForm.unit,
+            budget_min: Number(editRequirementForm.budgetMin || 0),
+            budget_max: Number(editRequirementForm.budgetMax || 0),
+            preferred_locations: editRequirementForm.location.trim() ? [editRequirementForm.location.trim()] : [],
+            notes: editRequirementForm.notes.trim(),
+            contact_verified: editRequirementForm.contactVerified,
+            created_at: `${now.date} ${now.time}`,
+        };
+        const existing = client.customerRequirements || [];
+        const nextRequirements = editRequirementForm._id
+            ? existing.map((r) => r.id === editRequirementForm._id ? updated : r)
+            : [updated, ...existing];
+        onUpdateClient({
+            customerRequirements: nextRequirements,
+            req: {
+                type: updated.property_category,
+                bhk: updated.configuration !== 'N/A' ? [updated.configuration] : [updated.property_type],
+                loc: updated.preferred_locations.length ? updated.preferred_locations : ['Location pending'],
+                timeline: client.req?.timeline || '30 Days',
+            },
+            timeline: [
+                createTimelineEvent('Customer Requirement Updated', `${updated.requirement_type} - ${updated.property_type}`),
+                ...((client.timeline || [])),
+            ],
+        });
+        setIsEditingRequirement(false);
+    };
+
+    const bhkOptions = ['1BHK', '2BHK', '3BHK', '4BHK', '5+BHK'];
+    const commercialOptions = ['Shop', 'Office', 'Showroom'];
+    const propertyTypeOptions = propertyTypeEdit.category === 'Residential' ? bhkOptions : commercialOptions;
 
     const handleSaveMeeting = () => {
         if (!meetingForm.date || !meetingForm.time) return;
@@ -440,6 +577,8 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
     const pendingDealItem = pendingDealIndex !== null ? client.propertyPipeline?.[pendingDealIndex] : null;
     const pendingDealProject = pendingDealItem ? getProject(pendingDealItem.projectId) : null;
 
+    const [pendingVisitDeal, setPendingVisitDeal] = useState(null);
+
     const handleConfirmContinueToDeal = () => {
         if (pendingDealIndex === null || !pendingDealItem || !pendingDealProject) return;
 
@@ -463,6 +602,35 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
             ],
         });
         setPendingDealIndex(null);
+    };
+
+    const handleConfirmVisitDeal = () => {
+        if (!pendingVisitDeal) return;
+        const visit = pendingVisitDeal;
+        const alreadyInPipeline = (client.propertyPipeline || []).some(
+            (item) => item.visitId === visit.id
+        );
+        if (!alreadyInPipeline) {
+            onUpdateClient({
+                status: 'Negotiating',
+                propertyPipeline: [
+                    {
+                        visitId: visit.id,
+                        projectId: visit.property?.name,
+                        status: 'Continued to Deal',
+                        continuedToDeal: true,
+                        units: [visit.property?.config || visit.property?.type || ''],
+                        notes: `Continued to deal from site visit on ${visit.date}.`,
+                    },
+                    ...(client.propertyPipeline || []),
+                ],
+                timeline: [
+                    createTimelineEvent('Continued to Deal', `${visit.property?.name} moved from site visit to deal.`),
+                    ...(client.timeline || []),
+                ],
+            });
+        }
+        setPendingVisitDeal(null);
     };
 
     const getCheckInTime = (timeRange) => {
@@ -489,28 +657,34 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
     return (
         <div className="max-w-[1600px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
             <Card noPadding className="bg-linear-to-r from-white to-[#6F4BFF]/5 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4">
+                <div className="absolute top-0 right-0 p-4 flex items-center gap-2">
+                    <button onClick={openEditRequirement} className="px-3 py-1.5 rounded-lg border border-[#6F4BFF]/30 bg-[#6F4BFF]/5 text-xs font-bold text-[#6F4BFF] hover:bg-[#6F4BFF]/10 transition-all flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5" /> Edit Customer Requirement
+                    </button>
+                    <button onClick={() => setIsEditingProfile(true)} className="p-2 hover:bg-white/60 rounded-lg text-gray-500 transition-colors backdrop-blur-sm border border-gray-200">
+                        <MessageSquare className="w-4 h-4" />
+                    </button>
                     <button onClick={onBack} className="p-2 hover:bg-white/60 rounded-lg text-gray-500 transition-colors backdrop-blur-sm border border-gray-200">
                         <ArrowRight className="w-5 h-5 rotate-180" />
                     </button>
                 </div>
                 <div className="p-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex gap-5">
+                    <div className="flex gap-5 flex-1">
                         <div className="w-16 h-16 rounded-2xl bg-[#6F4BFF] text-white flex items-center justify-center text-2xl font-bold shadow-lg shadow-[#6F4BFF]/20">
                             {client.name.charAt(0)}
                         </div>
-                        <div>
+                        <div className="flex-1">
                             <div className="flex flex-wrap items-center gap-3 mb-1">
                                 <h2 className="text-2xl font-bold text-gray-900">{client.name}</h2>
                                 {getStatusBadge(client.status)}
                             </div>
-                            <p className="text-gray-500 font-medium flex flex-wrap items-center gap-3">
+                            <p className="text-gray-500 font-medium flex flex-wrap items-center gap-3 mb-3">
                                 <span className="flex items-center gap-1"><PhoneCall className="w-3.5 h-3.5" /> {client.phone}</span>
                                 <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" /> Officer: {client.officer}</span>
                             </p>
-                            <div className="flex flex-wrap gap-2 mt-3">
-                                <Badge variant="gray">{client.req?.type || client.listingKind}</Badge>
-                                {(client.req?.bhk || []).map((bhk) => <Badge key={bhk} variant="gray">{bhk}</Badge>)}
+                            <div className="flex flex-wrap gap-2 items-center">
+                                <Badge variant={propertyTypeEdit.category === 'Residential' ? 'purple' : 'yellow'}>{propertyTypeEdit.category}</Badge>
+                                {propertyTypeEdit.bhkOptions.map((bhk) => <Badge key={bhk} variant="gray">{bhk}</Badge>)}
                             </div>
                         </div>
                     </div>
@@ -520,6 +694,112 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                     </div>
                 </div>
             </Card>
+
+            {/* Edit Customer Requirement Modal */}
+            {isEditingRequirement && editRequirementForm && (
+                <Modal isOpen={isEditingRequirement} onClose={() => setIsEditingRequirement(false)} title="Edit Customer Requirement" size="lg">
+                    <div className="space-y-5">
+                        <div>
+                            <label className="mb-2 block text-xs font-black text-gray-700">Property Category</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {propertyCategories.map((item) => (
+                                    <button key={item} type="button" onClick={() => updateEditRequirementForm('propertyCategory', item)} className={`rounded-xl border p-4 text-left text-sm font-black ${editRequirementForm.propertyCategory === item ? 'border-[#4A43EC] bg-[#EEEDFD] text-[#4A43EC]' : 'border-gray-200 bg-white text-gray-700'}`}>
+                                        {item}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-xs font-black text-gray-700">Property Type</label>
+                            <div className="grid grid-cols-4 gap-2">
+                                {(propertyTypesByCategory[editRequirementForm.propertyCategory] || []).map((item) => (
+                                    <button key={item} type="button" onClick={() => updateEditRequirementForm('propertyType', item)} className={`rounded-lg border px-3 py-3 text-xs font-black ${editRequirementForm.propertyType === item ? 'border-[#4A43EC] bg-[#EEEDFD] text-[#4A43EC]' : 'border-gray-200 bg-white text-gray-600'}`}>
+                                        {item}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {configurationOptions[editRequirementForm.propertyType] && (
+                            <div>
+                                <label className="mb-2 block text-xs font-black text-gray-700">Configuration / Status</label>
+                                <select value={editRequirementForm.configuration} onChange={(e) => updateEditRequirementForm('configuration', e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30">
+                                    <option value="N/A">Select option</option>
+                                    {configurationOptions[editRequirementForm.propertyType].map((item) => <option key={item}>{item}</option>)}
+                                </select>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="mb-2 block text-xs font-black text-gray-700">Min Area</label>
+                                <input type="number" value={editRequirementForm.minArea} onChange={(e) => updateEditRequirementForm('minArea', e.target.value)} placeholder="Optional" className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-xs font-black text-gray-700">Max Area</label>
+                                <input type="number" value={editRequirementForm.maxArea} onChange={(e) => updateEditRequirementForm('maxArea', e.target.value)} placeholder="2000" className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-xs font-black text-gray-700">Unit</label>
+                            <select value={editRequirementForm.unit} onChange={(e) => updateEditRequirementForm('unit', e.target.value)} className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30">
+                                {areaUnits.map((item) => <option key={item}>{item}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="mb-2 block text-xs font-black text-gray-700">Customer Name</label>
+                                <input value={editRequirementForm.customerName} onChange={(e) => updateEditRequirementForm('customerName', e.target.value)} className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-xs font-black text-gray-700">Contact Number</label>
+                                <input value={editRequirementForm.contactNumber} onChange={(e) => updateEditRequirementForm('contactNumber', e.target.value)} className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
+                            </div>
+                        </div>
+
+                        {!editRequirementForm.contactVerified && editRequirementForm.contactNumber.length >= 10 && (
+                            <div>
+                                <label className="mb-2 block text-xs font-black text-gray-700">OTP Verification</label>
+                                <input maxLength={4} value={editRequirementForm.otp} onChange={(e) => updateEditRequirementForm('otp', e.target.value.replace(/\D/g, ''))} placeholder="Enter 4 digit OTP" className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
+                                <p className="mt-1 text-[10px] font-bold text-gray-400">Any 4 digit OTP marks contact verified.</p>
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="mb-2 block text-xs font-black text-gray-700">Preferred Location</label>
+                            <input value={editRequirementForm.location} onChange={(e) => updateEditRequirementForm('location', e.target.value)} placeholder="Enter preferred location" className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="mb-2 block text-xs font-black text-gray-700">Budget Min</label>
+                                <input type="number" value={editRequirementForm.budgetMin} onChange={(e) => updateEditRequirementForm('budgetMin', e.target.value)} className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-xs font-black text-gray-700">Budget Max</label>
+                                <input type="number" value={editRequirementForm.budgetMax} onChange={(e) => updateEditRequirementForm('budgetMax', e.target.value)} className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-xs font-black text-gray-700">Details</label>
+                            <textarea rows="3" value={editRequirementForm.notes} onChange={(e) => updateEditRequirementForm('notes', e.target.value)} placeholder="Requirement notes..." className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
+                        </div>
+
+                        <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                            <button onClick={() => setIsEditingRequirement(false)} className="px-5 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 font-bold hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button onClick={handleSaveEditRequirement} className="px-5 py-2 rounded-lg bg-[#4A43EC] text-white font-bold hover:bg-[#3932d5] transition-colors">
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="flex overflow-x-auto border-b border-gray-200 hide-scrollbar bg-gray-50/50">
@@ -539,97 +819,7 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                 </div>
 
                 <div className="p-6 md:p-8 bg-gray-50/30 min-h-[500px]">
-                    {activeProfileTab === 'Overview & Pipeline' && (
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-in fade-in">
-                            <div className="space-y-6 xl:col-span-1">
-                                <Card>
-                                    <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
-                                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Search className="w-5 h-5 text-[#6F4BFF]" /> Requirement Profile</h3>
-                                        <Button variant="ghost" className="text-xs px-2 py-1 h-auto text-gray-400">Edit</Button>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Preferred Locations</p>
-                                            <p className="font-semibold text-gray-800">{(client.req?.loc || ['Location pending']).join(' / ')}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Property Type</p>
-                                            <p className="font-semibold text-gray-800">{client.req?.type || client.listingKind} ({(client.req?.bhk || []).join(', ') || client.propType})</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Timeline</p>
-                                            <p className="font-semibold text-gray-800">{client.req?.timeline || '30 Days'}</p>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </div>
-
-                            <div className="xl:col-span-2">
-                                <Card noPadding className="h-full flex flex-col">
-                                    <div className="p-6 border-b border-gray-100 bg-white flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Navigation className="w-5 h-5 text-[#6F4BFF]" /> Client Property Pipeline</h3>
-                                            <p className="text-sm text-gray-500 mt-1">Track all projects assigned and their current status.</p>
-                                        </div>
-                                        <Button icon={Plus} onClick={() => setActiveProfileTab('Assign Properties')}>Assign More</Button>
-                                    </div>
-                                    <div className="flex-1 p-6 bg-gray-50/50">
-                                        <div className="space-y-4">
-                                            {(client.propertyPipeline || []).map((pipelineItem, index) => {
-                                                const project = getProject(pipelineItem.projectId);
-                                                if (!project) return null;
-                                                let statusBg = 'bg-gray-100 text-gray-600';
-                                                let borderClass = 'border-gray-200';
-                                                let StatusIcon = Eye;
-                                                if (pipelineItem.status === 'Shortlisted') {
-                                                    borderClass = 'border-purple-200 shadow-sm';
-                                                    statusBg = 'bg-purple-100 text-[#6F4BFF]';
-                                                    StatusIcon = Heart;
-                                                } else if (pipelineItem.status === 'Visited') {
-                                                    borderClass = 'border-blue-200 shadow-sm';
-                                                    statusBg = 'bg-blue-100 text-blue-700';
-                                                    StatusIcon = MapPin;
-                                                } else if (pipelineItem.status === 'Negotiating') {
-                                                    borderClass = 'border-amber-200 shadow-sm';
-                                                    statusBg = 'bg-amber-100 text-amber-700';
-                                                    StatusIcon = TrendingUp;
-                                                } else if (pipelineItem.status === 'Not Interested') {
-                                                    borderClass = 'border-gray-200 opacity-60';
-                                                    statusBg = 'bg-gray-100 text-gray-500';
-                                                    StatusIcon = ThumbsDown;
-                                                }
-
-                                                return (
-                                                    <div key={`${pipelineItem.projectId}-${index}`} className={`bg-white rounded-xl border p-5 transition-all ${borderClass}`}>
-                                                        <div className="flex items-start justify-between mb-4">
-                                                            <div className="flex gap-4">
-                                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${statusBg}`}><StatusIcon className="w-5 h-5" /></div>
-                                                                <div>
-                                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                                        <h4 className="text-lg font-bold text-gray-900">{project.name}</h4>
-                                                                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider ${statusBg}`}>{pipelineItem.status}</span>
-                                                                    </div>
-                                                                    <p className="text-sm text-gray-500">{project.location}</p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                                            <div><p className="text-xs font-bold text-gray-400 uppercase mb-1">Target Units</p><p className="font-semibold text-gray-800 text-sm">{pipelineItem.units?.length ? pipelineItem.units.join(', ') : 'Not specified'}</p></div>
-                                                            <div><p className="text-xs font-bold text-gray-400 uppercase mb-1">Project Price</p><p className="font-semibold text-gray-800 text-sm">{project.priceRange}</p></div>
-                                                            <div><p className="text-xs font-bold text-gray-400 uppercase mb-1">Latest Update</p><p className="font-semibold text-gray-800 text-sm line-clamp-1">{pipelineItem.notes}</p></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                            {(client.propertyPipeline || []).length === 0 && <p className="text-center text-gray-500 py-10 font-medium">No properties assigned yet.</p>}
-                                        </div>
-                                    </div>
-                                </Card>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeProfileTab === 'Assign Properties' && (
+                    {activeProfileTab === 'Selected Properties' && (
                         <div className="animate-in fade-in">
                             <div className="flex justify-between items-center mb-6">
                                 <div>
@@ -646,67 +836,116 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                             )}
 
                             <Card className="mb-8 border-t-4 border-t-[#6F4BFF]">
-                                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-                                    <div className="flex-1 max-w-md">
-                                        <label className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2 block">Assign To Sales Officer</label>
-                                        {assignedSalesOfficer ? (
-                                            <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
-                                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Assigned Sales Officer</p>
-                                                <p className="mt-1 text-sm font-black text-gray-900">{assignedSalesOfficer}</p>
-                                            </div>
-                                        ) : (
-                                            <select value={assignedOfficer} onChange={(event) => setAssignedOfficer(event.target.value)} className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-medium text-gray-900 bg-white">
-                                                <option value="">Select Officer</option>
-                                                {officers.map((officer) => <option key={officer} value={officer}>{officer}</option>)}
-                                            </select>
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-gray-800 uppercase tracking-wider">Assign To Sales Officer</label>
+                                        {assignedSalesOfficer && !isChangingOfficer && (
+                                            <button type="button" onClick={() => setIsChangingOfficer(true)}
+                                                className="px-3 py-1.5 rounded-lg border border-[#6F4BFF]/30 bg-[#6F4BFF]/5 text-xs font-black text-[#6F4BFF] hover:bg-[#6F4BFF] hover:text-white transition-all">
+                                                Reassign Sales Officer
+                                            </button>
+                                        )}
+                                        {isChangingOfficer && (
+                                            <button type="button" onClick={() => { setIsChangingOfficer(false); setAssignedOfficer(''); }}
+                                                className="text-xs font-bold text-gray-400 hover:text-gray-700 flex items-center gap-1">
+                                                <X className="w-3 h-3" /> Cancel
+                                            </button>
                                         )}
                                     </div>
-                                    <div className="rounded-xl border border-[#6F4BFF]/10 bg-[#6F4BFF]/5 px-4 py-3 text-sm font-bold text-[#6F4BFF]">
-                                        Select unit numbers in the floor plan, then assign from the workspace.
-                                    </div>
+
+                                    {assignedSalesOfficer && !isChangingOfficer ? (
+                                        <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-full bg-emerald-200 flex items-center justify-center text-emerald-800 font-black text-sm shrink-0">
+                                                {assignedSalesOfficer.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Assigned Officer</p>
+                                                <p className="text-sm font-black text-gray-900">{assignedSalesOfficer}</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                                            {officers.map((officer) => {
+                                                const officerVisits = visits.filter((v) => v.officerName === officer && v.status !== 'Cancelled' && v.status !== 'Completed');
+                                                const slots = ['10:00-11:00', '12:00-13:00', '15:00-16:00', '17:00-18:00'];
+                                                const busySlots = officerVisits.map((v) => {
+                                                    const t = (v.time || '').toLowerCase();
+                                                    if (t.includes('10')) return '10:00-11:00';
+                                                    if (t.includes('12')) return '12:00-13:00';
+                                                    if (t.includes('15') || t.includes('3:')) return '15:00-16:00';
+                                                    if (t.includes('17') || t.includes('5:')) return '17:00-18:00';
+                                                    return null;
+                                                }).filter(Boolean);
+                                                const isSelected = (assignedOfficer || assignedSalesOfficer) === officer;
+                                                const freeCount = slots.filter((s) => !busySlots.includes(s)).length;
+
+                                                return (
+                                                    <button key={officer} type="button"
+                                                        onClick={() => {
+                                                            setAssignedOfficer(officer);
+                                                            setIsChangingOfficer(false);
+                                                            if (assignedSalesOfficer) onUpdateClient({ officer });
+                                                        }}
+                                                        className={`rounded-xl border p-3 text-left transition-all ${isSelected ? 'border-[#6F4BFF] bg-[#6F4BFF]/5 ring-2 ring-[#6F4BFF]/20' : 'border-gray-200 bg-white hover:border-[#6F4BFF]/40'}`}
+                                                    >
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${isSelected ? 'bg-[#6F4BFF] text-white' : 'bg-gray-100 text-gray-600'}`}>
+                                                                {officer.charAt(0)}
+                                                            </div>
+                                                            <p className="text-xs font-black text-gray-900 truncate">{officer}</p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            {slots.map((slot) => {
+                                                                const busy = busySlots.includes(slot);
+                                                                return (
+                                                                    <div key={slot} className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 ${busy ? 'bg-rose-50' : 'bg-emerald-50'}`}>
+                                                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${busy ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+                                                                        <span className={`text-[9px] font-black ${busy ? 'text-rose-600' : 'text-emerald-600'}`}>{slot}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <p className={`mt-2 text-[10px] font-black ${freeCount > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                            {freeCount} slot{freeCount !== 1 ? 's' : ''} free
+                                                        </p>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </Card>
 
                             {(client.propertyPipeline || []).length > 0 && (
                                 <>
-                                    <div className="flex justify-between items-end mb-4">
-                                        <div>
-                                            <h4 className="text-lg font-bold text-gray-900">Already Assigned Properties</h4>
-                                            <p className="text-sm font-medium text-gray-500 mt-1">Continue an assigned property into deal when the client is ready.</p>
-                                        </div>
+                                    <div className="mb-3">
+                                        <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest">Already Assigned</h4>
                                     </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                                         {(client.propertyPipeline || []).map((pipelineItem, index) => {
                                             const project = getProject(pipelineItem.projectId);
                                             if (!project) return null;
                                             const continuedToDeal = Boolean(pipelineItem.continuedToDeal);
-
+                                            const isExpanded = expandedProjectId === project.id;
                                             return (
-                                                <Card key={`${pipelineItem.projectId}-assigned-${index}`} noPadding className={`relative border-2 transition-all ${continuedToDeal ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-200 bg-white'}`}>
-                                                    {continuedToDeal && (
-                                                        <div className="absolute top-4 left-4 z-20">
-                                                            <Badge variant="green">Continued to Deal</Badge>
+                                                <Card key={`${pipelineItem.projectId}-assigned-${index}`} noPadding className={`relative border-2 transition-all ${isExpanded ? 'border-purple-400 shadow-lg ring-2 ring-[#6F4BFF]/10 bg-purple-50/10' : continuedToDeal ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-200 hover:border-[#6F4BFF]/50'}`}>
+                                                    {continuedToDeal && <div className="absolute top-3 left-3 z-20"><Badge variant="green">Continued to Deal</Badge></div>}
+                                                    <button type="button" className={`w-full text-left flex gap-4 p-4 items-start ${continuedToDeal ? 'pt-10' : ''}`} onClick={() => openProjectFloorPlan(project)}>
+                                                        <div className="flex-1">
+                                                            <h4 className="font-bold text-gray-900 text-sm capitalize mb-1">{project.name}</h4>
+                                                            <p className="text-[11px] text-gray-500 flex items-start gap-1 mb-1"><MapPin className="w-3 h-3 text-rose-500 shrink-0" /> {project.location}</p>
+                                                            <p className="text-[11px] text-gray-400 mb-1">by {project.builder}</p>
+                                                            <p className="text-xs font-bold text-gray-800">{project.priceRange}</p>
+                                                            <span className="mt-2 inline-block rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-600">{pipelineItem.status}</span>
                                                         </div>
-                                                    )}
-                                                    <div className="p-4 pt-12">
-                                                        <div className="mb-4">
-                                                            <h4 className="font-bold text-gray-900 text-base capitalize mb-1">{project.name}</h4>
-                                                            <p className="text-[11px] text-gray-500 font-medium flex items-start gap-1 mb-2">
-                                                                <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" /> {project.location}
-                                                            </p>
-                                                            <p className="text-sm font-bold text-gray-800">{project.priceRange}</p>
-                                                        </div>
-                                                        <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 mb-4">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Assignment Status</p>
-                                                            <p className="text-sm font-bold text-gray-800 mt-1">{pipelineItem.status}</p>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            disabled={continuedToDeal}
-                                                            onClick={() => setPendingDealIndex(index)}
-                                                            className="w-full rounded-lg bg-[#6F4BFF] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-[#6F4BFF]/20 transition hover:bg-[#5936eb] disabled:bg-emerald-100 disabled:text-emerald-700 disabled:shadow-none"
-                                                        >
+                                                        <span className={`rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase shrink-0 ${isExpanded ? 'border-[#6F4BFF] bg-[#6F4BFF] text-white' : 'border-gray-200 bg-white text-gray-500'}`}>
+                                                            Open Plan
+                                                        </span>
+                                                    </button>
+                                                    <div className="px-4 pb-3 flex gap-2">
+                                                        <button type="button" disabled={continuedToDeal}
+                                                            onClick={(e) => { e.stopPropagation(); setPendingDealIndex(index); }}
+                                                            className="flex-1 rounded-lg bg-[#6F4BFF] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#5936eb] disabled:bg-emerald-100 disabled:text-emerald-700">
                                                             {continuedToDeal ? 'Continued to Deal' : 'Continue to Deal'}
                                                         </button>
                                                     </div>
@@ -723,41 +962,42 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                             </div>
 
                             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] gap-6 items-start">
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-5">
+                                <div className="space-y-4">
                                     {projects.map((project) => {
                                         const isRecommended = project.priceRange.includes('Cr') && client.budget.includes('Cr');
                                         const isExpanded = expandedProjectId === project.id;
                                         const selectedProjectUnits = selectedProps.filter((assignment) => assignment.projectId === project.id);
-
                                         return (
-                                            <Card key={project.id} noPadding className={`relative border-2 transition-all ${isExpanded ? 'border-[#6F4BFF] shadow-lg ring-2 ring-[#6F4BFF]/10 bg-purple-50/10' : 'border-gray-200 hover:border-[#6F4BFF]/50'}`}>
-                                                {isRecommended && <div className="absolute top-4 left-4 z-20"><Badge variant="green">98% Match</Badge></div>}
-                                                <button type="button" className="w-full text-left flex gap-4 p-4 pt-12 items-start" onClick={() => openProjectFloorPlan(project)}>
+                                            <Card key={project.id} noPadding className={`relative border-2 transition-all ${isExpanded ? 'border-purple-400 shadow-lg ring-2 ring-[#6F4BFF]/10 bg-purple-50/10' : 'border-gray-200 hover:border-[#6F4BFF]/50'}`}>
+                                                <button type="button" className="w-full text-left flex gap-4 p-4 items-start" onClick={() => openProjectFloorPlan(project)}>
                                                     <div className="flex-1">
+                                                        {isRecommended && <div className="mb-1"><Badge variant="green">98% Match</Badge></div>}
                                                         <h4 className="font-bold text-gray-900 text-base capitalize mb-1">{project.name}</h4>
-                                                        <p className="text-[11px] text-gray-500 font-medium flex items-start gap-1 mb-2"><MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" /> {project.location}</p>
+                                                        <p className="text-[11px] text-gray-500 font-medium flex items-start gap-1 mb-1"><MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" /> {project.location}</p>
+                                                        <p className="text-[11px] text-gray-400 font-medium mb-2">by {project.builder} · {project.specs}</p>
                                                         <p className="text-sm font-bold text-gray-800">{project.priceRange}</p>
+                                                        <p className="text-[11px] text-gray-400 mt-1">{project.available} units available of {project.units}</p>
                                                         {selectedProjectUnits.length > 0 && (
                                                             <div className="mt-3 flex flex-wrap gap-1.5">
                                                                 {selectedProjectUnits.map((assignment) => (
-                                                                    <span key={assignment.key} className="rounded-md bg-[#6F4BFF]/10 px-2 py-1 text-[10px] font-black text-[#6F4BFF]">
-                                                                        Unit {assignment.unitNumber}
-                                                                    </span>
+                                                                    <span key={assignment.key} className="rounded-md bg-[#6F4BFF]/10 px-2 py-1 text-[10px] font-black text-[#6F4BFF]">Unit {assignment.unitNumber}</span>
                                                                 ))}
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <span className={`mt-1 rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${isExpanded ? 'border-[#6F4BFF] bg-[#6F4BFF] text-white' : 'border-gray-200 bg-white text-gray-500'}`}>
-                                                        Open Plan
-                                                    </span>
+                                                    <div className="flex flex-col items-end gap-2 mt-1 shrink-0">
+                                                        {project.source === 'Broker' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black tracking-wide bg-amber-50 text-amber-600 border border-amber-200">
+                                                                <span className="w-1.5 h-1.5 rounded-full inline-block bg-current opacity-70" /> via Broker
+                                                            </span>
+                                                        )}
+                                                        <span className={`rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${isExpanded ? 'border-[#6F4BFF] bg-[#6F4BFF] text-white' : 'border-gray-200 bg-white text-gray-500'}`}>
+                                                            Open Plan
+                                                        </span>
+                                                    </div>
                                                 </button>
-                                                <div className="px-4 pb-4 flex gap-2">
-                                                    <Button
-                                                        variant="secondary"
-                                                        icon={Eye}
-                                                        className="flex-1 text-[10px] py-2 font-black uppercase tracking-widest"
-                                                        onClick={() => setProjectDetails(project)}
-                                                    >
+                                                <div className="px-4 pb-4">
+                                                    <Button variant="secondary" icon={Eye} className="w-full text-[10px] py-2 font-black uppercase tracking-widest" onClick={() => setProjectDetails(project)}>
                                                         View Full Project
                                                     </Button>
                                                 </div>
@@ -770,15 +1010,25 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                                     <Card noPadding className="overflow-hidden border-[#ded8ff] shadow-xl shadow-[#6F4BFF]/10">
                                         {activeFloorPlanProject && activeFloorPlanConfig ? (
                                             <div className="bg-gray-50/80 animate-in fade-in slide-in-from-right-3 duration-200">
-                                                <div className="border-b border-gray-100 bg-white p-5">
-                                                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                                        <div>
-                                                            <p className="text-[10px] font-black text-[#6F4BFF] uppercase tracking-widest">Floor Plan Workspace</p>
-                                                            <h5 className="mt-1 text-xl font-black text-gray-900 tracking-tight">{activeFloorPlanProject.name}</h5>
-                                                            <p className="mt-1 text-xs font-bold text-gray-500 flex items-center gap-1.5">
-                                                                <MapPin className="w-3.5 h-3.5 text-rose-500" /> {activeFloorPlanProject.location}
-                                                            </p>
-                                                        </div>
+                                                {/* Property Image */}
+                                                <div className="relative h-48 overflow-hidden">
+                                                    <img
+                                                        src={propertyHeroImage}
+                                                        alt={activeFloorPlanProject.name}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                                                    <div className="absolute bottom-3 left-4">
+                                                        <p className="text-white font-black text-base leading-tight">{activeFloorPlanProject.name}</p>
+                                                        <p className="text-white/75 text-xs font-medium flex items-center gap-1 mt-0.5">
+                                                            <MapPin className="w-3 h-3 text-rose-400" /> {activeFloorPlanProject.location}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="border-b border-gray-100 bg-white p-4">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <p className="text-[10px] font-black text-[#6F4BFF] uppercase tracking-widest">Floor Plan Workspace</p>
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             <Badge variant="gray">{activeFloorPlanConfig.availableUnits} Available</Badge>
                                                             <Badge variant="purple">{selectedProps.filter((assignment) => assignment.projectId === activeFloorPlanProject.id).length} Selected</Badge>
@@ -829,7 +1079,7 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                                                         </div>
                                                     </div>
 
-                                                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                                                         <div className="rounded-xl border border-gray-100 bg-white p-3">
                                                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Configuration</p>
                                                             <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanConfig.type}</p>
@@ -841,6 +1091,30 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                                                         <div className="rounded-xl border border-gray-100 bg-white p-3">
                                                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Base Price</p>
                                                             <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanConfig.basePrice}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Location</p>
+                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.location}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Builder</p>
+                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.builder}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Type</p>
+                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.specs}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Available Units</p>
+                                                            <p className="mt-1 text-sm font-black text-emerald-600">{activeFloorPlanConfig.availableUnits} / {activeFloorPlanConfig.totalUnits}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status</p>
+                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.status}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Price Range</p>
+                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.priceRange}</p>
                                                         </div>
                                                     </div>
 
@@ -878,187 +1152,6 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                                     </Card>
                                 </div>
                             </div>
-                        </div>
-                    )}
-
-                    {activeProfileTab === 'Customer Requirement' && (
-                        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px] animate-in fade-in">
-                            <div className="space-y-4">
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <div>
-                                        <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                                            <FileText className="w-5 h-5 text-[#6F4BFF]" /> Customer Requirement
-                                        </h3>
-                                        <p className="text-sm text-gray-500 mt-1">Requirements added for this customer from broker-style intake.</p>
-                                    </div>
-                                    <Badge variant="purple">{(client.customerRequirements || []).length} Requirement{(client.customerRequirements || []).length === 1 ? '' : 's'}</Badge>
-                                </div>
-
-                                {(client.customerRequirements || []).length === 0 ? (
-                                    <Card className="border-dashed border-2 border-gray-200 bg-white text-center py-12">
-                                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#6F4BFF]/10 text-[#6F4BFF]">
-                                            <FileText className="h-8 w-8" />
-                                        </div>
-                                        <h4 className="text-xl font-black text-gray-900">No Requirements Found</h4>
-                                        <p className="mt-2 text-sm font-semibold text-gray-400">Add a customer requirement using the form on the right.</p>
-                                    </Card>
-                                ) : (
-                                    <div className="grid gap-4">
-                                        {(client.customerRequirements || []).map((requirement) => (
-                                            <div key={requirement.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                                                <div className="flex items-center justify-between gap-3 bg-linear-to-r from-[#4A43EC] to-[#C4C1FF] px-5 py-4 text-white">
-                                                    <div className="min-w-0">
-                                                        <p className="truncate text-base font-black">{requirement.customer_name}</p>
-                                                        <p className="text-xs font-semibold text-white/80">{requirement.contact_number}</p>
-                                                    </div>
-                                                    <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#4A43EC]">
-                                                        {requirement.requirement_type}
-                                                    </span>
-                                                </div>
-                                                <div className="p-5">
-                                                    <div className="mb-4 flex flex-wrap gap-2">
-                                                        <span className="rounded-lg bg-[#6F4BFF]/10 px-3 py-1 text-[10px] font-black uppercase text-[#6F4BFF]">{requirement.property_category}</span>
-                                                        <span className="rounded-lg bg-[#6F4BFF]/10 px-3 py-1 text-[10px] font-black uppercase text-[#6F4BFF]">{requirement.property_type}</span>
-                                                        {requirement.configuration !== 'N/A' && <span className="rounded-lg bg-gray-100 px-3 py-1 text-[10px] font-black uppercase text-gray-600">{requirement.configuration}</span>}
-                                                        {requirement.contact_verified && <span className="rounded-lg bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase text-emerald-600">Verified</span>}
-                                                    </div>
-                                                    <div className="grid gap-3 sm:grid-cols-2">
-                                                        <div className="rounded-xl bg-[#F8F9FE] p-4">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Budget Range</p>
-                                                            <p className="mt-1 flex items-center gap-1 text-sm font-black text-gray-950">
-                                                                <IndianRupee className="h-4 w-4 text-[#6F4BFF]" /> {formatRequirementAmount(requirement.budget_min)} - {formatRequirementAmount(requirement.budget_max)}
-                                                            </p>
-                                                        </div>
-                                                        <div className="rounded-xl bg-[#F8F9FE] p-4">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Area Requirement</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-950">
-                                                                {requirement.min_area || '-'} - {requirement.max_area || '-'} {requirement.area_unit}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <p className="mt-4 text-sm font-semibold text-gray-600">
-                                                        <span className="font-black text-gray-900">Location:</span> {requirement.preferred_locations?.[0] || 'N/A'}
-                                                    </p>
-                                                    {requirement.notes && <p className="mt-2 text-sm font-medium text-gray-500">{requirement.notes}</p>}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            <Card className="h-fit border-gray-200 shadow-sm">
-                                <div className="mb-5">
-                                    <h4 className="text-lg font-black text-gray-900">Add Customer Requirement</h4>
-                                    <p className="mt-1 text-xs font-semibold text-gray-500">Same intake structure as the broker app.</p>
-                                </div>
-                                <form onSubmit={handleAddRequirement} className="space-y-5">
-                                    <div>
-                                        <label className="mb-2 block text-xs font-black text-gray-700">Property Requirements</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {requirementTypes.map((item) => (
-                                                <button key={item} type="button" onClick={() => updateRequirementForm('status', item)} className={`rounded-full border px-4 py-2 text-xs font-black ${requirementForm.status === item ? 'border-[#4A43EC] bg-[#EEEDFD] text-[#4A43EC]' : 'border-gray-200 bg-white text-gray-500'}`}>
-                                                    {item}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2 block text-xs font-black text-gray-700">Property Category</label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {propertyCategories.map((item) => (
-                                                <button key={item} type="button" onClick={() => updateRequirementForm('propertyCategory', item)} className={`rounded-xl border p-4 text-left text-sm font-black ${requirementForm.propertyCategory === item ? 'border-[#4A43EC] bg-[#EEEDFD] text-[#4A43EC]' : 'border-gray-200 bg-white text-gray-700'}`}>
-                                                    {item}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2 block text-xs font-black text-gray-700">Property Type</label>
-                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
-                                            {(propertyTypesByCategory[requirementForm.propertyCategory] || []).map((item) => (
-                                                <button key={item} type="button" onClick={() => updateRequirementForm('propertyType', item)} className={`rounded-lg border px-3 py-3 text-xs font-black ${requirementForm.propertyType === item ? 'border-[#4A43EC] bg-[#EEEDFD] text-[#4A43EC]' : 'border-gray-200 bg-white text-gray-600'}`}>
-                                                    {item}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {configurationOptions[requirementForm.propertyType] && (
-                                        <div>
-                                            <label className="mb-2 block text-xs font-black text-gray-700">Configuration / Status</label>
-                                            <select value={requirementForm.configuration} onChange={(event) => updateRequirementForm('configuration', event.target.value)} className="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30">
-                                                <option value="N/A">Select option</option>
-                                                {configurationOptions[requirementForm.propertyType].map((item) => <option key={item}>{item}</option>)}
-                                            </select>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="mb-2 block text-xs font-black text-gray-700">Min Area</label>
-                                            <input type="number" value={requirementForm.minArea} onChange={(event) => updateRequirementForm('minArea', event.target.value)} placeholder="Optional" className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
-                                        </div>
-                                        <div>
-                                            <label className="mb-2 block text-xs font-black text-gray-700">Max Area</label>
-                                            <input type="number" value={requirementForm.maxArea} onChange={(event) => updateRequirementForm('maxArea', event.target.value)} placeholder="2000" className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2 block text-xs font-black text-gray-700">Unit</label>
-                                        <select value={requirementForm.unit} onChange={(event) => updateRequirementForm('unit', event.target.value)} className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30">
-                                            {areaUnits.map((item) => <option key={item}>{item}</option>)}
-                                        </select>
-                                    </div>
-
-                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                                        <div>
-                                            <label className="mb-2 block text-xs font-black text-gray-700">Customer Name</label>
-                                            <input value={requirementForm.customerName} onChange={(event) => updateRequirementForm('customerName', event.target.value)} className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
-                                        </div>
-                                        <div>
-                                            <label className="mb-2 block text-xs font-black text-gray-700">Contact Number</label>
-                                            <input value={requirementForm.contactNumber} onChange={(event) => updateRequirementForm('contactNumber', event.target.value)} className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
-                                        </div>
-                                    </div>
-
-                                    {!requirementForm.contactVerified && requirementForm.contactNumber.length >= 10 && (
-                                        <div>
-                                            <label className="mb-2 block text-xs font-black text-gray-700">OTP Verification</label>
-                                            <input maxLength={4} value={requirementForm.otp} onChange={(event) => updateRequirementForm('otp', event.target.value.replace(/\D/g, ''))} placeholder="Enter 4 digit OTP" className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
-                                            <p className="mt-1 text-[10px] font-bold text-gray-400">Any 4 digit OTP marks contact verified.</p>
-                                        </div>
-                                    )}
-
-                                    <div>
-                                        <label className="mb-2 block text-xs font-black text-gray-700">Preferred Location</label>
-                                        <input value={requirementForm.location} onChange={(event) => updateRequirementForm('location', event.target.value)} placeholder="Enter preferred location" className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="mb-2 block text-xs font-black text-gray-700">Budget Min</label>
-                                            <input type="number" value={requirementForm.budgetMin} onChange={(event) => updateRequirementForm('budgetMin', event.target.value)} className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
-                                        </div>
-                                        <div>
-                                            <label className="mb-2 block text-xs font-black text-gray-700">Budget Max</label>
-                                            <input type="number" value={requirementForm.budgetMax} onChange={(event) => updateRequirementForm('budgetMax', event.target.value)} className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2 block text-xs font-black text-gray-700">Details</label>
-                                        <textarea rows="4" value={requirementForm.notes} onChange={(event) => updateRequirementForm('notes', event.target.value)} placeholder="Requirement notes..." className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30" />
-                                    </div>
-
-                                    <Button type="submit" icon={Plus} className="w-full bg-[#4A43EC] hover:bg-[#3932d5] text-white font-black">
-                                        Add Requirement
-                                    </Button>
-                                </form>
-                            </Card>
                         </div>
                     )}
 
@@ -1161,7 +1254,10 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                         <div className="animate-in fade-in">
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><MapPin className="w-5 h-5 text-rose-500" /> Property Site Visits</h3>
-                                <Button icon={Calendar}>Schedule New Visit</Button>
+                                <Button icon={Calendar} onClick={() => {
+                                        setVisitForm((f) => ({ ...f, customerName: client.name, customerPhone: client.phone, officerName: client.officer || '' }));
+                                        setIsScheduleVisitOpen(true);
+                                    }}>Schedule New Visit</Button>
                             </div>
                             <div className={`grid gap-6 ${selectedSiteVisit ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : 'grid-cols-1'}`}>
                                 <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden min-w-0">
@@ -1180,7 +1276,7 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                                                 }}
                                                 tabIndex={0}
                                                 aria-selected={selectedSiteVisitId === row.id}
-                                                className={`cursor-pointer transition-colors focus:outline-none focus:bg-rose-50 ${selectedSiteVisitId === row.id ? 'bg-rose-50' : 'hover:bg-gray-50'}`}
+                                                className={`cursor-pointer transition-colors focus:outline-none focus:bg-[#fbf8ff] ${selectedSiteVisitId === row.id ? 'bg-[#fbf8ff]' : 'hover:bg-gray-50'}`}
                                             >
                                                 <td className="px-6 py-4 font-bold text-gray-900">{row.property.name}</td>
                                                 <td className="px-6 py-4 text-sm font-medium text-gray-600">{row.date} <span className="text-gray-400 text-xs ml-1">{row.time}</span></td>
@@ -1217,7 +1313,49 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                                             <span className="text-xs font-bold text-gray-400">Geo-Verified</span>
                                         </div>
 
-                                        <div className="mt-5 grid grid-cols-3 gap-3">
+                                        {/* Completed-only: Arrival time + Review + Photos */}
+                                        {selectedSiteVisit.status === 'Completed' && (
+                                            <>
+                                                {selectedSiteVisit.arrivalTime && (
+                                                    <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                                                        <Activity className="w-4 h-4 text-blue-500 shrink-0" />
+                                                        <p className="text-xs font-black text-blue-700">
+                                                            Timing of Reaching: <span className="text-blue-900">{selectedSiteVisit.arrivalTime}</span>
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {selectedSiteVisit.userReview && (
+                                                    <div className="mt-3 rounded-xl border border-white bg-white/80 p-3">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Review from Client</p>
+                                                            {selectedSiteVisit.userRating && (
+                                                                <div className="flex gap-0.5">
+                                                                    {Array.from({ length: 5 }, (_, i) => (
+                                                                        <span key={i} className={`text-sm ${i < selectedSiteVisit.userRating ? 'text-amber-400' : 'text-gray-200'}`}>★</span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-sm font-semibold text-gray-700 leading-relaxed">{selectedSiteVisit.userReview}</p>
+                                                    </div>
+                                                )}
+
+                                                <div className="mt-3">
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Client & Officer Together</p>
+                                                    <div className="relative rounded-xl overflow-hidden border-2 border-emerald-200 shadow-sm">
+                                                        <img src={propertyHeroImage} alt="Client and officer at site" className="w-full h-36 object-cover" />
+                                                        <div className="absolute bottom-2 right-2">
+                                                            <span className="inline-flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow">
+                                                                <CheckCircle2 className="w-3 h-3" /> Verified
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        <div className="mt-4 grid grid-cols-3 gap-3">
                                             {propertyImages.map((image) => (
                                                 <div key={image.id} className="aspect-square overflow-hidden rounded-lg border border-white bg-white shadow-sm">
                                                     <img
@@ -1230,29 +1368,49 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                                             ))}
                                         </div>
 
-                                        <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                                            <div className="rounded-xl border border-white bg-white/80 p-3">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Price</p>
-                                                <p className="mt-1 font-black text-gray-900">{selectedSiteVisit.property.price}</p>
-                                            </div>
-                                            <div className="rounded-xl border border-white bg-white/80 p-3">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Type</p>
-                                                <p className="mt-1 font-black text-gray-900">{selectedSiteVisit.property.type}</p>
-                                            </div>
-                                            <div className="rounded-xl border border-white bg-white/80 p-3">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Officer</p>
-                                                <p className="mt-1 font-black text-gray-900">{selectedSiteVisit.officerName}</p>
-                                            </div>
-                                            <div className="rounded-xl border border-white bg-white/80 p-3">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Visit Date</p>
-                                                <p className="mt-1 font-black text-gray-900">{selectedSiteVisit.date}</p>
-                                            </div>
+                                        <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                                            {[
+                                                ['Price', selectedSiteVisit.property.price],
+                                                ['Config', selectedSiteVisit.property.config],
+                                                ['Type', selectedSiteVisit.property.type],
+                                                ['Size', selectedSiteVisit.property.size],
+                                                ['Builder', selectedSiteVisit.property.builder],
+                                                ['Possession', selectedSiteVisit.property.possession],
+                                                ['Total Units', selectedSiteVisit.property.totalUnits],
+                                                ['Available', selectedSiteVisit.property.availableUnits],
+                                                ['RERA', selectedSiteVisit.property.rera],
+                                                ['Officer', selectedSiteVisit.officerName],
+                                                ['Visit Date', selectedSiteVisit.date],
+                                                ['Purpose', selectedSiteVisit.purpose],
+                                            ].filter(([, val]) => val).map(([label, value]) => (
+                                                <div key={label} className="rounded-xl border border-white bg-white/80 p-3">
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</p>
+                                                    <p className="mt-0.5 font-black text-gray-900 text-xs">{value}</p>
+                                                </div>
+                                            ))}
                                         </div>
 
-                                        <div className="mt-3 rounded-xl border border-white bg-white/80 p-3">
+                                        {selectedSiteVisit.property.amenities && (
+                                            <div className="mt-2 rounded-xl border border-white bg-white/80 p-3">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Amenities</p>
+                                                <p className="mt-0.5 text-xs font-semibold text-gray-700">{selectedSiteVisit.property.amenities}</p>
+                                            </div>
+                                        )}
+
+                                        <div className="mt-2 rounded-xl border border-white bg-white/80 p-3">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Visit Notes</p>
                                             <p className="mt-1 text-sm font-semibold text-gray-700">{selectedSiteVisit.notes}</p>
                                         </div>
+
+                                        {selectedSiteVisit.status === 'Completed' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPendingVisitDeal(selectedSiteVisit)}
+                                                className="mt-4 w-full rounded-lg bg-[#6F4BFF] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#5936eb]"
+                                            >
+                                                Continue to Deal
+                                            </button>
+                                        )}
                                     </aside>
                                 )}
                             </div>
@@ -1533,6 +1691,114 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                     </div>
                 </div>
             </Modal>
+
+            <Modal isOpen={pendingVisitDeal !== null} onClose={() => setPendingVisitDeal(null)} title="Continue to Deal?">
+                <div className="space-y-5">
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        <p className="text-sm font-bold text-gray-900">{pendingVisitDeal?.property?.name}</p>
+                        <p className="text-xs font-medium text-gray-500 mt-1">{pendingVisitDeal?.property?.address}</p>
+                    </div>
+                    <p className="text-sm font-medium text-gray-600">
+                        Are you sure you want to continue this site visit to deal?
+                    </p>
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                        <Button variant="secondary" onClick={() => setPendingVisitDeal(null)}>No</Button>
+                        <Button onClick={handleConfirmVisitDeal}>Yes, Continue</Button>
+                    </div>
+                </div>
+            </Modal>
+
+            <Modal isOpen={isScheduleVisitOpen} onClose={() => setIsScheduleVisitOpen(false)} title="Schedule New Visit" size="lg">
+                <form onSubmit={(event) => {
+                    event.preventDefault();
+                    onScheduleVisit({
+                        officerName: visitForm.officerName.trim(),
+                        officerPhone: visitForm.officerPhone.trim(),
+                        customerName: visitForm.customerName.trim(),
+                        customerPhone: visitForm.customerPhone.trim(),
+                        purpose: visitForm.purpose,
+                        date: visitForm.date,
+                        time: visitForm.time,
+                        status: 'Scheduled',
+                        property: {
+                            name: visitForm.propertyName.trim(),
+                            type: visitForm.propertyType,
+                            config: visitForm.propertyConfig.trim(),
+                            address: visitForm.propertyAddress.trim(),
+                            price: visitForm.propertyPrice.trim(),
+                        },
+                        notes: visitForm.notes.trim(),
+                    });
+                    setIsScheduleVisitOpen(false);
+                }} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Name</label>
+                            <input required value={visitForm.customerName} onChange={(e) => setVisitForm((f) => ({ ...f, customerName: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-gray-50" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Phone</label>
+                            <input required value={visitForm.customerPhone} onChange={(e) => setVisitForm((f) => ({ ...f, customerPhone: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Officer Name</label>
+                            <input required value={visitForm.officerName} onChange={(e) => setVisitForm((f) => ({ ...f, officerName: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Officer Phone</label>
+                            <input value={visitForm.officerPhone} onChange={(e) => setVisitForm((f) => ({ ...f, officerPhone: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Purpose</label>
+                            <select value={visitForm.purpose} onChange={(e) => setVisitForm((f) => ({ ...f, purpose: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
+                                <option>BUY</option><option>RENT</option><option>SELL</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Date</label>
+                            <input required type="date" value={visitForm.date} onChange={(e) => setVisitForm((f) => ({ ...f, date: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Time Slot</label>
+                            <input required value={visitForm.time} onChange={(e) => setVisitForm((f) => ({ ...f, time: e.target.value }))} placeholder="10:00 - 11:00 AM" className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property Name</label>
+                            <input required value={visitForm.propertyName} onChange={(e) => setVisitForm((f) => ({ ...f, propertyName: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property Type</label>
+                            <select value={visitForm.propertyType} onChange={(e) => setVisitForm((f) => ({ ...f, propertyType: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
+                                <option>APARTMENT/FLATS</option><option>VILLA PLOTS</option><option>COMMERCIAL</option><option>PLOT</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Configuration</label>
+                            <input value={visitForm.propertyConfig} onChange={(e) => setVisitForm((f) => ({ ...f, propertyConfig: e.target.value }))} placeholder="3BHK Premium" className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Price</label>
+                            <input value={visitForm.propertyPrice} onChange={(e) => setVisitForm((f) => ({ ...f, propertyPrice: e.target.value }))} placeholder="1.85 Cr" className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property Address</label>
+                        <input value={visitForm.propertyAddress} onChange={(e) => setVisitForm((f) => ({ ...f, propertyAddress: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Notes</label>
+                        <textarea rows="3" value={visitForm.notes} onChange={(e) => setVisitForm((f) => ({ ...f, notes: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 text-sm font-medium" />
+                    </div>
+                    <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+                        <Button variant="secondary" type="button" onClick={() => setIsScheduleVisitOpen(false)}>Cancel</Button>
+                        <Button type="submit" icon={Calendar}>Schedule Visit</Button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 };
@@ -1540,10 +1806,12 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
 const Clients = () => {
     const dispatch = useDispatch();
     const { clients } = useSelector((state) => state.clients);
+    const { visits: allVisits } = useSelector((state) => state.visits);
     const [isAddClientOpen, setIsAddClientOpen] = useState(false);
     const [selectedClientId, setSelectedClientId] = useState(null);
     const [activeTab, setActiveTab] = useState('All');
     const [dateFilter, setDateFilter] = useState('');
+    const [sourceFilter, setSourceFilter] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [clientForm, setClientForm] = useState(clientFormInitialState);
 
@@ -1562,13 +1830,14 @@ const Clients = () => {
                 (activeTab === 'Cold' && client.score === 'Cold') ||
                 (activeTab === 'Suspended' && client.status === 'Suspended');
             const matchDate = dateFilter ? client.nextFollowUp === dateFilter : true;
+            const matchSource = sourceFilter === 'All' || client.source === sourceFilter;
             const matchSearch = !query || [client.name, client.phone, client.budget, client.propType, client.latestNote, client.officer]
                 .filter(Boolean)
                 .some((value) => String(value).toLowerCase().includes(query));
 
-            return matchTab && matchDate && matchSearch;
+            return matchTab && matchDate && matchSource && matchSearch;
         });
-    }, [activeTab, clients, dateFilter, searchQuery]);
+    }, [activeTab, clients, dateFilter, sourceFilter, searchQuery]);
 
     const todaysVisits = clients.filter((client) => client.visitToday);
     const createClientId = () => {
@@ -1591,6 +1860,7 @@ const Clients = () => {
             name: clientForm.name.trim(),
             phone: clientForm.phone.trim(),
             budget: clientForm.budget.trim(),
+            source: clientForm.source || '',
             listingType: clientForm.listingType,
             listingKind: clientForm.listingKind,
             propType: clientForm.propType,
@@ -1629,12 +1899,13 @@ const Clients = () => {
                         key={selectedClient.id}
                         client={selectedClient}
                         projects={mockProjects}
-                        visits={sample2Visits}
+                        visits={allVisits}
                         officers={officers}
                         onBack={() => setSelectedClientId(null)}
                         onUpdateClient={(changes) => dispatch(updateClient({ id: selectedClient.id, changes }))}
                         onAddNote={(note) => dispatch(addClientNote({ id: selectedClient.id, note }))}
                         onAddMeeting={(meeting) => dispatch(addClientMeeting({ id: selectedClient.id, meeting }))}
+                        onScheduleVisit={(visit) => dispatch(addVisit(visit))}
                     />
                 </main>
             </div>
@@ -1693,33 +1964,61 @@ const Clients = () => {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 bg-gray-50/80 p-2.5 rounded-xl border border-gray-200">
-                                <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-                                    {['All', 'Hot', 'Cold', 'Suspended'].map((tab) => {
-                                        const selected = activeTab === tab;
-                                        const activeClass = tab === 'Hot' ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 border-transparent' :
-                                            tab === 'Cold' ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30 border-transparent' :
-                                                tab === 'Suspended' ? 'bg-gray-800 text-white shadow-md shadow-gray-800/30 border-transparent' :
-                                                    'bg-[#6F4BFF] text-white shadow-md shadow-[#6F4BFF]/30 border-transparent';
-                                        return (
-                                            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${selected ? activeClass : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>
-                                                {tab === 'Hot' && selected && <Zap className="w-4 h-4 inline mr-1.5" />}
-                                                {tab} Clients
+                            <div className="space-y-3">
+                                {/* Row 1 — Score tabs + Date filter */}
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gray-50/80 px-2.5 py-2.5 rounded-xl border border-gray-200">
+                                    <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+                                        {['All', 'Hot', 'Cold', 'Suspended'].map((tab) => {
+                                            const selected = activeTab === tab;
+                                            const activeClass = tab === 'Hot' ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 border-transparent' :
+                                                tab === 'Cold' ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30 border-transparent' :
+                                                    tab === 'Suspended' ? 'bg-gray-800 text-white shadow-md shadow-gray-800/30 border-transparent' :
+                                                        'bg-[#6F4BFF] text-white shadow-md shadow-[#6F4BFF]/30 border-transparent';
+                                            return (
+                                                <button key={tab} onClick={() => setActiveTab(tab)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${selected ? activeClass : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}>
+                                                    {tab === 'Hot' && selected && <Zap className="w-4 h-4 inline mr-1.5" />}
+                                                    {tab} Clients
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm self-start sm:self-auto shrink-0">
+                                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Follow-up:</span>
+                                        <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none bg-transparent text-sm font-bold text-gray-800 outline-none cursor-pointer" />
+                                        {dateFilter && (
+                                            <button onClick={() => setDateFilter('')} className="p-0.5 hover:bg-rose-50 rounded text-rose-400 transition-colors">
+                                                <X className="w-3.5 h-3.5" />
                                             </button>
-                                        );
-                                    })}
+                                        )}
+                                    </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm shrink-0">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                                        <Calendar className="w-3.5 h-3.5" /> Follow-up Date:
-                                    </label>
-                                    <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none bg-transparent text-sm font-bold text-gray-800 outline-none cursor-pointer" />
-                                    {dateFilter && (
-                                        <button onClick={() => setDateFilter('')} className="p-1 hover:bg-rose-50 rounded-md text-rose-500 transition-colors ml-1">
-                                            <X className="w-4 h-4" />
+                                {/* Row 2 — Source filter chips */}
+                                <div className="flex flex-wrap items-center gap-2 px-1">
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 mr-1">
+                                        <User className="w-3 h-3" /> Via:
+                                    </span>
+                                    {[
+                                        { label: 'All', color: 'bg-gray-800 text-white border-transparent shadow-gray-800/20' },
+                                        { label: 'Broker', color: 'bg-amber-500 text-white border-transparent shadow-amber-500/20' },
+                                        { label: 'User', color: 'bg-gray-500 text-white border-transparent shadow-gray-500/20' },
+                                        { label: 'Sales Officer', color: 'bg-[#6F4BFF] text-white border-transparent shadow-[#6F4BFF]/20' },
+                                        { label: 'Meta Ads', color: 'bg-blue-500 text-white border-transparent shadow-blue-500/20' },
+                                        { label: 'Website', color: 'bg-emerald-500 text-white border-transparent shadow-emerald-500/20' },
+                                    ].map(({ label, color }) => (
+                                        <button
+                                            key={label}
+                                            onClick={() => setSourceFilter(label)}
+                                            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border shadow-sm ${
+                                                sourceFilter === label
+                                                    ? `${color} shadow-md scale-105`
+                                                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
+                                            }`}
+                                        >
+                                            {label}
                                         </button>
-                                    )}
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -1755,6 +2054,20 @@ const Clients = () => {
                                                             {row.score === 'Cold' && <Badge variant="blue" className="shadow-sm">Cold</Badge>}
                                                         </div>
                                                         <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5"><PhoneCall className="w-3 h-3" /> {row.phone}</div>
+                                                        {row.source && (
+                                                            <div className="mt-1.5">
+                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black tracking-wide ${
+                                                                    row.source === 'Broker' ? 'bg-amber-50 text-amber-600' :
+                                                                    row.source === 'Meta Ads' ? 'bg-blue-50 text-blue-600' :
+                                                                    row.source === 'Website' ? 'bg-emerald-50 text-emerald-600' :
+                                                                    row.source === 'Sales Officer' ? 'bg-purple-50 text-purple-600' :
+                                                                    'bg-gray-100 text-gray-500'
+                                                                }`}>
+                                                                    <span className="w-1.5 h-1.5 rounded-full inline-block bg-current opacity-70" />
+                                                                    {row.source}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </td>
@@ -1809,6 +2122,17 @@ const Clients = () => {
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Location</label>
                             <input value={clientForm.location} onChange={(event) => updateClientForm('location', event.target.value)} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
                         </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Source (Client aaya kahan se?)</label>
+                        <select value={clientForm.source} onChange={(event) => updateClientForm('source', event.target.value)} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
+                            <option value="">-- Select Source --</option>
+                            <option value="Broker">Broker</option>
+                            <option value="User">User</option>
+                            <option value="Sales Officer">Sales Officer</option>
+                            <option value="Meta Ads">Meta Ads</option>
+                            <option value="Website">Website</option>
+                        </select>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
