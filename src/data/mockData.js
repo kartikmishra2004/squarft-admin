@@ -2141,6 +2141,840 @@ export const pipelineFunnel = [
     { label: 'Closed Deals', val: '42', width: '25%', color: 'from-emerald-400 to-emerald-500' },
 ];
 
+// Rich Mock Onboarding Data for Projects (Builder Portal)
+export const projectOnboardingList = [
+    {
+        id: 'onboard-proj-done-1',
+        projectName: 'Skyline Residency',
+        builderName: 'Apex Buildcon',
+        isCompleted: true,
+        isLive: true,
+        isRejected: false,
+        currentStep: 6,
+        lastUpdated: '2 hours ago',
+        form: {
+            step1: {
+                projectName: 'Skyline Residency',
+                location: 'Andheri West, Near Link Road',
+                city: 'Mumbai',
+                state: 'Maharashtra',
+                pincode: '400053',
+                salesOfficerName: 'Rahul Sharma',
+                salesOfficerContact: '9820011223',
+                responsiblePersonName: 'Arjun Mehra',
+                responsiblePersonContact: '9823144001'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'residential-apartment', mainType: 'Residential', subType: 'Apartment' }
+                ]
+            },
+            step3: {
+                unitConfigs: {
+                    'residential-apartment': [
+                        { tower: 'Tower A', floor: '12', bhk: '3 BHK', area: '1550', price: '1,85,00,000', propertyNumber: 'A-1204' },
+                        { tower: 'Tower B', floor: '18', bhk: '4 BHK', area: '2100', price: '2,50,00,000', propertyNumber: 'B-1801' }
+                    ]
+                },
+                uploadModes: { 'residential-apartment': 'manual' }
+            },
+            step4: {
+                possessionStatus: 'Possession Pending',
+                expectedPossessionDate: '2027-12-31',
+                projectLaunchStatus: 'Already Launched',
+                projectLaunchDate: '2024-01-15',
+                developmentCompletionPercentage: '65',
+                currentDevelopmentStage: ['Road work completed', 'Boundary wall completed', 'Drainage work completed', 'Work in progress'],
+                approvals: {
+                    rera: { status: 'Yes', registrationNumber: 'MHRERA-P51800044791' },
+                    tncp: { status: 'Yes', registrationNumber: 'TNCP-MUM-2024-1882' },
+                    buildingPermission: { status: 'Yes', registrationNumber: 'BP-MUM-2024-098' },
+                    developmentPermission: { status: 'Yes', registrationNumber: 'DP-MUM-2024-012' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '12000',
+                guidelineValueUnit: 'Per Sq. Ft.',
+                propertyJurisdictionArea: 'BMC Mumbai',
+                guidelineYear: '2026',
+                registryChargesAvailable: 'Yes',
+                registryChargesMaleBuyer: '6.0%',
+                registryChargesFemaleBuyer: '5.0%',
+                otherGovernmentCharges: 'Mutation fees: Rs. 25,000, Water connection tax extra.',
+                loanAvailable: 'Yes',
+                bankTieUpAvailable: 'Yes',
+                tieUpBankName: 'HDFC Bank, ICICI Bank, SBI',
+                loanApprovalStatus: 'Approved Project File',
+                maximumLoanPercentage: '80%',
+                requiredLoanDocuments: 'PAN Card, Aadhaar Card, 3 Months Salary Slip, 6 Months Bank Statement, Form 16',
+                ownershipType: 'Joint Venture Project',
+                jvLandOwnerName: 'Mehra Land Holdings',
+                jvDeveloperBuilderName: 'Apex Buildcon',
+                jvAgreementAvailable: 'Yes',
+                jvRevenueAreaSharingDetails: 'Developer share 65%, Land Owner share 35%',
+                titleVerificationStatus: 'Clear Title',
+                titleExpectedCompletionDate: '2024-03-01',
+                financialOwnershipRemarks: 'Escrow account set up with HDFC Bank. Escrow A/C No: 502000188219'
+            },
+            step6: {
+                images: [
+                    { uri: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=80', fileName: 'main-elevation.jpg' },
+                    { uri: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=80', fileName: 'sample-interior.jpg' },
+                    { uri: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=400&q=80', fileName: 'clubhouse.jpg' }
+                ],
+                documents: [
+                    { name: 'rera-certificate.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' },
+                    { name: 'master-brochure.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' }
+                ],
+                agreed: true
+            }
+        }
+    },
+    {
+        id: 'onboard-proj-done-2',
+        projectName: 'Green Valley Phase 2',
+        builderName: 'EcoHomes Ltd',
+        isCompleted: true,
+        isLive: false,
+        isRejected: true,
+        currentStep: 6,
+        lastUpdated: '1 day ago',
+        form: {
+            step1: {
+                projectName: 'Green Valley Phase 2',
+                location: 'HSR Layout Sector 3',
+                city: 'Bangalore',
+                state: 'Karnataka',
+                pincode: '560102',
+                salesOfficerName: 'Sneha Patel',
+                salesOfficerContact: '9777797777',
+                responsiblePersonName: 'Meera Nair',
+                responsiblePersonContact: '9900277118'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'residential-plot', mainType: 'Residential', subType: 'Plot' },
+                    { id: 'residential-villa', mainType: 'Residential', subType: 'Villa' }
+                ]
+            },
+            step3: {
+                unitConfigs: {
+                    'residential-plot': [
+                        { tower: 'Block A', floor: 'G', bhk: 'N/A', area: '1200', price: '85,00,000', propertyNumber: 'Plot A-12' },
+                        { tower: 'Block B', floor: 'G', bhk: 'N/A', area: '2400', price: '1,50,00,000', propertyNumber: 'Plot B-08' }
+                    ],
+                    'residential-villa': [
+                        { tower: 'Lane 1', floor: '2', bhk: '3 BHK', area: '2150', price: '1,75,00,000', propertyNumber: 'Villa V-03' }
+                    ]
+                },
+                uploadModes: { 'residential-plot': 'manual', 'residential-villa': 'manual' }
+            },
+            step4: {
+                possessionStatus: 'Ready to Move',
+                expectedPossessionDate: null,
+                projectLaunchStatus: 'Already Launched',
+                projectLaunchDate: '2023-05-10',
+                developmentCompletionPercentage: '100',
+                currentDevelopmentStage: ['Road work completed', 'Boundary wall completed', 'Drainage work completed', 'Electricity work completed', 'Water line completed', 'Street lights completed'],
+                approvals: {
+                    rera: { status: 'Yes', registrationNumber: 'PRM/KA/RERA/1251/310/PR/240526/006921' },
+                    tncp: { status: 'Yes', registrationNumber: 'BDA-APPROVED-2023-04' },
+                    buildingPermission: { status: 'Yes', registrationNumber: 'BDA-BP-2023-45' },
+                    developmentPermission: { status: 'Yes', registrationNumber: 'BDA-DP-2023-11' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '5500',
+                guidelineValueUnit: 'Per Sq. Ft.',
+                propertyJurisdictionArea: 'BBMP Bangalore',
+                guidelineYear: '2026',
+                registryChargesAvailable: 'Yes',
+                registryChargesMaleBuyer: '5.6%',
+                registryChargesFemaleBuyer: '5.0%',
+                otherGovernmentCharges: 'Bescom charges Rs. 50,000, BWSSB charges Rs. 40,000.',
+                loanAvailable: 'Yes',
+                bankTieUpAvailable: 'Yes',
+                tieUpBankName: 'SBI, Axis Bank, HDFC Bank',
+                loanApprovalStatus: 'Pre-approved project layout',
+                maximumLoanPercentage: '85%',
+                requiredLoanDocuments: 'KYC, IT returns of 2 years, Bank Statement 6 months, Property title deeds',
+                ownershipType: 'Owned Project',
+                jvLandOwnerName: '',
+                jvDeveloperBuilderName: '',
+                jvAgreementAvailable: 'No',
+                jvRevenueAreaSharingDetails: '',
+                titleVerificationStatus: 'Clear Title',
+                titleExpectedCompletionDate: null,
+                financialOwnershipRemarks: 'Title verified by Law Associates. Bank loans cleared for all plots and villas.'
+            },
+            step6: {
+                images: [
+                    { uri: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=80', fileName: 'villa-elevation.jpg' },
+                    { uri: 'https://images.unsplash.com/photo-1592595896551-12b371d546d5?w=400&q=80', fileName: 'open-plots.jpg' },
+                    { uri: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400&q=80', fileName: 'model-house.jpg' }
+                ],
+                documents: [
+                    { name: 'layout-approval.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' },
+                    { name: 'rera-certificate.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' }
+                ],
+                agreed: true
+            }
+        }
+    },
+    {
+        id: 'onboard-proj-done-3',
+        projectName: 'Prestige Highlands',
+        builderName: 'Prestige Group',
+        isCompleted: true,
+        isLive: false,
+        isRejected: false,
+        currentStep: 6,
+        lastUpdated: '5 hours ago',
+        form: {
+            step1: {
+                projectName: 'Prestige Highlands',
+                location: 'Whitefield Main Road',
+                city: 'Bangalore',
+                state: 'Karnataka',
+                pincode: '560066',
+                salesOfficerName: 'Amit Kumar',
+                salesOfficerContact: '9988776655',
+                responsiblePersonName: 'Vikram Gowda',
+                responsiblePersonContact: '9876543210'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'residential-apartment', mainType: 'Residential', subType: 'Apartment' }
+                ]
+            },
+            step3: {
+                unitConfigs: {
+                    'residential-apartment': [
+                        { tower: 'Tower 1', floor: '10', bhk: '3 BHK', area: '1650', price: '1,95,00,000', propertyNumber: '1002' },
+                        { tower: 'Tower 1', floor: '15', bhk: '4 BHK', area: '2200', price: '2,65,00,000', propertyNumber: '1504' }
+                    ]
+                },
+                uploadModes: { 'residential-apartment': 'manual' }
+            },
+            step4: {
+                possessionStatus: 'Possession Pending',
+                expectedPossessionDate: '2028-06-30',
+                projectLaunchStatus: 'Already Launched',
+                projectLaunchDate: '2025-01-10',
+                developmentCompletionPercentage: '45',
+                currentDevelopmentStage: ['Boundary wall completed', 'Foundation work completed', 'Work in progress'],
+                approvals: {
+                    rera: { status: 'Yes', registrationNumber: 'PRM/KA/RERA/1251/Whitefield/009' },
+                    tncp: { status: 'Yes', registrationNumber: 'TNCP-BLR-2025-88' },
+                    buildingPermission: { status: 'Yes', registrationNumber: 'BP-BLR-2025-45' },
+                    developmentPermission: { status: 'Yes', registrationNumber: 'DP-BLR-2025-23' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '11000',
+                guidelineValueUnit: 'Per Sq. Ft.',
+                propertyJurisdictionArea: 'BBMP Bangalore',
+                guidelineYear: '2026',
+                registryChargesAvailable: 'Yes',
+                registryChargesMaleBuyer: '5.6%',
+                registryChargesFemaleBuyer: '5.0%',
+                otherGovernmentCharges: 'Bescom: Rs. 60,000',
+                loanAvailable: 'Yes',
+                bankTieUpAvailable: 'Yes',
+                tieUpBankName: 'HDFC Bank, SBI',
+                loanApprovalStatus: 'Approved Project File',
+                maximumLoanPercentage: '80%',
+                requiredLoanDocuments: 'KYC, Income slips, Form 16',
+                ownershipType: 'Owned Project',
+                jvLandOwnerName: '',
+                jvDeveloperBuilderName: '',
+                jvAgreementAvailable: 'No',
+                jvRevenueAreaSharingDetails: '',
+                titleVerificationStatus: 'Clear Title',
+                titleExpectedCompletionDate: null,
+                financialOwnershipRemarks: 'Clear title search report attached.'
+            },
+            step6: {
+                images: [
+                    { uri: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=80', fileName: 'elevation-prestige.jpg' }
+                ],
+                documents: [
+                    { name: 'prestige-brochure.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' }
+                ],
+                agreed: true
+            }
+        }
+    },
+    {
+        id: 'onboard-proj-draft-1',
+        projectName: 'Greenwood Meadows',
+        builderName: 'Prestige Group',
+        isCompleted: false,
+        currentStep: 3,
+        lastUpdated: '3 hours ago',
+        form: {
+            step1: {
+                projectName: 'Greenwood Meadows',
+                location: 'Sarjapur Road Extension',
+                city: 'Bangalore',
+                state: 'Karnataka',
+                pincode: '560087',
+                salesOfficerName: 'Amit Kumar',
+                salesOfficerContact: '9988776655',
+                responsiblePersonName: 'Vikram Gowda',
+                responsiblePersonContact: '9876543210'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'residential-apartment', mainType: 'Residential', subType: 'Apartment' },
+                    { id: 'residential-villa', mainType: 'Residential', subType: 'Villa' }
+                ]
+            },
+            step3: {
+                unitConfigs: {
+                    'residential-apartment': [
+                        { tower: 'Tower 1', floor: '5', bhk: '2 BHK', area: '1100', price: '85,00,000', propertyNumber: '105' }
+                    ]
+                },
+                uploadModes: { 'residential-apartment': 'manual' }
+            },
+            step4: {
+                possessionStatus: '',
+                expectedPossessionDate: '',
+                projectLaunchStatus: '',
+                projectLaunchDate: '',
+                developmentCompletionPercentage: '',
+                currentDevelopmentStage: [],
+                approvals: {
+                    rera: { status: 'No', expectedTime: '' },
+                    tncp: { status: 'No', expectedTime: '' },
+                    buildingPermission: { status: 'No', expectedTime: '' },
+                    developmentPermission: { status: 'No', expectedTime: '' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '',
+                guidelineValueUnit: '',
+                propertyJurisdictionArea: '',
+                guidelineYear: '',
+                registryChargesAvailable: 'No',
+                registryChargesMaleBuyer: '',
+                registryChargesFemaleBuyer: '',
+                otherGovernmentCharges: '',
+                loanAvailable: 'No',
+                bankTieUpAvailable: 'No',
+                tieUpBankName: '',
+                loanApprovalStatus: '',
+                maximumLoanPercentage: '',
+                requiredLoanDocuments: '',
+                ownershipType: 'Owned Project',
+                jvLandOwnerName: '',
+                jvDeveloperBuilderName: '',
+                jvAgreementAvailable: 'No',
+                jvRevenueAreaSharingDetails: '',
+                titleVerificationStatus: '',
+                titleExpectedCompletionDate: '',
+                financialOwnershipRemarks: ''
+            },
+            step6: {
+                images: [],
+                documents: [],
+                agreed: false
+            }
+        }
+    },
+    {
+        id: 'onboard-proj-draft-2',
+        projectName: 'Prestige Solitaire',
+        builderName: 'Prestige Group',
+        isCompleted: false,
+        currentStep: 5,
+        lastUpdated: 'Yesterday',
+        form: {
+            step1: {
+                projectName: 'Prestige Solitaire',
+                location: 'Richmond Road',
+                city: 'Bangalore',
+                state: 'Karnataka',
+                pincode: '560025',
+                salesOfficerName: 'Rahul Sharma',
+                salesOfficerContact: '9820011223',
+                responsiblePersonName: 'Sanjay Reddy',
+                responsiblePersonContact: '9880012345'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'commercial-office', mainType: 'Commercial', subType: 'Office' }
+                ]
+            },
+            step3: {
+                unitConfigs: {
+                    'commercial-office': [
+                        { tower: 'Wing A', floor: '3', bhk: 'Bare Shell', area: '1800', price: '2,20,00,000', propertyNumber: '302' },
+                        { tower: 'Wing A', floor: '4', bhk: 'Ready to Move', area: '1500', price: '2,00,00,000', propertyNumber: '401' }
+                    ]
+                },
+                uploadModes: { 'commercial-office': 'manual' }
+            },
+            step4: {
+                possessionStatus: 'Possession Pending',
+                expectedPossessionDate: '2026-12-31',
+                projectLaunchStatus: 'Already Launched',
+                projectLaunchDate: '2025-05-15',
+                developmentCompletionPercentage: '85',
+                currentDevelopmentStage: ['Road work completed', 'Boundary wall completed', 'Work in progress'],
+                approvals: {
+                    rera: { status: 'Yes', registrationNumber: 'PRM/KA/RERA/1251/Richmond/007' },
+                    tncp: { status: 'Yes', registrationNumber: 'TNCP-BLR-2025-01' },
+                    buildingPermission: { status: 'Yes', registrationNumber: 'BP-BLR-2025-34' },
+                    developmentPermission: { status: 'Yes', registrationNumber: 'DP-BLR-2025-12' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '14500',
+                guidelineValueUnit: 'Per Sq. Ft.',
+                propertyJurisdictionArea: 'BBMP Bangalore',
+                guidelineYear: '2026',
+                registryChargesAvailable: 'Yes',
+                registryChargesMaleBuyer: '5.6%',
+                registryChargesFemaleBuyer: '5.6%',
+                otherGovernmentCharges: 'Stamp duty surcharge extra',
+                loanAvailable: 'Yes',
+                bankTieUpAvailable: 'No',
+                tieUpBankName: '',
+                loanApprovalStatus: 'Under assessment',
+                maximumLoanPercentage: '75%',
+                requiredLoanDocuments: 'Company PAN, GST registration, Partnership Deed, Project layout',
+                ownershipType: 'Joint Venture Project',
+                jvLandOwnerName: 'Solitaire Estate Group',
+                jvDeveloperBuilderName: 'Prestige Group',
+                jvAgreementAvailable: 'Yes',
+                jvRevenueAreaSharingDetails: 'Developer share 60%, Landowner 40%',
+                titleVerificationStatus: 'Clear Title',
+                titleExpectedCompletionDate: null,
+                financialOwnershipRemarks: 'Title report expected shortly'
+            },
+            step6: {
+                images: [],
+                documents: [],
+                agreed: false
+            }
+        }
+    }
+];
+
+// Rich Mock Onboarding Data for Field Officers
+export const fieldOfficerOnboardingList = [
+    {
+        id: 'onboard-fo-done-1',
+        projectName: 'Royal Greens Township',
+        officerId: 'FO-002', // Sneha Patel
+        isCompleted: true,
+        isLive: true,
+        isRejected: false,
+        currentStep: 6,
+        lastUpdated: 'Today, 10:15 AM',
+        form: {
+            step1: {
+                projectName: 'Royal Greens Township',
+                location: 'Rau Bypass Road',
+                city: 'Indore',
+                state: 'Madhya Pradesh',
+                pincode: '453331',
+                salesOfficerName: 'Rizwan Khan',
+                salesOfficerContact: '9424654160',
+                responsiblePersonName: 'Mahesh Jain',
+                responsiblePersonContact: '9812345670'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'residential-plot', mainType: 'Residential', subType: 'Plot' }
+                ]
+            },
+            step3: {
+                unitConfigs: {
+                    'residential-plot': [
+                        { tower: 'Block A', floor: 'G', bhk: 'N/A', area: '1500', price: '60,00,000', propertyNumber: 'Plot A-44' },
+                        { tower: 'Block A', floor: 'G', bhk: 'N/A', area: '1800', price: '72,00,000', propertyNumber: 'Plot A-45' }
+                    ]
+                },
+                uploadModes: { 'residential-plot': 'manual' }
+            },
+            step4: {
+                possessionStatus: 'Ready to Move',
+                expectedPossessionDate: null,
+                projectLaunchStatus: 'Already Launched',
+                projectLaunchDate: '2025-10-12',
+                developmentCompletionPercentage: '100',
+                currentDevelopmentStage: ['Road work completed', 'Boundary wall completed', 'Drainage work completed', 'Electricity work completed', 'Water line completed', 'Street lights completed'],
+                approvals: {
+                    rera: { status: 'Yes', registrationNumber: 'P-IND-2025-00445' },
+                    tncp: { status: 'Yes', registrationNumber: 'TNCP-IND-2025-881' },
+                    buildingPermission: { status: 'Yes', registrationNumber: 'BP-IND-2025-021' },
+                    developmentPermission: { status: 'Yes', registrationNumber: 'DP-IND-2025-009' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '2400',
+                guidelineValueUnit: 'Per Sq. Ft.',
+                propertyJurisdictionArea: 'Indore Municipal Corporation',
+                guidelineYear: '2026',
+                registryChargesAvailable: 'Yes',
+                registryChargesMaleBuyer: '7.5%',
+                registryChargesFemaleBuyer: '6.5%',
+                otherGovernmentCharges: 'Mutation charges extra',
+                loanAvailable: 'Yes',
+                bankTieUpAvailable: 'Yes',
+                tieUpBankName: 'SBI, Bank of Baroda',
+                loanApprovalStatus: 'Approved',
+                maximumLoanPercentage: '80%',
+                requiredLoanDocuments: 'PAN, Aadhaar, Income Proof',
+                ownershipType: 'Owned Project',
+                jvLandOwnerName: '',
+                jvDeveloperBuilderName: '',
+                jvAgreementAvailable: 'No',
+                jvRevenueAreaSharingDetails: '',
+                titleVerificationStatus: 'Clear Title',
+                titleExpectedCompletionDate: null,
+                financialOwnershipRemarks: 'Title search report complete'
+            },
+            step6: {
+                images: [
+                    { uri: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&q=80', fileName: 'site-photo.jpg' },
+                    { uri: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=400&q=80', fileName: 'boundary-wall.jpg' },
+                    { uri: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&q=80', fileName: 'park-entrance.jpg' }
+                ],
+                documents: [
+                    { name: 'layout-permission.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' },
+                    { name: 'rera-approved.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' }
+                ],
+                agreed: true
+            }
+        }
+    },
+    {
+        id: 'onboard-fo-done-2',
+        projectName: 'Sunrise Heights',
+        officerId: 'FO-003', // Rahul Mehta
+        isCompleted: true,
+        isLive: false,
+        isRejected: true,
+        currentStep: 6,
+        lastUpdated: 'Yesterday',
+        form: {
+            step1: {
+                projectName: 'Sunrise Heights',
+                location: 'MR-9 Gated Enclave',
+                city: 'Indore',
+                state: 'Madhya Pradesh',
+                pincode: '452010',
+                salesOfficerName: 'Manas Gangrade',
+                salesOfficerContact: '8120180101',
+                responsiblePersonName: 'Sanjay Porwal',
+                responsiblePersonContact: '9765432100'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'residential-apartment', mainType: 'Residential', subType: 'Apartment' }
+                ]
+            },
+            step3: {
+                unitConfigs: {
+                    'residential-apartment': [
+                        { tower: 'Tower A', floor: '4', bhk: '2 BHK', area: '1150', price: '48,00,000', propertyNumber: 'A-402' },
+                        { tower: 'Tower A', floor: '5', bhk: '2 BHK', area: '1150', price: '49,00,000', propertyNumber: 'A-502' }
+                    ]
+                },
+                uploadModes: { 'residential-apartment': 'manual' }
+            },
+            step4: {
+                possessionStatus: 'Possession Pending',
+                expectedPossessionDate: '2027-06-30',
+                projectLaunchStatus: 'Already Launched',
+                projectLaunchDate: '2024-03-01',
+                developmentCompletionPercentage: '78',
+                currentDevelopmentStage: ['Road work completed', 'Boundary wall completed', 'Work in progress'],
+                approvals: {
+                    rera: { status: 'Yes', registrationNumber: 'P-IND-2024-00941' },
+                    tncp: { status: 'Yes', registrationNumber: 'TNCP-IND-2024-012' },
+                    buildingPermission: { status: 'Yes', registrationNumber: 'BP-IND-2024-001' },
+                    developmentPermission: { status: 'Yes', registrationNumber: 'DP-IND-2024-002' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '3200',
+                guidelineValueUnit: 'Per Sq. Ft.',
+                propertyJurisdictionArea: 'Indore Municipal Corporation',
+                guidelineYear: '2026',
+                registryChargesAvailable: 'Yes',
+                registryChargesMaleBuyer: '7.5%',
+                registryChargesFemaleBuyer: '6.5%',
+                otherGovernmentCharges: 'Security deposition extra',
+                loanAvailable: 'Yes',
+                bankTieUpAvailable: 'Yes',
+                tieUpBankName: 'SBI, HDFC Bank, ICICI Bank',
+                loanApprovalStatus: 'Approved Project File',
+                maximumLoanPercentage: '80%',
+                requiredLoanDocuments: 'KYC & Bank Statement',
+                ownershipType: 'Joint Venture Project',
+                jvLandOwnerName: 'Porwal Family trust',
+                jvDeveloperBuilderName: 'SP Group',
+                jvAgreementAvailable: 'Yes',
+                jvRevenueAreaSharingDetails: 'Developer share 60%, landowner share 40%',
+                titleVerificationStatus: 'Clear Title',
+                titleExpectedCompletionDate: null,
+                financialOwnershipRemarks: 'Escrow account operational with HDFC Bank.'
+            },
+            step6: {
+                images: [
+                    { uri: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=80', fileName: 'tower-elevation.jpg' },
+                    { uri: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=80', fileName: 'sample-kitchen.jpg' },
+                    { uri: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400&q=80', fileName: 'site-aerial.jpg' }
+                ],
+                documents: [
+                    { name: 'brochure.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' },
+                    { name: 'layout-details.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' }
+                ],
+                agreed: true
+            }
+        }
+    },
+    {
+        id: 'onboard-fo-done-3',
+        projectName: 'Shree Ram Enclave',
+        officerId: 'FO-001', // Amit Verma
+        isCompleted: true,
+        isLive: false,
+        isRejected: false,
+        currentStep: 6,
+        lastUpdated: 'Just Now',
+        form: {
+            step1: {
+                projectName: 'Shree Ram Enclave',
+                location: 'Scheme 140, Near bypass',
+                city: 'Indore',
+                state: 'Madhya Pradesh',
+                pincode: '452016',
+                salesOfficerName: 'Rizwan Khan',
+                salesOfficerContact: '9424654160',
+                responsiblePersonName: 'Shree Ram Builders',
+                responsiblePersonContact: '9826011223'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'residential-apartment', mainType: 'Residential', subType: 'Apartment' }
+                ]
+            },
+            step3: {
+                unitConfigs: {
+                    'residential-apartment': [
+                        { tower: 'Block A', floor: '3', bhk: '2 BHK', area: '1100', price: '45,00,000', propertyNumber: '304' },
+                        { tower: 'Block A', floor: '4', bhk: '3 BHK', area: '1450', price: '62,00,000', propertyNumber: '402' }
+                    ]
+                },
+                uploadModes: { 'residential-apartment': 'manual' }
+            },
+            step4: {
+                possessionStatus: 'Ready to Move',
+                expectedPossessionDate: null,
+                projectLaunchStatus: 'Already Launched',
+                projectLaunchDate: '2024-05-10',
+                developmentCompletionPercentage: '100',
+                currentDevelopmentStage: ['Road work completed', 'Boundary wall completed', 'Water line completed', 'Electricity line completed'],
+                approvals: {
+                    rera: { status: 'Yes', registrationNumber: 'P-IND-2024-01824' },
+                    tncp: { status: 'Yes', registrationNumber: 'TNCP-IND-2024-110' },
+                    buildingPermission: { status: 'Yes', registrationNumber: 'BP-IND-2024-098' },
+                    developmentPermission: { status: 'Yes', registrationNumber: 'DP-IND-2024-042' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '2800',
+                guidelineValueUnit: 'Per Sq. Ft.',
+                propertyJurisdictionArea: 'Indore Municipal Corporation',
+                guidelineYear: '2026',
+                registryChargesAvailable: 'Yes',
+                registryChargesMaleBuyer: '7.5%',
+                registryChargesFemaleBuyer: '6.5%',
+                otherGovernmentCharges: 'Narmada connection fees extra',
+                loanAvailable: 'Yes',
+                bankTieUpAvailable: 'Yes',
+                tieUpBankName: 'SBI, Bank of Baroda, HDFC Bank',
+                loanApprovalStatus: 'Approved',
+                maximumLoanPercentage: '80%',
+                requiredLoanDocuments: 'KYC, PAN, 6 months bank statement',
+                ownershipType: 'Owned Project',
+                jvLandOwnerName: '',
+                jvDeveloperBuilderName: '',
+                jvAgreementAvailable: 'No',
+                jvRevenueAreaSharingDetails: '',
+                titleVerificationStatus: 'Clear Title',
+                titleExpectedCompletionDate: null,
+                financialOwnershipRemarks: 'Clear title deed verification complete'
+            },
+            step6: {
+                images: [
+                    { uri: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=80', fileName: 'shree-ram-elevation.jpg' }
+                ],
+                documents: [
+                    { name: 'brochure-shree-ram.pdf', uri: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' }
+                ],
+                agreed: true
+            }
+        }
+    },
+    {
+        id: 'onboard-fo-draft-1',
+        projectName: 'Shanti Heights',
+        officerId: 'FO-001', // Amit Verma
+        isCompleted: false,
+        currentStep: 4,
+        lastUpdated: '3 hours ago',
+        form: {
+            step1: {
+                projectName: 'Shanti Heights',
+                location: 'Vijay Nagar Scheme 78',
+                city: 'Indore',
+                state: 'Madhya Pradesh',
+                pincode: '452010',
+                salesOfficerName: 'Rizwan Khan',
+                salesOfficerContact: '9424654160',
+                responsiblePersonName: 'Shanti Developers',
+                responsiblePersonContact: '9900112233'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'residential-apartment', mainType: 'Residential', subType: 'Apartment' }
+                ]
+            },
+            step3: {
+                unitConfigs: {
+                    'residential-apartment': [
+                        { tower: 'Tower A', floor: '2', bhk: '2 BHK', area: '980', price: '38,00,000', propertyNumber: '202' }
+                    ]
+                },
+                uploadModes: { 'residential-apartment': 'manual' }
+            },
+            step4: {
+                possessionStatus: 'Possession Pending',
+                expectedPossessionDate: '2027-12-31',
+                projectLaunchStatus: 'Upcoming Launch',
+                projectLaunchDate: '2026-08-15',
+                developmentCompletionPercentage: '10',
+                currentDevelopmentStage: ['Boundary wall completed'],
+                approvals: {
+                    rera: { status: 'No', expectedTime: '6 months' },
+                    tncp: { status: 'Yes', registrationNumber: 'TNCP-IND-2025-098' },
+                    buildingPermission: { status: 'No', expectedTime: '2 months' },
+                    developmentPermission: { status: 'No', expectedTime: '1 month' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '',
+                guidelineValueUnit: '',
+                propertyJurisdictionArea: '',
+                guidelineYear: '',
+                registryChargesAvailable: 'No',
+                registryChargesMaleBuyer: '',
+                registryChargesFemaleBuyer: '',
+                otherGovernmentCharges: '',
+                loanAvailable: 'No',
+                bankTieUpAvailable: 'No',
+                tieUpBankName: '',
+                loanApprovalStatus: '',
+                maximumLoanPercentage: '',
+                requiredLoanDocuments: '',
+                ownershipType: 'Owned Project',
+                jvLandOwnerName: '',
+                jvDeveloperBuilderName: '',
+                jvAgreementAvailable: 'No',
+                jvRevenueAreaSharingDetails: '',
+                titleVerificationStatus: '',
+                titleExpectedCompletionDate: '',
+                financialOwnershipRemarks: ''
+            },
+            step6: {
+                images: [],
+                documents: [],
+                agreed: false
+            }
+        }
+    },
+    {
+        id: 'onboard-fo-draft-2',
+        projectName: 'Cyber Office Space',
+        officerId: 'FO-002', // Sneha Patel
+        isCompleted: false,
+        currentStep: 2,
+        lastUpdated: 'Yesterday',
+        form: {
+            step1: {
+                projectName: 'Cyber Office Space',
+                location: 'Super Corridor IT Park Road',
+                city: 'Indore',
+                state: 'Madhya Pradesh',
+                pincode: '452005',
+                salesOfficerName: 'Sneha Patel',
+                salesOfficerContact: '9826011882',
+                responsiblePersonName: 'Cyber Infra Corp',
+                responsiblePersonContact: '9893012345'
+            },
+            step2: {
+                selectedTypes: [
+                    { id: 'commercial-office', mainType: 'Commercial', subType: 'Office' }
+                ]
+            },
+            step3: {
+                unitConfigs: {},
+                uploadModes: {}
+            },
+            step4: {
+                possessionStatus: '',
+                expectedPossessionDate: '',
+                projectLaunchStatus: '',
+                projectLaunchDate: '',
+                developmentCompletionPercentage: '',
+                currentDevelopmentStage: [],
+                approvals: {
+                    rera: { status: 'No', expectedTime: '' },
+                    tncp: { status: 'No', expectedTime: '' },
+                    buildingPermission: { status: 'No', expectedTime: '' },
+                    developmentPermission: { status: 'No', expectedTime: '' }
+                }
+            },
+            step5: {
+                guidelineValueAmount: '',
+                guidelineValueUnit: '',
+                propertyJurisdictionArea: '',
+                guidelineYear: '',
+                registryChargesAvailable: 'No',
+                registryChargesMaleBuyer: '',
+                registryChargesFemaleBuyer: '',
+                otherGovernmentCharges: '',
+                loanAvailable: 'No',
+                bankTieUpAvailable: 'No',
+                tieUpBankName: '',
+                loanApprovalStatus: '',
+                maximumLoanPercentage: '',
+                requiredLoanDocuments: '',
+                ownershipType: 'Owned Project',
+                jvLandOwnerName: '',
+                jvDeveloperBuilderName: '',
+                jvAgreementAvailable: 'No',
+                jvRevenueAreaSharingDetails: '',
+                titleVerificationStatus: '',
+                titleExpectedCompletionDate: '',
+                financialOwnershipRemarks: ''
+            },
+            step6: {
+                images: [],
+                documents: [],
+                agreed: false
+            }
+        }
+    }
+];
+
 export const geoPerformance = [
     { city: 'Mumbai MMR', leads: '450', closed: 24, progress: 80, color: 'bg-[#6F4BFF]' },
     { city: 'Bangalore', leads: '320', closed: 18, progress: 65, color: 'bg-blue-500' },
