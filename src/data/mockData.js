@@ -942,6 +942,7 @@ export const sample2Clients = [
         id: 'C001', name: 'Vikash Singh', phone: '+91 9876543212', budget: '3 Cr - 5 Cr',
         listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '10/04/26', time: '11:00 - 12:00 PM',
         req: { type: 'Residential', bhk: ['3BHK', '4BHK'], loc: ['Chennai', 'ECR'], timeline: '30 Days' },
+        source: 'Broker',
         status: 'Active', officer: 'Neha K.',
         score: 'Hot', visitToday: true, nextFollowUp: '2026-06-06',
         latestNote: 'Client is highly interested in east-facing units. Scheduled for site visit today at 4 PM.',
@@ -966,6 +967,7 @@ export const sample2Clients = [
         id: 'C002', name: 'Ankit Sharma', phone: '+91 9876543213', budget: '1 Cr - 2 Cr',
         listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '08/04/26', time: '04:00 - 05:00 PM',
         req: { type: 'Residential', bhk: ['2BHK'], loc: ['Mumbai', 'Andheri'], timeline: '60 Days' },
+        source: 'Meta Ads',
         status: 'Negotiating', officer: 'Rahul M.',
         score: 'Warm', visitToday: false, nextFollowUp: '2026-06-10',
         latestNote: 'Completed site visit for Green Valley. Awaiting feedback.',
@@ -984,6 +986,7 @@ export const sample2Clients = [
         id: 'C003', name: 'Priya Verma', phone: '+91 9876543214', budget: '80 L - 1.2 Cr',
         listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '06/06/26', time: '10:00 - 11:00 AM',
         req: { type: 'Residential', bhk: ['2BHK'], loc: ['Bangalore', 'HSR Layout'], timeline: 'Immediate' },
+        source: 'Website',
         status: 'Active', officer: 'Sneha P.',
         score: 'Hot', visitToday: true, nextFollowUp: '2026-06-06',
         latestNote: 'Site visit confirmed for Green Valley Phase 2 today morning. Need to show corner plots.',
@@ -997,6 +1000,7 @@ export const sample2Clients = [
         id: 'C004', name: 'Rohan Mehta', phone: '+91 9876543215', budget: '1.2 Cr - 1.8 Cr',
         listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '09/06/26', time: '01:00 - 02:00 PM',
         req: { type: 'Residential', bhk: ['3BHK'], loc: ['Mumbai', 'Andheri East'], timeline: '45 Days' },
+        source: 'Sales Officer',
         status: 'Active', officer: '',
         score: 'Warm', visitToday: false, nextFollowUp: '2026-06-12',
         latestNote: 'New client awaiting sales officer assignment before property dispatch.',
@@ -1008,6 +1012,127 @@ export const sample2Clients = [
         notes: [
             { text: 'Assign a sales officer before dispatching matched properties.', date: '09/06/2026', time: '01:05 PM' }
         ],
+        meetings: []
+    },
+    {
+        id: 'CL-101', name: 'Suresh Kumar', phone: '+91 98987 88776', budget: '2 Cr - 3 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'VILLA', date: '08/06/26', time: '12:00 - 01:00 PM',
+        req: { type: 'Residential', bhk: ['3BHK', '4BHK'], loc: ['Mahalakshmi Nagar', 'Indore'], timeline: '30 Days' },
+        status: 'Active', officer: 'Neha K.',
+        score: 'Warm', visitToday: false, nextFollowUp: '2026-06-18',
+        latestNote: 'Interested in Sunset Villa. Onboarded by broker Anil Nahar.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P004', status: 'Shortlisted', units: ['4BHK Luxury - Villa 12'], visitedOn: '08 Jun', notes: 'Interested in Sunset Villa' }
+        ],
+        timeline: [
+            { title: 'Client Qualified', details: 'Broker Anil Nahar onboarded client Suresh Kumar', date: '08/06/2026', time: '10:45 AM' }
+        ],
+        notes: [
+            { text: 'Looking for a villa with proper modular kitchen options.', date: '08/06/2026', time: '11:00 AM' }
+        ],
+        meetings: []
+    },
+    {
+        id: 'CL-102', name: 'Pooja Hegde', phone: '+91 99887 77665', budget: '80 L - 1.2 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '10/06/26', time: '02:00 - 03:00 PM',
+        req: { type: 'Residential', bhk: ['1BHK', '2BHK'], loc: ['Vijay Nagar', 'Indore'], timeline: '30 Days' },
+        status: 'Active', officer: 'Sneha P.',
+        score: 'Hot', visitToday: true, nextFollowUp: '2026-06-16',
+        latestNote: 'Scheduled for site visit of Green Valley Phase 2 flat 102. Onboarded by broker Anil Nahar.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P001', status: 'Shortlisted', units: ['2BHK Classic - Flat 102'], visitedOn: '10 Jun', notes: 'Interested in Fully Furnished 1 BHK Flat' }
+        ],
+        timeline: [
+            { title: 'Client Onboarded', details: 'Onboarded by broker Anil Nahar', date: '10/06/2026', time: '02:15 PM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-103', name: 'Rajesh Patel', phone: '+91 98221 33221', budget: '4 Cr - 6 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'VILLA', date: '12/06/26', time: '03:00 - 04:00 PM',
+        req: { type: 'Residential', bhk: ['4BHK', '5+BHK'], loc: ['Mahalakshmi Nagar', 'Indore'], timeline: 'Immediate' },
+        status: 'Completed', officer: 'Neha K.',
+        score: 'Hot', visitToday: false, nextFollowUp: '2026-06-12',
+        latestNote: 'Deal closed for Sunset Villa. Documents finalized and sent to registrar. Onboarded by broker Anil Nahar.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P004', status: 'Negotiating', units: ['4BHK Luxury - Villa 15'], visitedOn: '12 Jun', notes: 'Deal Closed.' }
+        ],
+        timeline: [
+            { title: 'Deal Finalized', details: 'Sunset Villa purchase complete', date: '12/06/2026', time: '04:00 PM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-201', name: 'Neha Sharma', phone: '+91 91122 33445', budget: '1.5 Cr - 2.5 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '11/06/26', time: '11:00 - 12:00 PM',
+        req: { type: 'Residential', bhk: ['2BHK', '3BHK'], loc: ['Pipliyapala', 'Indore'], timeline: '30 Days' },
+        status: 'Active', officer: 'Rahul M.',
+        score: 'Warm', visitToday: false, nextFollowUp: '2026-06-17',
+        latestNote: 'Showed Lake View Apartment. Awaiting broker feedback. Onboarded by broker Manas Gangrade.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P001', status: 'Visited', units: ['2BHK Classic - Flat 301'], visitedOn: '11 Jun', notes: 'Likes the lake view.' }
+        ],
+        timeline: [
+            { title: 'Client Onboarded', details: 'Referred by broker Manas Gangrade', date: '11/06/2026', time: '11:10 AM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-202', name: 'Devendra Jha', phone: '+91 98888 77777', budget: '3 Cr - 4 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'PLOT', date: '13/06/26', time: '04:00 - 05:00 PM',
+        req: { type: 'Residential', bhk: ['N/A'], loc: ['Super Corridor', 'Indore'], timeline: '60 Days' },
+        status: 'Active', officer: 'Ravi T.',
+        score: 'Warm', visitToday: false, nextFollowUp: '2026-06-19',
+        latestNote: 'Interested in green field plot options. Onboarded by broker Manas Gangrade.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P002', status: 'Shortlisted', units: ['40x60 Plot - Plot A7'], visitedOn: '13 Jun', notes: 'Liked the corner plot.' }
+        ],
+        timeline: [
+            { title: 'Client Onboarded', details: 'Referred by broker Manas Gangrade', date: '13/06/2026', time: '04:15 PM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-301', name: 'Vikram Malhotra', phone: '+91 95555 44444', budget: '15 Cr - 20 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '05/06/26', time: '10:00 - 11:00 AM',
+        req: { type: 'Residential', bhk: ['4BHK', 'Penthouse'], loc: ['Andheri West', 'Mumbai'], timeline: 'Immediate' },
+        status: 'Completed', officer: 'Rahul M.',
+        score: 'Hot', visitToday: false, nextFollowUp: '2026-06-05',
+        latestNote: 'Skyline Residency penthouse purchased and deal closed. Onboarded by broker Apex Realty.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P001', status: 'Negotiating', units: ['4BHK Luxury - Flat 1002'], visitedOn: '05 Jun', notes: 'Deal Closed.' }
+        ],
+        timeline: [
+            { title: 'Deal Closed', details: 'Penthouse purchase finalized', date: '05/06/2026', time: '04:30 PM' }
+        ],
+        notes: [],
+        meetings: []
+    },
+    {
+        id: 'CL-302', name: 'Rohan Mehra', phone: '+91 96666 55555', budget: '6 Cr - 10 Cr',
+        listingType: 'Buy', listingKind: 'Residential', propType: 'APARTMENT/FLATS', date: '09/06/26', time: '01:00 - 02:00 PM',
+        req: { type: 'Residential', bhk: ['3BHK', '4BHK'], loc: ['New Palasia', 'Indore'], timeline: '45 Days' },
+        status: 'Active', officer: 'Sneha P.',
+        score: 'Warm', visitToday: false, nextFollowUp: '2026-06-15',
+        latestNote: 'Considering Skyline and Ocean View luxury units. Onboarded by broker Apex Realty.',
+        actionRequired: false,
+        propertyPipeline: [
+            { projectId: 'P001', status: 'Shortlisted', units: ['3BHK Premium - Flat 801'], visitedOn: '09 Jun', notes: 'Considering pricing options.' }
+        ],
+        timeline: [
+            { title: 'Client Onboarded', details: 'Referred by broker Apex Realty', date: '09/06/2026', time: '01:15 PM' }
+        ],
+        notes: [],
         meetings: []
     }
 ];
@@ -1315,11 +1440,129 @@ export const mockVisits = [
 ];
 
 export const sample2Visits = [
-    { id: 'V001', officerName: 'Manas', officerPhone: '7691962521', customerName: 'Vikash Singh', customerPhone: '8225000092', purpose: 'BUY', date: '05/04/26', time: '10:00 - 11:00 AM', status: 'Scheduled', property: { name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '3BHK Premium', address: 'Andheri West, Mumbai', price: '₹ 1.85 Cr' }, notes: 'Client highly interested in park facing units.' },
+    { id: 'V001', officerName: 'Manas', officerPhone: '7691962521', customerName: 'Vikash Singh', customerPhone: '8225000092', purpose: 'BUY', date: '05/04/26', time: '10:00 - 11:00 AM', status: 'Scheduled',
+        property: {
+            name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '3BHK Premium',
+            address: 'Andheri West, Mumbai', price: '₹ 1.85 Cr',
+            builder: 'Apex Buildcon', totalUnits: 120, availableUnits: 45,
+            size: '1,550 Sq.Ft', possession: 'Dec 2027', rera: 'P001-RERA-2026',
+            amenities: 'Swimming Pool, Gym, Clubhouse, Park, 24/7 Security',
+        },
+        notes: 'Client highly interested in park facing units.',
+    },
+    { id: 'V006', officerName: 'Neha K.', officerPhone: '9000011111', customerName: 'Vikash Singh', customerPhone: '8225000092', purpose: 'BUY', date: '02/04/26', time: '11:00 AM - 12:00 PM', status: 'Completed',
+        arrivalTime: '11:12 AM',
+        userReview: 'Property location is excellent. The 3BHK layout was very spacious and the park facing view was exactly what we wanted. Pricing seems a bit high but negotiable.',
+        userRating: 4,
+        property: {
+            name: 'Ocean View Luxury', type: 'APARTMENT/FLATS', config: '4BHK Seaview',
+            address: 'ECR, Chennai', price: '₹ 4.20 Cr',
+            builder: 'Coastal Reality', totalUnits: 30, availableUnits: 8,
+            size: '3,200 Sq.Ft', possession: 'Dec 2027', rera: 'P004-RERA-2026',
+            amenities: 'Swimming Pool, Gym, Sea View, Clubhouse',
+        },
+        notes: 'Client loved the sea view. Likely to close deal soon.',
+    },
     { id: 'V002', officerName: 'Manas', officerPhone: '7691962521', customerName: 'Ankit Sharma', customerPhone: '8224004000', purpose: 'BUY', date: '09/03/26', time: '10:00 - 11:00 AM', status: 'Completed', property: { name: 'Green Valley Phase 2', type: 'VILLA PLOTS', config: '40x60 Plot', address: 'HSR Layout, Bangalore', price: '₹ 1.50 Cr' }, notes: 'Showed corner plots. Client will discuss with family.' },
     { id: 'V003', officerName: 'Rajesh Gurjar', officerPhone: '8224004000', customerName: 'Pawan Sharma', customerPhone: '8224004000', purpose: 'RENT', date: '28/02/26', time: '11:00 - 12:00 PM', status: 'Cancelled', property: { name: 'Metro Heights', type: 'COMMERCIAL', config: 'Retail Shop', address: 'Connaught Place, Delhi', price: '₹ 2.5 L / month' }, notes: 'Client cancelled due to emergency.' },
     { id: 'V004', officerName: 'Neha K.', officerPhone: '9000011111', customerName: 'Rohit Sharma', customerPhone: '9820012345', purpose: 'BUY', date: '09/06/26', time: '02:00 - 03:00 PM', status: 'In Progress', otpStatus: 'Verified', sources: ['Mobile', 'App'], propertyCount: 4, property: { name: 'Parkside Avenues', type: 'APARTMENT/FLATS', config: '2BHK Garden View', address: 'Andheri East, Mumbai', price: 'Rs. 1.25 Cr' }, notes: 'Officer has reached the site and customer OTP is verified.' },
     { id: 'V005', officerName: 'Sneha P.', officerPhone: '9777797777', customerName: 'Meera Kapoor', customerPhone: '9900099000', purpose: 'BUY', date: 'Today', time: '05:00 - 06:00 PM', status: 'Scheduled', otpStatus: 'Pending', sources: ['Mobile', 'App'], propertyCount: 4, property: { name: 'Ocean View Luxury', type: 'APARTMENT/FLATS', config: '4BHK Sea View', address: 'ECR, Chennai', price: 'Rs. 4.8 Cr' }, notes: 'OTP pending before site execution.' },
+    {
+        id: 'V006',
+        officerName: 'Rahul M.',
+        officerPhone: '9000022222',
+        customerName: 'Nidhi Agarwal',
+        customerPhone: '9810012300',
+        purpose: 'BUY',
+        date: 'Today',
+        time: '12:30 - 01:30 PM',
+        status: 'In Progress',
+        otpStatus: 'Verified',
+        sources: ['Website', 'App'],
+        property: { name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '4BHK Luxury', address: 'Andheri West, Mumbai', price: 'Rs. 2.50 Cr' },
+        properties: [
+            { name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '4BHK Luxury - Tower C', address: 'Andheri West, Mumbai', price: 'Rs. 2.50 Cr' },
+            { name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '3BHK Premium - Higher Floor', address: 'Andheri West, Mumbai', price: 'Rs. 1.95 Cr' },
+            { name: 'Skyline Residency', type: 'APARTMENT/FLATS', config: '2BHK Classic - Tower A', address: 'Andheri West, Mumbai', price: 'Rs. 1.20 Cr' },
+        ],
+        notes: 'OTP verified at lobby. Family wants higher-floor options first.',
+    },
+    {
+        id: 'V007',
+        officerName: 'Vikram Singh',
+        officerPhone: '9888877777',
+        customerName: 'Mehul Iyer',
+        customerPhone: '9901122334',
+        purpose: 'BUY',
+        date: 'Today',
+        time: '03:00 - 04:00 PM',
+        status: 'Scheduled',
+        otpStatus: 'Pending',
+        sources: ['Broker', 'App'],
+        property: { name: 'Green Valley Phase 2', type: 'VILLA PLOTS', config: '30x40 Plot', address: 'HSR Layout, Bangalore', price: 'Rs. 85 L' },
+        properties: [
+            { name: 'Green Valley Phase 2', type: 'VILLA PLOTS', config: '30x40 Park Facing Plot', address: 'HSR Layout, Bangalore', price: 'Rs. 88 L' },
+            { name: 'Green Valley Phase 2', type: 'VILLA PLOTS', config: '40x60 Main Road Plot', address: 'HSR Layout, Bangalore', price: 'Rs. 1.50 Cr' },
+        ],
+        notes: 'Broker lead. Client is comparing plot orientation and road width.',
+    },
+    {
+        id: 'V008',
+        officerName: 'Anjali Desai',
+        officerPhone: '9666655555',
+        customerName: 'Karan Mehta',
+        customerPhone: '9818811188',
+        purpose: 'BUY',
+        date: 'Today',
+        time: '04:00 - 05:00 PM',
+        status: 'Scheduled',
+        otpStatus: 'Pending',
+        sources: ['Mobile', 'App'],
+        property: { name: 'Metro Heights', type: 'COMMERCIAL', config: 'Office Space', address: 'Connaught Place, Delhi', price: 'Rs. 8.00 Cr' },
+        properties: [
+            { name: 'Metro Heights', type: 'COMMERCIAL', config: 'Office Space - Bare Shell', address: 'Connaught Place, Delhi', price: 'Rs. 8.00 Cr' },
+            { name: 'Metro Heights', type: 'COMMERCIAL', config: 'Retail Shop - Frontage Unit', address: 'Connaught Place, Delhi', price: 'Rs. 3.50 Cr' },
+        ],
+        notes: 'Investor visit for rental-yield comparison.',
+    },
+    {
+        id: 'V009',
+        officerName: 'Sneha P.',
+        officerPhone: '9777797777',
+        customerName: 'Aarav Menon',
+        customerPhone: '9840012345',
+        purpose: 'BUY',
+        date: '12/06/26',
+        time: '12:30 - 01:30 PM',
+        status: 'Completed',
+        otpStatus: 'Verified',
+        sources: ['Referral', 'App'],
+        property: { name: 'Ocean View Luxury', type: 'PENTHOUSE', config: 'Penthouse', address: 'ECR, Chennai', price: 'Rs. 6.00 Cr' },
+        properties: [
+            { name: 'Ocean View Luxury', type: 'PENTHOUSE', config: 'Penthouse - East Wing', address: 'ECR, Chennai', price: 'Rs. 6.00 Cr' },
+            { name: 'Ocean View Luxury', type: 'APARTMENT/FLATS', config: '4BHK Seaview - Club Facing', address: 'ECR, Chennai', price: 'Rs. 4.65 Cr' },
+        ],
+        notes: 'Client asked for payment plan and clubhouse completion date.',
+    },
+    {
+        id: 'V010',
+        officerName: 'Rahul M.',
+        officerPhone: '9000022222',
+        customerName: 'Priya Nair',
+        customerPhone: '9876501234',
+        purpose: 'BUY',
+        date: 'Today',
+        time: '10:00 - 11:00 AM',
+        status: 'Scheduled',
+        otpStatus: 'Pending',
+        sources: ['Website', 'Mobile'],
+        property: { name: 'Parkside Avenues', type: 'APARTMENT/FLATS', config: '1BHK Smart', address: 'Andheri East, Mumbai', price: 'Rs. 90 L' },
+        properties: [
+            { name: 'Parkside Avenues', type: 'APARTMENT/FLATS', config: '1BHK Smart - Tower A', address: 'Andheri East, Mumbai', price: 'Rs. 90 L' },
+            { name: 'Parkside Avenues', type: 'APARTMENT/FLATS', config: '2BHK Classic - Tower B', address: 'Andheri East, Mumbai', price: 'Rs. 1.45 Cr' },
+        ],
+        notes: 'First-time buyer. Needs compact options near metro access.',
+    },
 ];
 
 export const mockBranches = [

@@ -67,7 +67,7 @@ const leadRows = [
         phone: '+91 88888 77777',
         contactMode: '',
         sourceType: 'Broker',
-        sourceLabel: 'WhatsApp',
+        sourceLabel: 'Broker App',
         broker: 'Elite Estates',
         attribution: 'DISPUTED ATTRIBUTION',
         requirement: 'Plots • Investment',
@@ -97,7 +97,6 @@ const statusStyles = {
 const sourcePillStyles = {
     'Broker App': 'bg-blue-100 text-blue-700',
     'Meta Ads': 'bg-indigo-100 text-indigo-700',
-    WhatsApp: 'bg-emerald-100 text-emerald-700',
 };
 
 const MetricCard = ({ label, value, detail, icon: Icon, tone }) => (
@@ -136,7 +135,7 @@ const SelectFilter = ({ label, value, options, onChange }) => (
 const SourceBadge = ({ lead }) => (
     <div>
         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${sourcePillStyles[lead.sourceLabel] || 'bg-slate-100 text-slate-700'}`}>
-            {lead.sourceLabel === 'WhatsApp' ? <MessageSquareText className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+            <ShieldCheck className="h-3 w-3" />
             {lead.sourceLabel}
         </span>
         <p className={`mt-2 text-[11px] font-black ${lead.attribution ? 'text-[#3630ff]' : 'text-slate-800'}`}>
@@ -416,7 +415,6 @@ const Leads = () => {
                                         <th className="px-5 py-4">Contact</th>
                                         <th className="px-5 py-4">Source & Broker</th>
                                         <th className="px-5 py-4">Requirement<br />Summary</th>
-                                        <th className="px-5 py-4">Score</th>
                                         <th className="px-5 py-4">Call Status</th>
                                         <th className="px-5 py-4">Action</th>
                                         <th className="w-10 px-3 py-4"></th>
@@ -454,9 +452,6 @@ const Leads = () => {
                                                 <p className="text-sm font-black text-black">{lead.requirement}</p>
                                                 <p className="mt-1 text-sm font-medium text-slate-800">Budget: {lead.budget}</p>
                                                 {lead.timeline && <p className="mt-1 text-xs italic text-slate-600">Timeline: {lead.timeline}</p>}
-                                            </td>
-                                            <td className="px-5 py-4">
-                                                <ScoreBadge status={lead.status} score={lead.score} />
                                             </td>
                                             <td className="px-5 py-4">
                                                 <CallStatus lead={lead} />

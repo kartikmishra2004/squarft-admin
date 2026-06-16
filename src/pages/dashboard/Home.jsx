@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import {
     ArrowRight,
@@ -8,19 +8,16 @@ import {
     Check,
     CircleUserRound,
     Download,
-    FileCheck2,
     Filter,
     LayoutDashboard,
-    ListChecks,
-    Plus,
     Search,
     ShieldAlert,
     TrendingUp,
     Upload,
-    UserRoundPlus,
     UsersRound,
     WalletCards,
 } from 'lucide-react';
+import { revenueTrajectory } from '../../data/mockData';
 
 const formatMoney = (amount) => {
     if (!amount) return '0';
@@ -147,6 +144,44 @@ const Donut = ({ approved, review, rejected, draft }) => {
     );
 };
 
+const revenueDataOptions = {
+    '1M': {
+        revenue: [{ month: 'Apr', val: 4.2 }],
+        deals: [{ month: 'Apr', val: 42 }],
+    },
+    '6M': revenueTrajectory,
+    '1Y': {
+        revenue: [
+            { month: 'May', val: 1.5 },
+            { month: 'Jun', val: 1.8 },
+            { month: 'Jul', val: 2.2 },
+            { month: 'Aug', val: 2.4 },
+            { month: 'Sep', val: 2.9 },
+            { month: 'Oct', val: 3.1 },
+            { month: 'Nov', val: 3.4 },
+            { month: 'Dec', val: 3.8 },
+            { month: 'Jan', val: 3.3 },
+            { month: 'Feb', val: 4.0 },
+            { month: 'Mar', val: 4.1 },
+            { month: 'Apr', val: 4.2 },
+        ],
+        deals: [
+            { month: 'May', val: 12 },
+            { month: 'Jun', val: 15 },
+            { month: 'Jul', val: 16 },
+            { month: 'Aug', val: 18 },
+            { month: 'Sep', val: 20 },
+            { month: 'Oct', val: 22 },
+            { month: 'Nov', val: 25 },
+            { month: 'Dec', val: 28 },
+            { month: 'Jan', val: 24 },
+            { month: 'Feb', val: 30 },
+            { month: 'Mar', val: 35 },
+            { month: 'Apr', val: 42 },
+        ],
+    },
+};
+
 const Home = () => {
     const { user } = useSelector((state) => state.auth);
     const users = useSelector((state) => state.users.users);
@@ -155,6 +190,11 @@ const Home = () => {
     const clients = useSelector((state) => state.clients.clients);
     const visits = useSelector((state) => state.visits.visits);
     const deals = useSelector((state) => state.deals.deals);
+    const [selectedRevenueRange, setSelectedRevenueRange] = useState('6M');
+
+    const selectedRevenueData = revenueDataOptions[selectedRevenueRange];
+    const totalRevenue = selectedRevenueData.revenue.reduce((sum, item) => sum + item.val, 0);
+    const totalDeals = selectedRevenueData.deals.reduce((sum, item) => sum + item.val, 0);
 
     const metrics = useMemo(() => {
         const brokers = users.filter((item) => item.type === 'Broker').length;
@@ -321,12 +361,35 @@ const Home = () => {
                     </Panel>
 
                     <div className="grid gap-7">
-                        <div className="grid grid-cols-2 gap-7">
-                            <QuickAction icon={Plus} label="Upload Project" />
-                            <QuickAction icon={ListChecks} label="Approve Project" />
-                            <QuickAction icon={UserRoundPlus} label="Assign Lead" />
-                            <QuickAction icon={FileCheck2} label="Create Task" />
-                        </div>
+                        <Panel className="p-7">
+                            <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                <h2 className="text-2xl font-black">Revenue Snapshot</h2>
+                                <div className="flex flex-wrap gap-2">
+                                    {['1M', '6M', '1Y'].map((range) => (
+                                        <button
+                                            key={range}
+                                            type="button"
+                                            onClick={() => setSelectedRevenueRange(range)}
+                                            className={`rounded-full px-3 py-2 text-[11px] font-black uppercase ${selectedRevenueRange === range ? 'bg-[#2E1DDC] text-white' : 'bg-[#F0F0FF] text-[#4A4789]'}`}
+                                        >
+                                            {range}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="rounded-[20px] border border-[#E8E5F3] bg-[#FBFBFF] p-5">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#8E89A3]">Revenue</p>
+                                    <p className="mt-3 text-4xl font-black">₹{totalRevenue.toFixed(1)} Cr</p>
+                                    <p className="mt-2 text-xs text-[#6E6B85]">Total value over {selectedRevenueRange}</p>
+                                </div>
+                                <div className="rounded-[20px] border border-[#E8E5F3] bg-[#FBFBFF] p-5">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#8E89A3]">Deals</p>
+                                    <p className="mt-3 text-4xl font-black">{totalDeals}</p>
+                                    <p className="mt-2 text-xs text-[#6E6B85]">Deals counted in selected range</p>
+                                </div>
+                            </div>
+                        </Panel>
                         <Panel className="min-h-[220px] bg-[#FFD8CA] p-7">
                             <p className="text-xs font-black uppercase tracking-[0.14em] text-[#563024]">Financials</p>
                             <div className="mt-5 flex items-center justify-between">
