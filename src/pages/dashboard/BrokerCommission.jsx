@@ -3,6 +3,7 @@ import {
     Banknote,
     Building2,
     CheckCircle2,
+    ChevronRight,
     ClipboardList,
     Clock3,
     CreditCard,
@@ -206,11 +207,13 @@ const getStatusClass = (status) => {
 
 const BrokerCommission = () => {
     const navigate = useNavigate();
+    const [activePageTab, setActivePageTab] = useState('brokerCommission');
     const [selectedBrokerId, setSelectedBrokerId] = useState(brokerCommissionData[0].id);
     const [search, setSearch] = useState('');
     const [propertyFilter, setPropertyFilter] = useState('All');
     const [withdrawalActions, setWithdrawalActions] = useState({});
-    const [activeTab, setActiveTab] = useState('properties');
+    const [brokerDirectoryView, setBrokerDirectoryView] = useState('list');
+    const [brokerDirectoryTab, setBrokerDirectoryTab] = useState('properties');
     const [selectedPropertyDetails, setSelectedPropertyDetails] = useState(null);
 
     const filteredBrokers = useMemo(() => {
@@ -229,27 +232,6 @@ const BrokerCommission = () => {
     const selectedProperties = selectedBroker.uploadedProperties.filter((property) => propertyFilter === 'All' || property.status === propertyFilter);
     const selectedWithdrawals = selectedBroker.withdrawals;
     const getWithdrawalStatus = (withdrawal) => withdrawalActions[withdrawal.id]?.status || withdrawal.status;
-
-    const brokerCommissionSummary = useMemo(() => brokerCommissionData.map((broker) => {
-        const totalCommission = broker.commissions.reduce((sum, commission) => sum + commission.amount, 0);
-        const paidCommission = broker.commissions
-            .filter((commission) => commission.status === 'Paid')
-            .reduce((sum, commission) => sum + commission.amount, 0);
-        const pendingCommission = broker.commissions
-            .filter((commission) => commission.status !== 'Paid')
-            .reduce((sum, commission) => sum + commission.amount, 0);
-
-        return {
-            id: broker.id,
-            name: broker.name,
-            agency: broker.agency,
-            status: broker.brokerStatus,
-            commissionCount: broker.commissions.length,
-            totalCommission,
-            paidCommission,
-            pendingCommission,
-        };
-    }), []);
 
     const totals = brokerCommissionData.reduce((summary, broker) => ({
         brokers: summary.brokers + 1,
@@ -286,52 +268,258 @@ const BrokerCommission = () => {
 
             <main className="flex-1 overflow-y-auto p-4">
                 <div className="mx-auto max-w-[1600px] space-y-4">
-                    <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
-                        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#2717D7]">Broker Commissions</p>
-                                <h2 className="mt-1 text-lg font-black text-[#171327]">All brokers and commission amount</h2>
-                            </div>
-                            <p className="text-xs font-bold text-[#615C71]">Click a broker to inspect their properties, clients, wallet, and payouts.</p>
-                        </div>
+                    <div className="flex flex-wrap gap-2 rounded-[8px] border border-[#D8D2EB] bg-white p-2 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
+                        {[
+                            { id: 'broker', label: 'Broker' },
+                            { id: 'brokerCommission', label: 'Broker commission' },
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setActivePageTab(tab.id)}
+                                className={`h-9 rounded-[6px] px-4 text-xs font-black uppercase tracking-[0.1em] transition-all ${
+                                    activePageTab === tab.id
+                                        ? 'bg-[#2717D7] text-white shadow-sm'
+                                        : 'text-[#615C71] hover:bg-[#F4F1FF] hover:text-[#2717D7]'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
 
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                            {brokerCommissionSummary.map((broker) => {
-                                const selected = broker.id === selectedBroker.id;
+                    {activePageTab === 'broker' ? (
+                        <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
+                            {brokerDirectoryView === 'list' ? (
+                                <>
+                                    <div className="flex flex-col gap-1 border-b border-[#E1DDF0] pb-3 sm:flex-row sm:items-end sm:justify-between">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#2717D7]">Broker directory</p>
+                                            <h2 className="mt-1 text-lg font-black text-[#171327]">Broker basic details</h2>
+                                        </div>
+                                        <p className="text-xs font-bold text-[#615C71]">Minimal operational list with onboarded properties and payment totals.</p>
+                                    </div>
 
-                                return (
-                                    <button
-                                        key={broker.id}
-                                        type="button"
-                                        onClick={() => setSelectedBrokerId(broker.id)}
-                                        className={`rounded-[8px] border p-3 text-left transition-all ${selected ? 'border-[#2717D7] bg-[#F4F1FF] shadow-[0_10px_24px_rgba(39,23,215,0.08)]' : 'border-[#E1DDF0] bg-[#FCFBFF] hover:border-[#2717D7]'}`}
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <p className="truncate text-sm font-black text-[#171327]">{broker.name}</p>
-                                                <p className="mt-0.5 truncate text-[10px] font-bold text-[#615C71]">{broker.agency}</p>
+                                    <div className="mt-4 space-y-2">
+                                        {brokerCommissionData.map((broker) => {
+                                            const paidCommission = broker.commissions
+                                                .filter((commission) => commission.status === 'Paid')
+                                                .reduce((sum, commission) => sum + commission.amount, 0);
+                                            const pendingCommission = broker.commissions
+                                                .filter((commission) => commission.status !== 'Paid')
+                                                .reduce((sum, commission) => sum + commission.amount, 0);
+
+                                            return (
+                                                <button
+                                                    key={broker.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedBrokerId(broker.id);
+                                                        setBrokerDirectoryView('detail');
+                                                        setBrokerDirectoryTab('properties');
+                                                        setPropertyFilter('All');
+                                                    }}
+                                                    className="flex w-full flex-col gap-3 rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-3 text-left transition-all hover:border-[#2717D7] hover:bg-[#F4F1FF] lg:flex-row lg:items-center lg:justify-between"
+                                                >
+                                                    <div className="flex min-w-0 items-start justify-between gap-3 lg:w-[260px]">
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-sm font-black text-[#171327]">{broker.name}</p>
+                                                            <p className="mt-0.5 truncate text-[10px] font-bold text-[#615C71]">{broker.agency}</p>
+                                                            <p className="mt-1 text-[9px] font-bold text-[#615C71]">{broker.mobile}</p>
+                                                        </div>
+                                                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider ${getStatusClass(broker.brokerStatus)}`}>
+                                                            {broker.brokerStatus}
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid flex-1 grid-cols-2 gap-2 md:grid-cols-4">
+                                                        <MiniStat label="Properties onboarded" value={broker.stats.total_properties} />
+                                                        <MiniStat label="Sales" value={broker.stats.sales} />
+                                                        <MiniStat label="Wallet" value={formatCurrency(broker.wallet.balance)} />
+                                                        <MiniStat label="Payment pending" value={formatCurrency(pendingCommission + broker.wallet.withdrawalPending)} />
+                                                    </div>
+                                                    <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#E1DDF0] pt-2 lg:w-[150px] lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
+                                                        <div>
+                                                            <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Paid</p>
+                                                            <p className="mt-0.5 text-[10px] font-black text-[#0C6B39]">{formatCurrency(paidCommission)}</p>
+                                                        </div>
+                                                        <ChevronRight className="h-4 w-4 text-[#7B7486]" />
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="flex flex-col gap-3 border-b border-[#E1DDF0] pb-3 lg:flex-row lg:items-center lg:justify-between">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#2717D7]">Broker directory</p>
+                                            <h2 className="mt-1 text-lg font-black text-[#171327]">{selectedBroker.name}</h2>
+                                            <p className="mt-0.5 text-xs font-bold text-[#615C71]">{selectedBroker.agency} &bull; {selectedBroker.mobile}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setBrokerDirectoryView('list')}
+                                            className="h-9 rounded-[6px] border border-[#D8D2EB] bg-[#FCFBFF] px-3 text-[10px] font-black uppercase tracking-[0.1em] text-[#514B63] transition-colors hover:border-[#2717D7] hover:text-[#2717D7]"
+                                        >
+                                            Back to broker list
+                                        </button>
+                                    </div>
+
+                                    <div className="flex gap-4 border-b border-[#D8D2EB]">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setBrokerDirectoryTab('properties');
+                                                setPropertyFilter('All');
+                                            }}
+                                            className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${brokerDirectoryTab === 'properties' ? 'border-[#2717D7] text-[#2717D7]' : 'border-transparent text-[#615C71] hover:text-[#2717D7]'}`}
+                                        >
+                                            Properties Onboarded ({selectedBroker.uploadedProperties.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setBrokerDirectoryTab('clients')}
+                                            className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${brokerDirectoryTab === 'clients' ? 'border-[#2717D7] text-[#2717D7]' : 'border-transparent text-[#615C71] hover:text-[#2717D7]'}`}
+                                        >
+                                            Clients Onboarded ({selectedBroker.clients?.length || 0})
+                                        </button>
+                                    </div>
+
+                                    {brokerDirectoryTab === 'properties' && (
+                                        <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-4">
+                                            <div className="flex flex-col gap-3 border-b border-[#E1DDF0] pb-2.5 lg:flex-row lg:items-center lg:justify-between">
+                                                <SectionHeader icon={Building2} title="Uploaded properties" helper="Review properties uploaded by this broker." compact />
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {propertyFilters.map((filter) => (
+                                                        <button
+                                                            key={filter}
+                                                            type="button"
+                                                            onClick={() => setPropertyFilter(filter)}
+                                                            className={`rounded-[6px] border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] ${propertyFilter === filter ? 'border-[#2717D7] bg-[#2717D7] text-white' : 'border-[#D8D2EB] bg-[#FCFBFF] text-[#514B63]'}`}
+                                                        >
+                                                            {filter}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
-                                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider ${getStatusClass(broker.status)}`}>
-                                                {broker.status}
-                                            </span>
-                                        </div>
+                                            <div className="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                                                {selectedProperties.map((property) => {
+                                                    const commission = selectedBroker.commissions.find((item) => item.propertyName === property.name);
+                                                    return (
+                                                        <div key={property.id} className="flex flex-col justify-between rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-3">
+                                                            <div>
+                                                                <div className="flex items-start justify-between gap-2.5">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate text-xs font-black text-[#171327]">{property.name}</p>
+                                                                        <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">{property.type} / {property.category}</p>
+                                                                    </div>
+                                                                    <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider ${getStatusClass(property.status)}`}>{property.status}</span>
+                                                                </div>
+                                                                <p className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-[#615C71]"><MapPin size={12} /> {property.location}</p>
+                                                                <div className="mt-3 grid grid-cols-3 gap-1.5">
+                                                                    <MiniStat label="Price" value={formatCurrency(property.price)} />
+                                                                    <MiniStat label="Photos" value={property.photos} />
+                                                                    <MiniStat label="Docs" value={property.documents} />
+                                                                </div>
+                                                            </div>
 
-                                        <div className="mt-3 rounded-[8px] bg-white p-3">
-                                            <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[#8B8498]">Total Commission</p>
-                                            <p className="mt-1 text-xl font-black tracking-tight text-[#2717D7]">{formatCurrency(broker.totalCommission)}</p>
+                                                            <div className="mt-3 border-t border-dashed border-[#E1DDF0] pt-2.5">
+                                                                {commission ? (
+                                                                    <div className="flex items-center justify-between text-[10px]">
+                                                                        <div>
+                                                                            <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Commission ({commission.rate}%)</p>
+                                                                            <p className="mt-0.5 font-black text-[#0C6B39]">{formatCurrency(commission.amount)}</p>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Payout Status</p>
+                                                                            <div className="mt-0.5">
+                                                                                <StatusPill status={commission.status} />
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="py-1 text-center">
+                                                                        <p className="text-[9px] font-bold text-[#8B8498]">No commission recorded</p>
+                                                                    </div>
+                                                                )}
+                                                                <div className="mt-2.5 flex items-center justify-between border-t border-dashed border-[#E1DDF0]/50 pt-2">
+                                                                    <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[#8B8498]">Uploaded {property.uploadedOn}</p>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setSelectedPropertyDetails(property)}
+                                                                        className="rounded bg-[#2717D7] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#1f11ab]"
+                                                                    >
+                                                                        View Details
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {selectedProperties.length === 0 && (
+                                                    <div className="col-span-full rounded-[8px] border border-dashed border-[#D8D2EB] bg-[#FCFBFF] p-6 text-center">
+                                                        <p className="text-xs font-black text-[#171327]">No properties found</p>
+                                                        <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">No properties matching standard status filter.</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
+                                    )}
 
-                                        <div className="mt-3 grid grid-cols-3 gap-2">
-                                            <MiniStat label="Paid" value={formatCurrency(broker.paidCommission)} />
-                                            <MiniStat label="Pending" value={formatCurrency(broker.pendingCommission)} />
-                                            <MiniStat label="Deals" value={broker.commissionCount} />
+                                    {brokerDirectoryTab === 'clients' && (
+                                        <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-4">
+                                            <div className="flex items-start justify-between border-b border-[#E1DDF0] pb-2.5">
+                                                <div>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#5E5A71]">Onboarded Clients</p>
+                                                    <p className="mt-0.5 text-xs font-medium text-[#615C71]">Clients referred/onboarded by this broker.</p>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                                                {selectedBroker.clients && selectedBroker.clients.length ? (
+                                                    selectedBroker.clients.map((client) => (
+                                                        <div key={client.id} className="flex flex-col justify-between rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-3">
+                                                            <div>
+                                                                <div className="flex items-start justify-between gap-2.5">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate text-xs font-black text-[#171327]">{client.name}</p>
+                                                                        <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">{client.phone}</p>
+                                                                    </div>
+                                                                    <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider ${getStatusClass(client.status)}`}>
+                                                                        {client.status}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+                                                                    <MiniStat label="Budget" value={client.budget} />
+                                                                    <MiniStat label="Interest" value={client.interest} />
+                                                                </div>
+                                                            </div>
+                                                            <div className="mt-3 flex items-center justify-between border-t border-dashed border-[#E1DDF0] pt-2">
+                                                                <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[#8B8498]">Onboarded {client.onboardedOn}</p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => navigate('/dashboard/clients', { state: { selectedClientId: client.id } })}
+                                                                    className="rounded bg-[#2717D7] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#1f11ab]"
+                                                                >
+                                                                    View Details
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="col-span-full rounded-[8px] border border-dashed border-[#D8D2EB] bg-[#FCFBFF] p-4 text-center">
+                                                        <p className="text-xs font-black text-[#171327]">No clients onboarded</p>
+                                                        <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">Clients referred in the app will show here.</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </section>
-
+                                    )}
+                                </div>
+                            )}
+                        </section>
+                    ) : (
+                        <>
                     <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
                         <div className="flex flex-col gap-3.5 xl:flex-row xl:items-center xl:justify-between">
                             <div>
@@ -506,158 +694,6 @@ const BrokerCommission = () => {
                                 )}
                             </div>
 
-                            {/* Core Tabs Switcher */}
-                            <div className="flex border-b border-[#D8D2EB] gap-4">
-                                <button
-                                    onClick={() => {
-                                        setActiveTab('properties');
-                                        setPropertyFilter('All');
-                                    }}
-                                    className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${activeTab === 'properties' ? 'border-[#2717D7] text-[#2717D7]' : 'border-transparent text-[#615C71] hover:text-[#2717D7]'}`}
-                                >
-                                    Properties Onboarded ({selectedBroker.uploadedProperties.length})
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('clients')}
-                                    className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${activeTab === 'clients' ? 'border-[#2717D7] text-[#2717D7]' : 'border-transparent text-[#615C71] hover:text-[#2717D7]'}`}
-                                >
-                                    Clients Onboarded ({selectedBroker.clients?.length || 0})
-                                </button>
-                            </div>
-
-                            {/* Tab Contents */}
-                            {activeTab === 'properties' && (
-                                <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-4">
-                                    <div className="flex flex-col gap-3 border-b border-[#E1DDF0] pb-2.5 lg:flex-row lg:items-center lg:justify-between">
-                                        <SectionHeader icon={Building2} title="Uploaded properties" helper="Review properties uploaded by this broker." compact />
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {propertyFilters.map((filter) => (
-                                                <button
-                                                    key={filter}
-                                                    type="button"
-                                                    onClick={() => setPropertyFilter(filter)}
-                                                    className={`rounded-[6px] border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] ${propertyFilter === filter ? 'border-[#2717D7] bg-[#2717D7] text-white' : 'border-[#D8D2EB] bg-[#FCFBFF] text-[#514B63]'}`}
-                                                >
-                                                    {filter}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="mt-3 grid gap-2.5 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-                                        {selectedProperties.map((property) => {
-                                            // Find associated property commission
-                                            const commission = selectedBroker.commissions.find(c => c.propertyName === property.name);
-                                            return (
-                                                <div key={property.id} className="rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-3 flex flex-col justify-between">
-                                                    <div>
-                                                        <div className="flex items-start justify-between gap-2.5">
-                                                            <div className="min-w-0">
-                                                                <p className="truncate text-xs font-black text-[#171327]">{property.name}</p>
-                                                                <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">{property.type} / {property.category}</p>
-                                                            </div>
-                                                            <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider ${getStatusClass(property.status)}`}>{property.status}</span>
-                                                        </div>
-                                                        <p className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-[#615C71]"><MapPin size={12} /> {property.location}</p>
-                                                        <div className="mt-3 grid grid-cols-3 gap-1.5">
-                                                            <MiniStat label="Price" value={formatCurrency(property.price)} />
-                                                            <MiniStat label="Photos" value={property.photos} />
-                                                            <MiniStat label="Docs" value={property.documents} />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Contextual Commission Details inside Card */}
-                                                    <div className="mt-3 border-t border-dashed border-[#E1DDF0] pt-2.5">
-                                                        {commission ? (
-                                                            <div className="flex items-center justify-between text-[10px]">
-                                                                <div>
-                                                                    <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Commission ({commission.rate}%)</p>
-                                                                    <p className="font-black text-[#0C6B39] mt-0.5">{formatCurrency(commission.amount)}</p>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Payout Status</p>
-                                                                    <div className="mt-0.5">
-                                                                        <StatusPill status={commission.status} />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="text-center py-1">
-                                                                <p className="text-[9px] font-bold text-[#8B8498]">No commission recorded</p>
-                                                            </div>
-                                                        )}
-                                                        <div className="mt-2.5 border-t border-dashed border-[#E1DDF0]/50 pt-2 flex items-center justify-between">
-                                                            <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[#8B8498]">Uploaded {property.uploadedOn}</p>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setSelectedPropertyDetails(property)}
-                                                                className="rounded bg-[#2717D7] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-[#1f11ab] transition-colors"
-                                                            >
-                                                                View Details
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                        {selectedProperties.length === 0 && (
-                                            <div className="col-span-full rounded-[8px] border border-dashed border-[#D8D2EB] bg-[#FCFBFF] p-6 text-center">
-                                                <p className="text-xs font-black text-[#171327]">No properties found</p>
-                                                <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">No properties matching standard status filter.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeTab === 'clients' && (
-                                <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-4">
-                                    <div className="flex items-start justify-between border-b border-[#E1DDF0] pb-2.5">
-                                        <div>
-                                            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#5E5A71]">Onboarded Clients</p>
-                                            <p className="mt-0.5 text-xs font-medium text-[#615C71]">Clients referred/onboarded by this broker.</p>
-                                        </div>
-                                    </div>
-                                    <div className="mt-3 grid gap-2.5 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-                                        {selectedBroker.clients && selectedBroker.clients.length ? (
-                                            selectedBroker.clients.map((client) => (
-                                                <div key={client.id} className="rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-3 flex flex-col justify-between">
-                                                    <div>
-                                                        <div className="flex items-start justify-between gap-2.5">
-                                                            <div className="min-w-0">
-                                                                <p className="truncate text-xs font-black text-[#171327]">{client.name}</p>
-                                                                <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">{client.phone}</p>
-                                                            </div>
-                                                            <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider ${getStatusClass(client.status)}`}>
-                                                                {client.status}
-                                                            </span>
-                                                        </div>
-                                                        <div className="mt-2.5 grid grid-cols-2 gap-1.5">
-                                                            <MiniStat label="Budget" value={client.budget} />
-                                                            <MiniStat label="Interest" value={client.interest} />
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-3 border-t border-dashed border-[#E1DDF0] pt-2 flex items-center justify-between">
-                                                        <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[#8B8498]">Onboarded {client.onboardedOn}</p>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => navigate('/dashboard/clients', { state: { selectedClientId: client.id } })}
-                                                            className="rounded bg-[#2717D7] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-[#1f11ab] transition-colors"
-                                                        >
-                                                            View Details
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="col-span-full rounded-[8px] border border-dashed border-[#D8D2EB] bg-[#FCFBFF] p-4 text-center">
-                                                <p className="text-xs font-black text-[#171327]">No clients onboarded</p>
-                                                <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">Clients referred in the app will show here.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Collapsible Wallet Transaction History Audit Log */}
                             <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-4">
                                 <details className="group" open>
@@ -694,6 +730,8 @@ const BrokerCommission = () => {
                             </div>
                         </section>
                     </div>
+                        </>
+                    )}
                 </div>
             </main>
 

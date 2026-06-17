@@ -31,7 +31,7 @@ export const adminLinks = [
   { icon: Briefcase, label: 'Deal Management', path: '/dashboard/deals' },
   { icon: CreditCard, label: 'Payment Milestones', path: '/dashboard/payment-milestones' },
   { icon: UserPlus, label: 'App user list', path: '/dashboard/users' },
-  { icon: Activity, label: 'User app activities', path: '/dashboard/user-app-activities' },
+  { icon: Activity, label: 'App activity', path: '/dashboard/user-app-activities' },
   { icon: PanelsTopLeft, label: 'Panel Overview', path: '/dashboard/panel-overview' },
   { icon: BadgeIndianRupee, label: 'Broker', path: '/dashboard/broker-commission' },
   { icon: BellRing, label: 'Custom Notifications', path: '/dashboard/notifications' },

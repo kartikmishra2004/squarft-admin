@@ -79,6 +79,71 @@ const matchesProjectFilters = (project, filters) => {
 const DEFAULT_PROJECT_IMAGE = '/inventory-images/project-main.png';
 const DEFAULT_FLOOR_PLAN_IMAGE = '/floor-plans/building-naksha.png';
 
+const PROPERTY_TYPE_HIERARCHY = [
+    { mainType: 'Residential', subTypes: ['Plot', 'Villa', 'Apartment', 'Rowhouse'] },
+    { mainType: 'Commercial', subTypes: ['Shop', 'Showroom', 'Office'] },
+];
+
+const normalizeText = (value = '') => String(value).toLowerCase().replace(/[^a-z0-9+]+/g, ' ').trim();
+
+const canonicalPropertyTypes = PROPERTY_TYPE_HIERARCHY.flatMap((group) => (
+    group.subTypes.map((subType) => ({ mainType: group.mainType, subType }))
+));
+
+const findCanonicalPropertyType = (value = '') => {
+    const normalized = normalizeText(value);
+    if (!normalized) return null;
+
+    if (normalized.includes('plot')) return { mainType: 'Residential', subType: 'Plot' };
+    if (normalized.includes('villa')) return { mainType: 'Residential', subType: 'Villa' };
+    if (normalized.includes('rowhouse') || normalized.includes('row house')) return { mainType: 'Residential', subType: 'Rowhouse' };
+    if (normalized.includes('apartment') || normalized.includes('flat') || normalized.includes('bhk') || normalized.includes('penthouse')) {
+        return { mainType: 'Residential', subType: 'Apartment' };
+    }
+    if (normalized.includes('showroom')) return { mainType: 'Commercial', subType: 'Showroom' };
+    if (normalized.includes('shop') || normalized.includes('retail')) return { mainType: 'Commercial', subType: 'Shop' };
+    if (normalized.includes('office') || normalized.includes('co working') || normalized.includes('coworking') || normalized.includes('bare shell')) {
+        return { mainType: 'Commercial', subType: 'Office' };
+    }
+
+    return canonicalPropertyTypes.find((type) => normalized.includes(normalizeText(type.subType))) || null;
+};
+
+const inferInventoryHierarchy = (project, row) => {
+    const explicit = row.propertyHierarchy || row.propertyType || row.property_type || {};
+    const explicitMainType = row.mainType || row.main_type || explicit.mainType || explicit.main_type || project.mainType || project.propertyType;
+    const explicitSubType = row.subType || row.sub_type || row.propertySubType || row.property_subtype || explicit.subType || explicit.sub_type || project.subType || project.propertySubType;
+    const inferred = findCanonicalPropertyType([
+        explicitSubType,
+        row.type,
+        row.configuration,
+        ...(project.configs || []),
+        project.specs,
+        project.projectType,
+        project.name,
+    ].filter(Boolean).join(' '));
+    const mainType = explicitMainType || inferred?.mainType || (normalizeText(project.specs).includes('commercial') ? 'Commercial' : normalizeText(project.specs).includes('residential') ? 'Residential' : '');
+    const subType = explicitSubType || inferred?.subType || '';
+    const configuration = row.configuration || row.variant || row.type || '';
+    const missing = [];
+
+    if (!explicitMainType && !inferred?.mainType) missing.push('Property main type');
+    if (!explicitSubType && !inferred?.subType) missing.push('Property type');
+    if (!configuration) missing.push('Configuration');
+    if (!row.size && !row.area) missing.push('Area / size');
+    if (!row.basePrice && !row.price) missing.push('Base price');
+    if (row.totalUnits === undefined && !row.unitsList?.length) missing.push('Total units');
+    if (row.availableUnits === undefined && !row.unitsList?.some((unit) => unit.status === 'Available')) missing.push('Available units');
+    if (!row.floorPlan && !row.floorPlanUrl) missing.push('Uploaded floor plan');
+
+    return {
+        mainType: mainType || 'Missing',
+        subType: subType || 'Missing',
+        configuration: configuration || 'Missing',
+        missing,
+    };
+};
+
 const getInventoryCounts = (project) => {
     const total = project.units || (project.inventory || []).reduce((sum, item) => sum + (item.totalUnits || 0), 0);
     const available = project.available || (project.inventory || []).reduce((sum, item) => sum + (item.availableUnits || 0), 0);
@@ -880,11 +945,27 @@ const ProjectDetailView = ({ project, onBack }) => {
                             <Card noPadding className="overflow-hidden border-gray-100 shadow-xl shadow-gray-200/50">
                                 <div className="p-6 border-b border-gray-100 bg-white">
                                     <h3 className="text-lg font-black text-gray-800 tracking-tight">Inventory Configurations</h3>
-                                    <p className="text-xs text-gray-500 mt-1 font-bold">Compact view of unit type, area, price, and live availability.</p>
+                                    <p className="text-xs text-gray-500 mt-1 font-bold">Compact view of property hierarchy, unit configuration, area, price, and live availability.</p>
+                                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        {PROPERTY_TYPE_HIERARCHY.map((group) => (
+                                            <div key={group.mainType} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Property Main Type</p>
+                                                <p className="mt-1 text-sm font-black text-gray-900">{group.mainType}</p>
+                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                    {group.subTypes.map((subType) => (
+                                                        <span key={subType} className="rounded-lg border border-gray-100 bg-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-gray-500">
+                                                            {subType}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
 
                                 <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {localProjectData.inventory.map((row, i) => {
+                                        const hierarchy = inferInventoryHierarchy(localProjectData, row);
                                         const availableCount = row.unitsList.filter(u => u.status === 'Available').length;
                                         const percentAvailable = row.unitsList.length ? (availableCount / row.unitsList.length) * 100 : 0;
                                         const statusColor = percentAvailable > 50 ? 'bg-emerald-500' : percentAvailable > 20 ? 'bg-amber-500' : 'bg-rose-500';
@@ -895,15 +976,40 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                 <div className="p-5">
                                                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                                                         <div>
-                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Configuration</p>
-                                                            <h4 className="text-lg font-black text-gray-900 tracking-tight">{row.type}</h4>
-                                                            <p className="mt-1 text-sm font-bold text-gray-500">{row.size}</p>
+                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Property Hierarchy</p>
+                                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                                <span className="rounded-lg bg-[#EEF2FF] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#4A43EC]">
+                                                                    {hierarchy.mainType}
+                                                                </span>
+                                                                <ChevronDown className="-rotate-90 h-3.5 w-3.5 text-gray-300" />
+                                                                <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                                                                    {hierarchy.subType}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-3">
+                                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Configuration / Variant</p>
+                                                                <h4 className="mt-1 text-lg font-black text-gray-900 tracking-tight">{hierarchy.configuration}</h4>
+                                                                <p className="mt-1 text-sm font-bold text-gray-500">{row.size || row.area || 'Area / size missing'}</p>
+                                                            </div>
                                                         </div>
                                                         <div className="sm:text-right">
                                                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Base Price</p>
-                                                            <p className="text-xl font-black text-[#6F4BFF] tracking-tight">{row.basePrice}</p>
+                                                            <p className="text-xl font-black text-[#6F4BFF] tracking-tight">{row.basePrice || row.price || 'Missing'}</p>
                                                         </div>
                                                     </div>
+
+                                                    {hierarchy.missing.length > 0 && (
+                                                        <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                                                            <p className="text-[8px] font-black uppercase tracking-widest text-amber-700">Missing property data</p>
+                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                {hierarchy.missing.map((item) => (
+                                                                    <span key={item} className="rounded-md border border-amber-200 bg-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-700">
+                                                                        {item}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
                                                         <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
@@ -963,7 +1069,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                                 <div className="px-5 py-4 border-t border-[#E0E8FF] flex items-center justify-between gap-4">
                                                                     <div>
                                                                         <p className="text-sm font-black text-gray-900">Floor Plan</p>
-                                                                        <p className="text-xs font-bold text-gray-500 mt-0.5">{row.type} | {row.size}</p>
+                                                                        <p className="text-xs font-bold text-gray-500 mt-0.5">{hierarchy.mainType} / {hierarchy.subType} / {hierarchy.configuration}</p>
                                                                     </div>
                                                                     <div className="w-9 h-9 rounded-full bg-[#F1F3FF] text-[#4A43EC] flex items-center justify-center">
                                                                         <Layers className="w-4 h-4" />
