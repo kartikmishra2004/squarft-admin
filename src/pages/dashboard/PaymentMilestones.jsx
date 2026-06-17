@@ -110,6 +110,118 @@ const paymentDeals = [
         ],
         reminders: [],
     },
+    {
+        id: 'INV-DEAL-1002',
+        dealCode: 'D0002',
+        project: 'Grand Orchards',
+        builder: 'Signature Group',
+        unit: 'Tower C / Flat 1205',
+        propertyType: 'Apartment',
+        customer: 'Vikram Aditya',
+        customerPhone: '+91 98765 00112',
+        customerEmail: 'vikram@example.com',
+        salesOfficer: 'Sneha P.',
+        broker: 'Nitin Shah',
+        status: 'Payment Schedule',
+        createdOn: '15 Jan 2026',
+        dealValue: 8500000,
+        collected: 8500000,
+        paymentSchedule: [
+            { id: 'MIL-031', title: 'Token', milestone_title: 'Token', total_amount: 500000, collected_amount: 500000, due_date: '2026-01-16', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1002-01', collected_on: '2026-01-16' },
+            { id: 'MIL-032', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1500000, collected_amount: 1500000, due_date: '2026-02-01', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1002-02', collected_on: '2026-01-30' },
+            { id: 'MIL-033', title: 'Registry', milestone_title: 'Registry', total_amount: 6500000, collected_amount: 6500000, due_date: '2026-03-01', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1002-03', collected_on: '2026-03-01' },
+        ],
+        transactions: [
+            { id: 'TXN-55101', milestone: 'Token', amount: 500000, mode: 'UPI', collectedOn: '16 Jan 2026', receipt: 'RCT-2026-1002-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sneha P.' },
+            { id: 'TXN-55102', milestone: 'Booking Amount', amount: 1500000, mode: 'RTGS', collectedOn: '30 Jan 2026', receipt: 'RCT-2026-1002-02', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sneha P.' },
+            { id: 'TXN-55103', milestone: 'Registry', amount: 6500000, mode: 'RTGS', collectedOn: '01 Mar 2026', receipt: 'RCT-2026-1002-03', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Admin desk' },
+        ],
+        reminders: [],
+    },
+    {
+        id: 'INV-DEAL-1004',
+        dealCode: 'D0004',
+        project: 'Serene Meadows',
+        builder: 'Green Field Estates',
+        unit: 'Plot No. 42',
+        propertyType: 'Villa Plot',
+        customer: 'Rohan Deshmukh',
+        customerPhone: '+91 99887 76655',
+        customerEmail: 'rohan.d@example.com',
+        salesOfficer: 'Project Panel',
+        broker: 'Self',
+        status: 'Deal In Process',
+        createdOn: '12 Apr 2026',
+        dealValue: 4000000,
+        collected: 1000000,
+        paymentSchedule: [
+            { id: 'MIL-041', title: 'Token', milestone_title: 'Token', total_amount: 200000, collected_amount: 200000, due_date: '2026-04-15', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1004-01', collected_on: '2026-04-15' },
+            { id: 'MIL-042', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 800000, collected_amount: 800000, due_date: '2026-05-01', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1004-02', collected_on: '2026-04-28' },
+            { id: 'MIL-043', title: 'Agreement', milestone_title: 'Agreement', total_amount: 1000000, collected_amount: 0, due_date: '2026-07-15', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+            { id: 'MIL-044', title: 'Registry', milestone_title: 'Registry', total_amount: 2000000, collected_amount: 0, due_date: '2026-12-10', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+        ],
+        transactions: [
+            { id: 'TXN-88101', milestone: 'Token', amount: 200000, mode: 'UPI', collectedOn: '15 Apr 2026', receipt: 'RCT-2026-1004-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Project Panel' },
+            { id: 'TXN-88102', milestone: 'Booking Amount', amount: 800000, mode: 'RTGS', collectedOn: '28 Apr 2026', receipt: 'RCT-2026-1004-02', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Project Panel' },
+        ],
+        reminders: [
+            { id: 'REM-041', channel: 'WhatsApp', sentAt: '15 May 2026, 10:00 AM', message: 'Upcoming payment schedule initialized.', status: 'Delivered' },
+        ],
+    },
+    {
+        id: 'INV-DEAL-1005',
+        dealCode: 'D0005',
+        project: 'Skyline Residency',
+        builder: 'Apex Buildcon',
+        unit: 'Tower B / Flat 1008',
+        propertyType: 'Apartment',
+        customer: 'Priya Nair',
+        customerPhone: '+91 91234 56789',
+        customerEmail: 'priya.nair@example.com',
+        salesOfficer: 'Sales Officer',
+        broker: 'Anil Nahar',
+        status: 'Payment Schedule',
+        createdOn: '01 May 2026',
+        dealValue: 6500000,
+        collected: 500000,
+        paymentSchedule: [
+            { id: 'MIL-051', title: 'Token', milestone_title: 'Token', total_amount: 500000, collected_amount: 500000, due_date: '2026-05-05', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1005-01', collected_on: '2026-05-05' },
+            { id: 'MIL-052', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1500000, collected_amount: 0, due_date: '2026-06-05', mode: 'Pending', status: 'Overdue', receipt_no: '', collected_on: '' },
+            { id: 'MIL-053', title: 'Registry', milestone_title: 'Registry', total_amount: 4500000, collected_amount: 0, due_date: '2026-08-05', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+        ],
+        transactions: [
+            { id: 'TXN-99101', milestone: 'Token', amount: 500000, mode: 'UPI', collectedOn: '05 May 2026', receipt: 'RCT-2026-1005-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sales Officer' },
+        ],
+        reminders: [
+            { id: 'REM-051', channel: 'SMS', sentAt: '06 Jun 2026, 11:00 AM', message: 'Booking amount is overdue by 1 day.', status: 'Sent' },
+        ],
+    },
+    {
+        id: 'INV-DEAL-1006',
+        dealCode: 'D0006',
+        project: 'Metro Heights',
+        builder: 'Cityscape Developers',
+        unit: 'Tower A / Unit 503',
+        propertyType: 'Apartment',
+        customer: 'Amit Verma',
+        customerPhone: '+91 98989 89898',
+        customerEmail: 'amit.verma@example.com',
+        salesOfficer: 'Sneha P.',
+        broker: 'EcoHomes Channel',
+        status: 'Deal In Process',
+        createdOn: '10 May 2026',
+        dealValue: 5000000,
+        collected: 500000,
+        paymentSchedule: [
+            { id: 'MIL-061', title: 'Token', milestone_title: 'Token', total_amount: 500000, collected_amount: 500000, due_date: '2026-05-12', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1006-01', collected_on: '2026-05-12' },
+            { id: 'MIL-062', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1500000, collected_amount: 0, due_date: '2026-07-01', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+            { id: 'MIL-063', title: 'Registry', milestone_title: 'Registry', total_amount: 3000000, collected_amount: 0, due_date: '2026-09-01', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+        ],
+        transactions: [
+            { id: 'TXN-33101', milestone: 'Token', amount: 500000, mode: 'UPI', collectedOn: '12 May 2026', receipt: 'RCT-2026-1006-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sneha P.' },
+        ],
+        reminders: [],
+    },
 ];
 
 const reminderChannels = ['WhatsApp', 'SMS', 'Push', 'Email'];
@@ -164,8 +276,9 @@ const PaymentMilestones = () => {
         const pending = Math.max(total - collected, 0);
         const nextMilestone = deal.paymentSchedule.find((item) => getRemainingAmount(item) > 0);
         const progress = total > 0 ? Math.round((collected / total) * 100) : 0;
+        const dealStatus = nextMilestone ? nextMilestone.status : 'Paid';
 
-        return { ...deal, total, collected, pending, nextMilestone, progress };
+        return { ...deal, total, collected, pending, nextMilestone, progress, dealStatus };
     }), []);
 
     const filteredDeals = useMemo(() => {
@@ -176,7 +289,7 @@ const PaymentMilestones = () => {
                 || deal.dealCode.toLowerCase().includes(query)
                 || deal.project.toLowerCase().includes(query)
                 || deal.unit.toLowerCase().includes(query);
-            const matchesFilter = statusFilter === 'All' || deal.paymentSchedule.some((item) => item.status === statusFilter);
+            const matchesFilter = statusFilter === 'All' || deal.dealStatus === statusFilter;
             
             const dealDate = parseDealDate(deal.createdOn);
             const matchesDate = !dateFilter || dealDate === dateFilter;
@@ -306,7 +419,7 @@ const PaymentMilestones = () => {
                                                 <p className="mt-1 break-words text-xs font-bold leading-4 text-[#615C71]">{deal.project} / {deal.unit}</p>
                                                 <p className="mt-1 text-[10px] font-bold text-[#8B8498]">Created: {deal.createdOn}</p>
                                             </div>
-                                            <StatusPill status={deal.nextMilestone?.status || 'Paid'} />
+                                            <StatusPill status={deal.dealStatus} />
                                         </div>
                                         <div className="mt-3 h-1.5 rounded-full bg-[#E4E0F2]">
                                             <div className="h-1.5 rounded-full bg-[#2717D7]" style={{ width: `${deal.progress}%` }} />
@@ -381,11 +494,11 @@ const PaymentMilestones = () => {
                                         </div>
                                         <div className="rounded-[8px] border border-emerald-100 bg-emerald-50 p-3">
                                             <p className="text-[9px] font-black uppercase tracking-[0.1em] text-emerald-600">Collected Amount</p>
-                                            <p className="mt-1 text-lg font-black text-emerald-700">{formatCurrency(selectedDeal.collectedAmount)}</p>
+                                            <p className="mt-1 text-lg font-black text-emerald-700">{formatCurrency(selectedDeal.collected)}</p>
                                         </div>
                                         <div className="rounded-[8px] border border-amber-100 bg-amber-50 p-3">
                                             <p className="text-[9px] font-black uppercase tracking-[0.1em] text-amber-600">Balance Amount</p>
-                                            <p className="mt-1 text-lg font-black text-amber-700">{formatCurrency(selectedDeal.pendingAmount)}</p>
+                                            <p className="mt-1 text-lg font-black text-amber-700">{formatCurrency(selectedDeal.pending)}</p>
                                         </div>
                                     </div>
 
