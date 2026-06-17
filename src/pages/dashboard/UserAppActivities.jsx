@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import {
     Activity,
     CalendarDays,
@@ -13,7 +15,8 @@ import {
     User,
     Zap,
 } from 'lucide-react';
-import { userAppActivities } from '../../data/mockData';
+import { userAppActivities, mockProjects } from '../../data/mockData';
+import { setSelectedBuilder, setSelectedBroker, setViewMode } from '../../store/inventorySlice';
 import Header from '../../components/layout/Header';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -133,6 +136,8 @@ const formatActiveTime = (minutes) => {
 };
 
 const UserAppActivities = () => {
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
     const [activeApp, setActiveApp] = useState('userApp');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
@@ -140,6 +145,109 @@ const UserAppActivities = () => {
     const [activeTab, setActiveTab] = useState('savedProperties');
     const [projectPanelTab, setProjectPanelTab] = useState('builders');
     const [expandedDealId, setExpandedDealId] = useState(null);
+
+    const handleViewAccount = (account) => {
+        if (account.type === 'builders') {
+            const uniqueBuilders = mockProjects
+                .filter(p => p.addedBy === 'builder' && p.builderProfile)
+                .reduce((acc, project) => {
+                    const existing = acc.find(b => b.companyName === project.builder);
+                    if (!existing) {
+                        acc.push({
+                            ...project.builderProfile,
+                            projectCount: 1,
+                            projects: [project]
+                        });
+                    } else {
+                        existing.projectCount++;
+                        existing.projects.push(project);
+                    }
+                    return acc;
+                }, []);
+
+            let matchingBuilder = uniqueBuilders.find(b => 
+                b.companyName.toLowerCase() === account.name.toLowerCase() ||
+                b.companyName.toLowerCase().includes(account.name.toLowerCase()) ||
+                account.name.toLowerCase().includes(b.companyName.toLowerCase()) ||
+                b.fullName.toLowerCase() === account.contactPerson.toLowerCase()
+            );
+
+            if (!matchingBuilder) {
+                matchingBuilder = {
+                    companyName: account.name,
+                    fullName: account.contactPerson,
+                    phone: account.phone,
+                    location: account.city,
+                    builderType: 'Developer Company',
+                    brandName: account.name,
+                    reraNumber: 'RERA pending',
+                    about: `Developer company operating in ${account.city}.`,
+                    projectCount: 0,
+                    projects: []
+                };
+            }
+
+            dispatch(setSelectedBuilder(matchingBuilder));
+            dispatch(setViewMode('builderProjects'));
+            navigate('/dashboard/inventory');
+        } else {
+            const uniqueBrokers = mockProjects
+                .filter(p => p.addedBy === 'broker')
+                .reduce((acc, project) => {
+                    const fallbackProfile = {
+                        fullName: project.officer || 'Broker Partner',
+                        phone: 'Contact pending',
+                        location: project.location.split(',').pop().trim(),
+                        agencyName: `${project.officer || project.builder} Realty`,
+                        brokerType: 'Broker Partner',
+                        reraNumber: 'RERA pending',
+                        coverage: project.location.split(',').pop().trim(),
+                        verifiedAt: project.updated,
+                        about: `Broker-added inventory for ${project.builder} in ${project.location}.`,
+                    };
+                    const profile = project.brokerProfile || fallbackProfile;
+                    const existing = acc.find(b => b.agencyName === profile.agencyName);
+
+                    if (!existing) {
+                        acc.push({
+                            ...profile,
+                            inventoryCount: 1,
+                            projects: [project],
+                        });
+                    } else {
+                        existing.inventoryCount++;
+                        existing.projects.push(project);
+                    }
+                    return acc;
+                }, []);
+
+            let matchingBroker = uniqueBrokers.find(b => 
+                b.agencyName.toLowerCase() === account.name.toLowerCase() ||
+                b.agencyName.toLowerCase().includes(account.name.toLowerCase()) ||
+                account.name.toLowerCase().includes(b.agencyName.toLowerCase()) ||
+                b.fullName.toLowerCase() === account.contactPerson.toLowerCase()
+            );
+
+            if (!matchingBroker) {
+                matchingBroker = {
+                    agencyName: account.name,
+                    fullName: account.contactPerson,
+                    phone: account.phone,
+                    coverage: account.city,
+                    brokerType: 'Marketing Partner',
+                    reraNumber: 'RERA pending',
+                    verifiedAt: 'Verified today',
+                    about: `Marketing company handling active operations in ${account.city}.`,
+                    inventoryCount: 0,
+                    projects: []
+                };
+            }
+
+            dispatch(setSelectedBroker(matchingBroker));
+            dispatch(setViewMode('brokerProjects'));
+            navigate('/dashboard/inventory');
+        }
+    };
 
     const [complaints, setComplaints] = useState([
         { id: 'COMP-001', userId: 'UA001', category: 'Billing', description: 'Double charged for the site visit booking fee.', status: 'Pending', date: '12 Jun 2026' },
@@ -342,19 +450,29 @@ const UserAppActivities = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 lg:w-[360px]">
-                            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                                <p className="text-sm font-black text-gray-900">{formatActiveTime(account.activeMinutesToday)}</p>
-                                <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Active Today</p>
+                        <div className="flex flex-col sm:flex-row items-center gap-4 lg:w-[480px] w-full shrink-0">
+                            <div className="grid grid-cols-3 gap-2 flex-1 w-full">
+                                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                    <p className="text-sm font-black text-gray-900">{formatActiveTime(account.activeMinutesToday)}</p>
+                                    <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Active Today</p>
+                                </div>
+                                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                    <p className="text-sm font-black text-gray-900">{account.sessionsToday}</p>
+                                    <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Sessions</p>
+                                </div>
+                                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                    <p className="truncate text-sm font-black text-gray-900">{account.lastActive}</p>
+                                    <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Last Active</p>
+                                </div>
                             </div>
-                            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                                <p className="text-sm font-black text-gray-900">{account.sessionsToday}</p>
-                                <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Sessions</p>
-                            </div>
-                            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                                <p className="truncate text-sm font-black text-gray-900">{account.lastActive}</p>
-                                <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Last Active</p>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => handleViewAccount(account)}
+                                className="w-full sm:w-auto h-12 sm:h-11 rounded-xl bg-[#6F4BFF]/10 text-[#6F4BFF] hover:bg-[#6F4BFF] hover:text-white transition-all px-5 flex items-center justify-center gap-1.5 text-[11px] font-black uppercase tracking-widest shrink-0 border border-[#6F4BFF]/20"
+                            >
+                                <Eye className="w-4 h-4" />
+                                <span>View</span>
+                            </button>
                         </div>
                     </div>
                 ))}

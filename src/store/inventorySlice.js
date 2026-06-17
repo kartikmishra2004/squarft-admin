@@ -6,6 +6,7 @@ const initialState = {
   filteredProjects: mockProjects,
   selectedProject: null,
   selectedBuilder: null, // New: for builder view
+  selectedBroker: null,
   viewMode: 'projects', // 'projects' or 'builders' or 'builderProjects'
   loading: false,
   error: null,
@@ -31,6 +32,9 @@ const inventorySlice = createSlice({
     },
     setSelectedBuilder: (state, action) => {
       state.selectedBuilder = action.payload;
+    },
+    setSelectedBroker: (state, action) => {
+      state.selectedBroker = action.payload;
     },
     setViewMode: (state, action) => {
       state.viewMode = action.payload;
@@ -104,5 +108,5 @@ const inventorySlice = createSlice({
   },
 });
 
-export const { setProjects, setSelectedProject, setSelectedBuilder, setViewMode, setFilters, updateProjectStatus } = inventorySlice.actions;
+export const { setProjects, setSelectedProject, setSelectedBuilder, setSelectedBroker, setViewMode, setFilters, updateProjectStatus } = inventorySlice.actions;
 export default inventorySlice.reducer;

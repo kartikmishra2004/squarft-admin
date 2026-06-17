@@ -6,7 +6,7 @@ import {
     IndianRupee, Zap, Sparkles, Check, XCircle, CheckCircle2,
     Trash2, Users, FileIcon, UserPlus, Filter, ChevronDown, Briefcase
 } from 'lucide-react';
-import { setSelectedProject, setSelectedBuilder, setViewMode, setFilters } from '../../store/inventorySlice';
+import { setSelectedProject, setSelectedBuilder, setSelectedBroker, setViewMode, setFilters } from '../../store/inventorySlice';
 import { mockProjects } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -269,10 +269,9 @@ const ProjectInventoryCard = ({ project, onOpen }) => {
 
 const Inventory = () => {
     const dispatch = useDispatch();
-    const { filteredProjects, selectedProject, selectedBuilder, viewMode, filters } = useSelector((state) => state.inventory);
+    const { filteredProjects, selectedProject, selectedBuilder, selectedBroker, viewMode, filters } = useSelector((state) => state.inventory);
     const [showPriceDropdown, setShowPriceDropdown] = useState(false);
     const [showLocationDropdown, setShowLocationDropdown] = useState(false);
-    const [selectedBroker, setSelectedBroker] = useState(null);
 
     // Get unique locations from projects
     const uniqueLocations = [...new Set(mockProjects.map(p => p.location.split(',').pop().trim()))];
@@ -369,7 +368,7 @@ const Inventory = () => {
         dispatch(setFilters({ propertySource: source }));
         dispatch(setViewMode('projects')); // Reset view mode when changing source
         dispatch(setSelectedBuilder(null));
-        setSelectedBroker(null);
+        dispatch(setSelectedBroker(null));
     };
 
     const handlePriceRangeFilter = (range) => {
@@ -401,7 +400,7 @@ const Inventory = () => {
     };
 
     const handleBrokerClick = (broker) => {
-        setSelectedBroker(broker);
+        dispatch(setSelectedBroker(broker));
         dispatch(setViewMode('brokerProjects'));
     };
 
@@ -409,7 +408,7 @@ const Inventory = () => {
         if (viewMode === 'builderProjects' || viewMode === 'brokerProjects') {
             dispatch(setViewMode('projects'));
             dispatch(setSelectedBuilder(null));
-            setSelectedBroker(null);
+            dispatch(setSelectedBroker(null));
         } else {
             dispatch(setSelectedProject(null));
         }
