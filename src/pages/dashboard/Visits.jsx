@@ -231,7 +231,6 @@ const buildVisitPayload = (formState) => ({
 const Visits = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
-    const navigate = useNavigate();
     const { visits } = useSelector((state) => state.visits);
     const { deals } = useSelector((state) => state.deals);
     const [selectedClientKey, setSelectedClientKey] = useState(null);
