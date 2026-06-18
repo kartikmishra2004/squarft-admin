@@ -6,6 +6,7 @@ import {
     KeyRound, LoaderCircle, PhoneCall, Plus, Save,
     Search, ShieldCheck, TrendingUp
 } from 'lucide-react';
+import { addDeal } from '../../store/dealsSlice';
 import { addVisit, addVisitNote, updateVisit, updateVisitStatus } from '../../store/visitsSlice';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -115,6 +116,82 @@ const getVisitPhotos = (visit) => (
         : [])
 );
 
+const todayDisplayDate = () => {
+    const today = new Date();
+    return `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
+};
+
+const getCityFromAddress = (address = '') => {
+    const parts = String(address).split(',').map((part) => part.trim()).filter(Boolean);
+    return parts.length > 1 ? parts[parts.length - 2] : parts[0] || '-';
+};
+
+const parsePropertyPrice = (price) => {
+    const rawPrice = String(price || '').replace(/,/g, '').trim();
+    const numericValue = Number(rawPrice.match(/\d+(\.\d+)?/)?.[0] || 0);
+    const lowerPrice = rawPrice.toLowerCase();
+
+    if (!numericValue) return 0;
+    if (lowerPrice.includes('cr')) return Math.round(numericValue * 10000000);
+    if (lowerPrice.includes('lakh') || lowerPrice.includes('lac') || /\bl\b/.test(lowerPrice)) return Math.round(numericValue * 100000);
+    return Math.round(numericValue);
+};
+
+const buildDealFromVisit = (visit, property, dealCode) => {
+    const expectedPrice = parsePropertyPrice(property?.price);
+    const negotiatedPrice = expectedPrice ? Math.round(expectedPrice * 0.97) : 0;
+
+    return {
+        dealCode,
+        customer: visit.customerName || '-',
+        customerPhone: visit.customerPhone || '-',
+        property: property?.name || 'Visited property',
+        city: getCityFromAddress(property?.address),
+        salesOfficer: visit.officerName || '-',
+        salesOfficerMobile: visit.officerPhone || '-',
+        broker: property?.builder || '-',
+        brokerMobile: '-',
+        status: 'DEAL IN PROCESS',
+        createdOn: todayDisplayDate(),
+        prefLocation: property?.address || '-',
+        propType: property?.type || property?.config || 'Property',
+        address: property?.address || '-',
+        khasra: property?.rera || '-',
+        expectPrice: expectedPrice,
+        negotiationPrice: negotiatedPrice,
+        remainingBalance: negotiatedPrice,
+        payments: [],
+        timeline: [
+            {
+                id: `${dealCode}-visit`,
+                title: 'Converted from property visit',
+                note: visit.userReview || visit.notes || 'Property visit converted to deal.',
+                createdOn: todayDisplayDate()
+            }
+        ],
+        notes: [
+            {
+                id: `${dealCode}-note`,
+                text: visit.userReview || visit.notes || 'Converted from completed property visit.',
+                createdOn: todayDisplayDate()
+            }
+        ],
+        meetings: [
+            {
+                id: `${dealCode}-meeting`,
+                title: 'Property visit completed',
+                date: visit.date || todayDisplayDate(),
+                time: visit.time || '-',
+                mode: 'Site Visit',
+                notes: visit.userReview || visit.notes || ''
+            }
+        ],
+        documents: [],
+        sourceVisitId: visit.id,
+        sourcePropertyName: property?.name || ''
+    };
+};
+
 const mapVisitToForm = (visit) => ({
     officerName: visit.officerName || '',
     officerPhone: visit.officerPhone || '',
@@ -154,7 +231,9 @@ const buildVisitPayload = (formState) => ({
 const Visits = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const navigate = useNavigate();
     const { visits } = useSelector((state) => state.visits);
+    const { deals } = useSelector((state) => state.deals);
     const [selectedClientKey, setSelectedClientKey] = useState(null);
     const [selectedVisitRowId, setSelectedVisitRowId] = useState(null);
     const [filter, setFilter] = useState('All');
@@ -245,6 +324,12 @@ const Visits = () => {
     const selectedPropertyRow = selectedPropertyRows.find((row) => row.id === selectedVisitRowId) || selectedPropertyRows[0] || null;
     const selectedVisit = selectedPropertyRow?.visit || null;
     const selectedProperty = selectedPropertyRow?.property || selectedVisit?.property || null;
+    const convertedDeal = selectedVisit && selectedProperty
+        ? deals.find((deal) => (
+            deal.sourceVisitId === selectedVisit.id
+            && deal.sourcePropertyName === selectedProperty.name
+        ))
+        : null;
 
     const handleClientSelect = (clientKey) => {
         const nextClient = clientCards.find((client) => client.key === clientKey);
@@ -388,6 +473,19 @@ const Visits = () => {
         if (!selectedVisit || !newNote.trim()) return;
         dispatch(addVisitNote({ id: selectedVisit.id, note: newNote.trim() }));
         setNewNote('');
+    };
+
+    const handleConvertToDeal = () => {
+        if (!selectedVisit || !selectedProperty || convertedDeal) return;
+
+        const nextNumber = deals.reduce((max, deal) => {
+            const numericCode = Number(String(deal.dealCode || '').replace(/\D/g, ''));
+            return Number.isFinite(numericCode) ? Math.max(max, numericCode) : max;
+        }, 0) + 1;
+
+        const dealCode = `D${String(nextNumber).padStart(4, '0')}`;
+        dispatch(addDeal(buildDealFromVisit(selectedVisit, selectedProperty, dealCode)));
+        navigate('/dashboard/deals');
     };
 
     return (
@@ -674,7 +772,19 @@ const Visits = () => {
                                                         </div>
                                                     </div>
 
-                                                    <Button variant="primary" icon={TrendingUp} className="w-full justify-center px-2.5 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 shadow-md">Convert to Deal</Button>
+                                                    <Button
+                                                        variant="primary"
+                                                        icon={convertedDeal ? CheckCircle2 : TrendingUp}
+                                                        onClick={handleConvertToDeal}
+                                                        disabled={Boolean(convertedDeal)}
+                                                        className={`w-full justify-center px-2.5 py-2 text-xs shadow-md ${
+                                                            convertedDeal
+                                                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 shadow-none'
+                                                                : 'bg-emerald-600 hover:bg-emerald-700'
+                                                        }`}
+                                                    >
+                                                        {convertedDeal ? `Added to Deal Manager (${convertedDeal.dealCode})` : 'Convert to Deal'}
+                                                    </Button>
                                                 </>
                                             )}
                                         </div>

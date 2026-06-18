@@ -145,9 +145,9 @@ const authSlice = createSlice({
   },
 });
 
-export const { 
-  clearError, 
-  clearSuccess, 
+export const {
+  clearError,
+  clearSuccess,
   logout,
   loginStart,
   loginSuccess,

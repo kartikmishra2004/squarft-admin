@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
     BadgeCheck,
-    Banknote,
     BellRing,
     Bot,
     CalendarClock,
@@ -11,7 +10,6 @@ import {
     ListChecks,
     Mail,
     MessageSquareText,
-    ReceiptText,
     Search,
     Send,
     ShieldAlert,
@@ -113,18 +111,124 @@ const paymentDeals = [
         ],
         reminders: [],
     },
+    {
+        id: 'INV-DEAL-1002',
+        dealCode: 'D0002',
+        project: 'Grand Orchards',
+        builder: 'Signature Group',
+        unit: 'Tower C / Flat 1205',
+        propertyType: 'Apartment',
+        customer: 'Vikram Aditya',
+        customerPhone: '+91 98765 00112',
+        customerEmail: 'vikram@example.com',
+        salesOfficer: 'Sneha P.',
+        broker: 'Nitin Shah',
+        status: 'Payment Schedule',
+        createdOn: '15 Jan 2026',
+        dealValue: 8500000,
+        collected: 8500000,
+        paymentSchedule: [
+            { id: 'MIL-031', title: 'Token', milestone_title: 'Token', total_amount: 500000, collected_amount: 500000, due_date: '2026-01-16', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1002-01', collected_on: '2026-01-16' },
+            { id: 'MIL-032', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1500000, collected_amount: 1500000, due_date: '2026-02-01', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1002-02', collected_on: '2026-01-30' },
+            { id: 'MIL-033', title: 'Registry', milestone_title: 'Registry', total_amount: 6500000, collected_amount: 6500000, due_date: '2026-03-01', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1002-03', collected_on: '2026-03-01' },
+        ],
+        transactions: [
+            { id: 'TXN-55101', milestone: 'Token', amount: 500000, mode: 'UPI', collectedOn: '16 Jan 2026', receipt: 'RCT-2026-1002-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sneha P.' },
+            { id: 'TXN-55102', milestone: 'Booking Amount', amount: 1500000, mode: 'RTGS', collectedOn: '30 Jan 2026', receipt: 'RCT-2026-1002-02', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sneha P.' },
+            { id: 'TXN-55103', milestone: 'Registry', amount: 6500000, mode: 'RTGS', collectedOn: '01 Mar 2026', receipt: 'RCT-2026-1002-03', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Admin desk' },
+        ],
+        reminders: [],
+    },
+    {
+        id: 'INV-DEAL-1004',
+        dealCode: 'D0004',
+        project: 'Serene Meadows',
+        builder: 'Green Field Estates',
+        unit: 'Plot No. 42',
+        propertyType: 'Villa Plot',
+        customer: 'Rohan Deshmukh',
+        customerPhone: '+91 99887 76655',
+        customerEmail: 'rohan.d@example.com',
+        salesOfficer: 'Project Panel',
+        broker: 'Self',
+        status: 'Deal In Process',
+        createdOn: '12 Apr 2026',
+        dealValue: 4000000,
+        collected: 1000000,
+        paymentSchedule: [
+            { id: 'MIL-041', title: 'Token', milestone_title: 'Token', total_amount: 200000, collected_amount: 200000, due_date: '2026-04-15', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1004-01', collected_on: '2026-04-15' },
+            { id: 'MIL-042', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 800000, collected_amount: 800000, due_date: '2026-05-01', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1004-02', collected_on: '2026-04-28' },
+            { id: 'MIL-043', title: 'Agreement', milestone_title: 'Agreement', total_amount: 1000000, collected_amount: 0, due_date: '2026-07-15', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+            { id: 'MIL-044', title: 'Registry', milestone_title: 'Registry', total_amount: 2000000, collected_amount: 0, due_date: '2026-12-10', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+        ],
+        transactions: [
+            { id: 'TXN-88101', milestone: 'Token', amount: 200000, mode: 'UPI', collectedOn: '15 Apr 2026', receipt: 'RCT-2026-1004-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Project Panel' },
+            { id: 'TXN-88102', milestone: 'Booking Amount', amount: 800000, mode: 'RTGS', collectedOn: '28 Apr 2026', receipt: 'RCT-2026-1004-02', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Project Panel' },
+        ],
+        reminders: [
+            { id: 'REM-041', channel: 'WhatsApp', sentAt: '15 May 2026, 10:00 AM', message: 'Upcoming payment schedule initialized.', status: 'Delivered' },
+        ],
+    },
+    {
+        id: 'INV-DEAL-1005',
+        dealCode: 'D0005',
+        project: 'Skyline Residency',
+        builder: 'Apex Buildcon',
+        unit: 'Tower B / Flat 1008',
+        propertyType: 'Apartment',
+        customer: 'Priya Nair',
+        customerPhone: '+91 91234 56789',
+        customerEmail: 'priya.nair@example.com',
+        salesOfficer: 'Sales Officer',
+        broker: 'Anil Nahar',
+        status: 'Payment Schedule',
+        createdOn: '01 May 2026',
+        dealValue: 6500000,
+        collected: 500000,
+        paymentSchedule: [
+            { id: 'MIL-051', title: 'Token', milestone_title: 'Token', total_amount: 500000, collected_amount: 500000, due_date: '2026-05-05', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1005-01', collected_on: '2026-05-05' },
+            { id: 'MIL-052', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1500000, collected_amount: 0, due_date: '2026-06-05', mode: 'Pending', status: 'Overdue', receipt_no: '', collected_on: '' },
+            { id: 'MIL-053', title: 'Registry', milestone_title: 'Registry', total_amount: 4500000, collected_amount: 0, due_date: '2026-08-05', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+        ],
+        transactions: [
+            { id: 'TXN-99101', milestone: 'Token', amount: 500000, mode: 'UPI', collectedOn: '05 May 2026', receipt: 'RCT-2026-1005-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sales Officer' },
+        ],
+        reminders: [
+            { id: 'REM-051', channel: 'SMS', sentAt: '06 Jun 2026, 11:00 AM', message: 'Booking amount is overdue by 1 day.', status: 'Sent' },
+        ],
+    },
+    {
+        id: 'INV-DEAL-1006',
+        dealCode: 'D0006',
+        project: 'Metro Heights',
+        builder: 'Cityscape Developers',
+        unit: 'Tower A / Unit 503',
+        propertyType: 'Apartment',
+        customer: 'Amit Verma',
+        customerPhone: '+91 98989 89898',
+        customerEmail: 'amit.verma@example.com',
+        salesOfficer: 'Sneha P.',
+        broker: 'EcoHomes Channel',
+        status: 'Deal In Process',
+        createdOn: '10 May 2026',
+        dealValue: 5000000,
+        collected: 500000,
+        paymentSchedule: [
+            { id: 'MIL-061', title: 'Token', milestone_title: 'Token', total_amount: 500000, collected_amount: 500000, due_date: '2026-05-12', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1006-01', collected_on: '2026-05-12' },
+            { id: 'MIL-062', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1500000, collected_amount: 0, due_date: '2026-07-01', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+            { id: 'MIL-063', title: 'Registry', milestone_title: 'Registry', total_amount: 3000000, collected_amount: 0, due_date: '2026-09-01', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
+        ],
+        transactions: [
+            { id: 'TXN-33101', milestone: 'Token', amount: 500000, mode: 'UPI', collectedOn: '12 May 2026', receipt: 'RCT-2026-1006-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sneha P.' },
+        ],
+        reminders: [],
+    },
 ];
 
 const reminderChannels = ['WhatsApp', 'SMS', 'Push', 'Email'];
 const filterOptions = ['All', 'Overdue', 'Upcoming', 'Paid'];
 
 const formatCurrency = (amount) => `Rs ${Number(amount || 0).toLocaleString('en-IN')}`;
-const formatCompactCurrency = (amount) => {
-    const value = Number(amount || 0);
-    if (Math.abs(value) >= 10000000) return `Rs ${(value / 10000000).toFixed(value % 10000000 === 0 ? 0 : 2)} Cr`;
-    if (Math.abs(value) >= 100000) return `Rs ${(value / 100000).toFixed(value % 100000 === 0 ? 0 : 2)} L`;
-    return formatCurrency(value);
-};
 
 const getMilestoneAmount = (milestone) => Number(milestone.total_amount || milestone.totalAmount || milestone.amount || milestone.milestone_amount || 0);
 const getCollectedAmount = (milestone) => Number(milestone.collected_amount || milestone.collectedAmount || milestone.paid_amount || milestone.received_amount || 0);
@@ -166,6 +270,7 @@ const PaymentMilestones = () => {
     const [tone, setTone] = useState('Firm');
     const [page, setPage] = useState(1);
     const [viewMode, setViewMode] = useState('list');
+    const [scheduleFilter, setScheduleFilter] = useState('All');
 
     const enrichedDeals = useMemo(() => paymentDeals.map((deal) => {
         const total = deal.paymentSchedule.reduce((sum, item) => sum + getMilestoneAmount(item), 0) || deal.dealValue;
@@ -173,8 +278,9 @@ const PaymentMilestones = () => {
         const pending = Math.max(total - collected, 0);
         const nextMilestone = deal.paymentSchedule.find((item) => getRemainingAmount(item) > 0);
         const progress = total > 0 ? Math.round((collected / total) * 100) : 0;
+        const dealStatus = nextMilestone ? nextMilestone.status : 'Paid';
 
-        return { ...deal, total, collected, pending, nextMilestone, progress };
+        return { ...deal, total, collected, pending, nextMilestone, progress, dealStatus };
     }), []);
 
     const filteredDeals = useMemo(() => {
@@ -185,7 +291,7 @@ const PaymentMilestones = () => {
                 || deal.dealCode.toLowerCase().includes(query)
                 || deal.project.toLowerCase().includes(query)
                 || deal.unit.toLowerCase().includes(query);
-            const matchesFilter = statusFilter === 'All' || deal.paymentSchedule.some((item) => item.status === statusFilter);
+            const matchesFilter = statusFilter === 'All' || deal.dealStatus === statusFilter;
             
             const dealDate = parseDealDate(deal.createdOn);
             const matchesDate = !dateFilter || dealDate === dateFilter;
@@ -198,7 +304,11 @@ const PaymentMilestones = () => {
     const totalPages = Math.max(1, Math.ceil(filteredDeals.length / DEALS_PER_PAGE));
     const currentPage = Math.min(page, totalPages);
     const paginatedDeals = filteredDeals.slice((currentPage - 1) * DEALS_PER_PAGE, currentPage * DEALS_PER_PAGE);
-    const visibleSchedule = selectedDeal.paymentSchedule.filter((item) => statusFilter === 'All' || item.status === statusFilter);
+    const visibleSchedule = selectedDeal.paymentSchedule.filter((item) => {
+        if (scheduleFilter === 'Pending') return getRemainingAmount(item) > 0;
+        if (scheduleFilter === 'Complete') return getRemainingAmount(item) === 0;
+        return true;
+    });
     const reminderTarget = selectedDeal.nextMilestone || selectedDeal.paymentSchedule[selectedDeal.paymentSchedule.length - 1];
     const reminderMessage = `${tone} reminder: Dear ${selectedDeal.customer}, ${reminderTarget?.title || 'payment'} for ${selectedDeal.project} ${selectedDeal.unit} has ${reminderTarget?.status === 'Overdue' ? 'crossed the due date' : 'an upcoming due date'} of ${reminderTarget?.due_date || 'the scheduled date'}. Pending amount is ${formatCurrency(getRemainingAmount(reminderTarget || {}))}. Please complete payment or contact SquarFT support.`;
 
@@ -351,7 +461,7 @@ const PaymentMilestones = () => {
                                                 <p className="mt-1 break-words text-xs font-bold leading-4 text-[#615C71]">{deal.project} / {deal.unit}</p>
                                                 <p className="mt-1 text-[10px] font-bold text-[#8B8498]">Created: {deal.createdOn}</p>
                                             </div>
-                                            <StatusPill status={deal.nextMilestone?.status || 'Paid'} />
+                                            <StatusPill status={deal.dealStatus} />
                                         </div>
                                         <div className="mt-3 h-1.5 rounded-full bg-[#E4E0F2]">
                                             <div className="h-1.5 rounded-full bg-[#2717D7]" style={{ width: `${deal.progress}%` }} />
@@ -418,37 +528,88 @@ const PaymentMilestones = () => {
                             </button>
                             <div className="grid gap-3 lg:grid-cols-[1fr_360px]">
                                 <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
-                                    <SectionHeader icon={ReceiptText} title="Payment collection history" helper="Compact receipt trail for this deal." />
-                                    <div className="mt-3 space-y-2">
-                                        {selectedDeal.transactions.map((transaction) => (
-                                            <div key={transaction.id} className="rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-2.5">
-                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                                    <div className="min-w-0">
-                                                        <p className="text-xs font-black text-[#171327]">{transaction.milestone}</p>
-                                                        <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">{transaction.id} / {transaction.collectedOn}</p>
-                                                    </div>
-                                                    <p className="text-sm font-black text-[#0C6B39]">{formatCompactCurrency(transaction.amount)}</p>
-                                                </div>
-                                                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-[#E1DDF0] pt-2">
-                                                    <div>
-                                                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-[#8B8498]">{transaction.mode}</p>
-                                                        <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">{transaction.receipt} / {transaction.collector}</p>
-                                                    </div>
-                                                    <a
-                                                        href={transaction.receiptPdfUrl}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        className="inline-flex rounded-[6px] border border-[#D8D2EB] bg-white px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-[#2717D7] hover:border-[#2717D7]"
+                                    <SectionHeader icon={CreditCard} title="Payment Milestone Manager" helper="Deal-manager style schedule view without add or edit controls." />
+                                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                                        <div className="rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-3">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.1em] text-[#8B8498]">Final Price Amount</p>
+                                            <p className="mt-1 text-lg font-black text-[#171327]">{formatCurrency(selectedDeal.dealValue)}</p>
+                                        </div>
+                                        <div className="rounded-[8px] border border-emerald-100 bg-emerald-50 p-3">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.1em] text-emerald-600">Collected Amount</p>
+                                            <p className="mt-1 text-lg font-black text-emerald-700">{formatCurrency(selectedDeal.collected)}</p>
+                                        </div>
+                                        <div className="rounded-[8px] border border-amber-100 bg-amber-50 p-3">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.1em] text-amber-600">Balance Amount</p>
+                                            <p className="mt-1 text-lg font-black text-amber-700">{formatCurrency(selectedDeal.pending)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                                        <h3 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.1em] text-[#171327]">
+                                            <ListChecks className="h-3.5 w-3.5 text-emerald-500" /> Payment Schedule Details
+                                        </h3>
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            {['All', 'Pending', 'Complete'].map((option) => {
+                                                const count = selectedDeal.paymentSchedule.filter((item) => {
+                                                    if (option === 'Pending') return getRemainingAmount(item) > 0;
+                                                    if (option === 'Complete') return getRemainingAmount(item) === 0;
+                                                    return true;
+                                                }).length;
+
+                                                return (
+                                                    <button
+                                                        key={option}
+                                                        type="button"
+                                                        onClick={() => setScheduleFilter(option)}
+                                                        className={`rounded-[7px] border px-2.5 py-1 text-[9px] font-black uppercase tracking-wider transition-all ${
+                                                            scheduleFilter === option
+                                                                ? 'border-[#2717D7] bg-[#2717D7] text-white'
+                                                                : 'border-[#D8D2EB] bg-[#FCFBFF] text-[#514B63] hover:border-[#2717D7] hover:text-[#2717D7]'
+                                                        }`}
                                                     >
-                                                        View PDF
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        {selectedDeal.transactions.length === 0 && (
-                                            <div className="rounded-[8px] border border-dashed border-[#D8D2EB] bg-[#FCFBFF] p-4 text-center">
-                                                <p className="text-xs font-black text-[#171327]">No payment collected yet</p>
-                                                <p className="mt-1 text-[10px] font-bold text-[#615C71]">Receipts will appear here after collection.</p>
+                                                        {option} ({count})
+                                                    </button>
+                                                );
+                                            })}
+                                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-100">
+                                                {formatCurrency(selectedDeal.dealValue)} Total
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 overflow-hidden rounded-[8px] border border-[#E1DDF0]">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full min-w-[680px] text-left">
+                                                <thead className="bg-[#F8F9FF] text-[9px] font-black uppercase tracking-[0.1em] text-[#7B7486]">
+                                                    <tr>
+                                                        <th className="px-3 py-2">#</th>
+                                                        <th className="px-3 py-2">Milestone</th>
+                                                        <th className="px-3 py-2">Amount</th>
+                                                        <th className="px-3 py-2">Due Date</th>
+                                                        <th className="px-3 py-2">Mode</th>
+                                                        <th className="px-3 py-2">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-[#EFEAF8] bg-white">
+                                                    {visibleSchedule.map((milestone, index) => (
+                                                        <tr key={milestone.id} className="hover:bg-[#FCFBFF]">
+                                                            <td className="px-3 py-3 text-[10px] font-black text-[#8B8498]">{index + 1}</td>
+                                                            <td className="px-3 py-3 text-xs font-black uppercase tracking-tight text-[#171327]">{milestone.milestone_title || milestone.title}</td>
+                                                            <td className="px-3 py-3 text-xs font-black text-[#171327]">{formatCurrency(getMilestoneAmount(milestone))}</td>
+                                                            <td className="px-3 py-3 text-[10px] font-bold text-[#615C71]">{milestone.due_date}</td>
+                                                            <td className="px-3 py-3 text-[9px] font-black uppercase tracking-wider text-[#8B8498]">{milestone.mode}</td>
+                                                            <td className="px-3 py-3"><StatusPill status={milestone.status} /></td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {visibleSchedule.length === 0 && (
+                                            <div className="bg-white p-8 text-center">
+                                                <CreditCard className="mx-auto h-8 w-8 text-[#B8B1CC]" />
+                                                <p className="mt-2 text-xs font-black uppercase tracking-widest text-[#8B8498]">
+                                                    No {scheduleFilter.toLowerCase()} payment milestones found.
+                                                </p>
                                             </div>
                                         )}
                                     </div>
@@ -476,48 +637,6 @@ const PaymentMilestones = () => {
                                     >
                                         <Send size={14} /> Queue reminder
                                     </button>
-                                </div>
-                            </div>
-
-                            <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
-                                <SectionHeader icon={CreditCard} title="Milestone schedule" helper="Normalized from project-panel fields: payment_schedule, milestone_title, due_date, collected_amount, and receipt details." />
-                                <div className="mt-3 flex flex-col gap-2">
-                                    {visibleSchedule.map((milestone, index) => {
-                                        const total = getMilestoneAmount(milestone);
-                                        const collected = getCollectedAmount(milestone);
-                                        const remaining = getRemainingAmount(milestone);
-                                        const percent = total > 0 ? Math.round((collected / total) * 100) : 0;
-                                        return (
-                                            <div key={milestone.id} className="rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-3">
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div>
-                                                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-[#8B8498]">Milestone {index + 1}</p>
-                                                        <p className="mt-0.5 text-sm font-black text-[#171327]">{milestone.milestone_title || milestone.title}</p>
-                                                    </div>
-                                                    <StatusPill status={milestone.status} />
-                                                </div>
-                                                <div className="mt-3 h-1.5 rounded-full bg-[#E4E0F2]">
-                                                    <div className="h-1.5 rounded-full bg-[#0C6B39]" style={{ width: `${percent}%` }} />
-                                                </div>
-                                                <div className="mt-3 grid grid-cols-2 gap-1.5 md:grid-cols-4">
-                                                    <MiniStat label="Total" value={formatCurrency(total)} />
-                                                    <MiniStat label="Collected" value={formatCurrency(collected)} />
-                                                    <MiniStat label="Remaining" value={formatCurrency(remaining)} />
-                                                    <MiniStat label="Due" value={milestone.due_date} />
-                                                </div>
-                                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#E1DDF0] pt-2">
-                                                    <p className="text-[11px] font-bold text-[#615C71]">Mode: {milestone.mode} / Receipt: {milestone.receipt_no || 'Not generated'}</p>
-                                                    <button
-                                                        type="button"
-                                                        disabled={remaining === 0}
-                                                        className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#2717D7] px-2.5 text-[9px] font-black uppercase tracking-[0.08em] text-white disabled:cursor-not-allowed disabled:bg-[#C8C2E8]"
-                                                    >
-                                                        <Banknote size={13} /> Collect
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
                                 </div>
                             </div>
 

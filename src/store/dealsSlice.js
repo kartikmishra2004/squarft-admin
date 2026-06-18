@@ -12,6 +12,26 @@ const dealsSlice = createSlice({
   name: 'deals',
   initialState,
   reducers: {
+    addDeal: (state, action) => {
+      const incomingDeal = action.payload;
+      if (!incomingDeal?.dealCode) return;
+
+      const alreadyExists = state.deals.some((deal) => (
+        deal.dealCode === incomingDeal.dealCode
+        || (
+          incomingDeal.sourceVisitId
+          && deal.sourceVisitId === incomingDeal.sourceVisitId
+          && deal.sourcePropertyName === incomingDeal.sourcePropertyName
+        )
+      ));
+
+      if (alreadyExists) {
+        return;
+      }
+
+      state.deals.unshift(incomingDeal);
+      state.selectedDeal = incomingDeal;
+    },
     setSelectedDeal: (state, action) => {
       state.selectedDeal = action.payload;
     },
@@ -41,5 +61,5 @@ const dealsSlice = createSlice({
   },
 });
 
-export const { setSelectedDeal, deleteDeal, updateDealStatus, updateDealDetails } = dealsSlice.actions;
+export const { addDeal, setSelectedDeal, deleteDeal, updateDealStatus, updateDealDetails } = dealsSlice.actions;
 export default dealsSlice.reducer;

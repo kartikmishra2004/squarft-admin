@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import {
     Activity,
     CalendarDays,
@@ -13,7 +15,8 @@ import {
     User,
     Zap,
 } from 'lucide-react';
-import { userAppActivities } from '../../data/mockData';
+import { userAppActivities, mockProjects } from '../../data/mockData';
+import { setSelectedBuilder, setSelectedBroker, setViewMode } from '../../store/inventorySlice';
 import Header from '../../components/layout/Header';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -26,6 +29,89 @@ const tabs = [
     { id: 'screenEvents', label: 'Activity Log', icon: Activity },
     { id: 'userComplaints', label: 'Complaints', icon: ShieldAlert },
     { id: 'dealManagement', label: 'Deal Manager', icon: CreditCard },
+];
+
+const projectPanelAccounts = [
+    {
+        id: 'PP-B-001',
+        type: 'builders',
+        name: 'Apex Buildcon',
+        contactPerson: 'Arjun Mehra',
+        phone: '+91 98231 44001',
+        email: 'arjun@apexbuildcon.in',
+        city: 'Mumbai',
+        status: 'Online',
+        activeMinutesToday: 138,
+        totalActiveMinutes: 2480,
+        sessionsToday: 8,
+        lastActive: '4 min ago',
+    },
+    {
+        id: 'PP-B-002',
+        type: 'builders',
+        name: 'CityScape Developers',
+        contactPerson: 'Raghav Bansal',
+        phone: '+91 98111 55220',
+        email: 'raghav@cityscape.in',
+        city: 'Delhi NCR',
+        status: 'Idle',
+        activeMinutesToday: 64,
+        totalActiveMinutes: 1210,
+        sessionsToday: 4,
+        lastActive: '22 min ago',
+    },
+    {
+        id: 'PP-B-003',
+        type: 'builders',
+        name: 'GreenLeaf Developers',
+        contactPerson: 'Priya Nair',
+        phone: '+91 99801 33445',
+        email: 'priya@greenleaf.in',
+        city: 'Bangalore',
+        status: 'Offline',
+        activeMinutesToday: 0,
+        totalActiveMinutes: 980,
+        sessionsToday: 0,
+        lastActive: 'Yesterday',
+    },
+    {
+        id: 'PP-M-001',
+        type: 'marketingCompanies',
+        name: 'MarketLane Realty',
+        contactPerson: 'Sahil Verma',
+        phone: '+91 98770 11223',
+        email: 'ops@marketlane.in',
+        city: 'Indore',
+        status: 'Online',
+        activeMinutesToday: 92,
+        totalActiveMinutes: 1835,
+        sessionsToday: 6,
+        lastActive: '9 min ago',
+    },
+    {
+        id: 'PP-M-002',
+        type: 'marketingCompanies',
+        name: 'UrbanReach Media',
+        contactPerson: 'Kavya Sethi',
+        phone: '+91 99002 44556',
+        email: 'kavya@urbanreach.in',
+        city: 'Pune',
+        status: 'Idle',
+        activeMinutesToday: 41,
+        totalActiveMinutes: 890,
+        sessionsToday: 3,
+        lastActive: '38 min ago',
+    },
+];
+
+const appTabs = [
+    { id: 'userApp', label: 'User App' },
+    { id: 'projectPanel', label: 'Project Panel' },
+];
+
+const projectPanelTabs = [
+    { id: 'builders', label: 'Builders' },
+    { id: 'marketingCompanies', label: 'Marketing Companies' },
 ];
 
 const formatCurrency = (val) => {
@@ -50,11 +136,118 @@ const formatActiveTime = (minutes) => {
 };
 
 const UserAppActivities = () => {
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
+    const [activeApp, setActiveApp] = useState('userApp');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [selectedUserId, setSelectedUserId] = useState(userAppActivities[0]?.id);
     const [activeTab, setActiveTab] = useState('savedProperties');
+    const [projectPanelTab, setProjectPanelTab] = useState('builders');
     const [expandedDealId, setExpandedDealId] = useState(null);
+
+    const handleViewAccount = (account) => {
+        if (account.type === 'builders') {
+            const uniqueBuilders = mockProjects
+                .filter(p => p.addedBy === 'builder' && p.builderProfile)
+                .reduce((acc, project) => {
+                    const existing = acc.find(b => b.companyName === project.builder);
+                    if (!existing) {
+                        acc.push({
+                            ...project.builderProfile,
+                            projectCount: 1,
+                            projects: [project]
+                        });
+                    } else {
+                        existing.projectCount++;
+                        existing.projects.push(project);
+                    }
+                    return acc;
+                }, []);
+
+            let matchingBuilder = uniqueBuilders.find(b => 
+                b.companyName.toLowerCase() === account.name.toLowerCase() ||
+                b.companyName.toLowerCase().includes(account.name.toLowerCase()) ||
+                account.name.toLowerCase().includes(b.companyName.toLowerCase()) ||
+                b.fullName.toLowerCase() === account.contactPerson.toLowerCase()
+            );
+
+            if (!matchingBuilder) {
+                matchingBuilder = {
+                    companyName: account.name,
+                    fullName: account.contactPerson,
+                    phone: account.phone,
+                    location: account.city,
+                    builderType: 'Developer Company',
+                    brandName: account.name,
+                    reraNumber: 'RERA pending',
+                    about: `Developer company operating in ${account.city}.`,
+                    projectCount: 0,
+                    projects: []
+                };
+            }
+
+            dispatch(setSelectedBuilder(matchingBuilder));
+            dispatch(setViewMode('builderProjects'));
+            navigate('/dashboard/inventory');
+        } else {
+            const uniqueBrokers = mockProjects
+                .filter(p => p.addedBy === 'broker')
+                .reduce((acc, project) => {
+                    const fallbackProfile = {
+                        fullName: project.officer || 'Broker Partner',
+                        phone: 'Contact pending',
+                        location: project.location.split(',').pop().trim(),
+                        agencyName: `${project.officer || project.builder} Realty`,
+                        brokerType: 'Broker Partner',
+                        reraNumber: 'RERA pending',
+                        coverage: project.location.split(',').pop().trim(),
+                        verifiedAt: project.updated,
+                        about: `Broker-added inventory for ${project.builder} in ${project.location}.`,
+                    };
+                    const profile = project.brokerProfile || fallbackProfile;
+                    const existing = acc.find(b => b.agencyName === profile.agencyName);
+
+                    if (!existing) {
+                        acc.push({
+                            ...profile,
+                            inventoryCount: 1,
+                            projects: [project],
+                        });
+                    } else {
+                        existing.inventoryCount++;
+                        existing.projects.push(project);
+                    }
+                    return acc;
+                }, []);
+
+            let matchingBroker = uniqueBrokers.find(b => 
+                b.agencyName.toLowerCase() === account.name.toLowerCase() ||
+                b.agencyName.toLowerCase().includes(account.name.toLowerCase()) ||
+                account.name.toLowerCase().includes(b.agencyName.toLowerCase()) ||
+                b.fullName.toLowerCase() === account.contactPerson.toLowerCase()
+            );
+
+            if (!matchingBroker) {
+                matchingBroker = {
+                    agencyName: account.name,
+                    fullName: account.contactPerson,
+                    phone: account.phone,
+                    coverage: account.city,
+                    brokerType: 'Marketing Partner',
+                    reraNumber: 'RERA pending',
+                    verifiedAt: 'Verified today',
+                    about: `Marketing company handling active operations in ${account.city}.`,
+                    inventoryCount: 0,
+                    projects: []
+                };
+            }
+
+            dispatch(setSelectedBroker(matchingBroker));
+            dispatch(setViewMode('brokerProjects'));
+            navigate('/dashboard/inventory');
+        }
+    };
 
     const [complaints, setComplaints] = useState([
         { id: 'COMP-001', userId: 'UA001', category: 'Billing', description: 'Double charged for the site visit booking fee.', status: 'Pending', date: '12 Jun 2026' },
@@ -161,19 +354,138 @@ const UserAppActivities = () => {
 
     const selectedUser = userAppActivities.find((user) => user.id === selectedUserId) || filteredUsers[0] || userAppActivities[0];
 
+    const filteredProjectPanelAccounts = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        return projectPanelAccounts.filter((account) => {
+            const matchesType = account.type === projectPanelTab;
+            const matchesSearch = !query || [account.name, account.contactPerson, account.phone, account.email, account.city]
+                .filter(Boolean)
+                .some((value) => String(value).toLowerCase().includes(query));
+            const matchesStatus = statusFilter === 'All' || account.status === statusFilter;
+            return matchesType && matchesSearch && matchesStatus;
+        });
+    }, [projectPanelTab, searchQuery, statusFilter]);
+
     const summary = useMemo(() => {
+        if (activeApp === 'projectPanel') {
+            const visibleAccounts = projectPanelAccounts.filter((account) => {
+                const query = searchQuery.trim().toLowerCase();
+                const matchesSearch = !query || [account.name, account.contactPerson, account.phone, account.email, account.city]
+                    .filter(Boolean)
+                    .some((value) => String(value).toLowerCase().includes(query));
+                const matchesStatus = statusFilter === 'All' || account.status === statusFilter;
+                return matchesSearch && matchesStatus;
+            });
+            const totalActiveMinutes = visibleAccounts.reduce((sum, account) => sum + account.activeMinutesToday, 0);
+            const sessionsToday = visibleAccounts.reduce((sum, account) => sum + account.sessionsToday, 0);
+
+            return [
+                { title: 'Total Users', value: projectPanelAccounts.length, icon: User, color: 'text-[#2717D7]', bg: 'bg-[#2717D7]/10' },
+                { title: 'Active Users', value: projectPanelAccounts.filter((account) => account.status === 'Online').length, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { title: 'Active Time Today', value: formatActiveTime(totalActiveMinutes), icon: Clock, color: 'text-[#6F4BFF]', bg: 'bg-[#6F4BFF]/10' },
+                { title: 'Sessions Today', value: sessionsToday, icon: Smartphone, color: 'text-blue-600', bg: 'bg-blue-50' },
+            ];
+        }
+
+        const totalUsers = userAppActivities.length;
+        const activeUsers = userAppActivities.filter((user) => user.status === 'Online').length;
         const totalActiveMinutes = filteredUsers.reduce((sum, user) => sum + user.activeMinutesToday, 0);
         const savedCount = filteredUsers.reduce((sum, user) => sum + user.savedProperties.length, 0);
         const contactedCount = filteredUsers.reduce((sum, user) => sum + user.contactedProperties.length, 0);
         const visitCount = filteredUsers.reduce((sum, user) => sum + user.bookedVisits.length, 0);
 
         return [
+            { title: 'Total Users', value: totalUsers, icon: User, color: 'text-[#2717D7]', bg: 'bg-[#2717D7]/10' },
+            { title: 'Active Users', value: activeUsers, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { title: 'Active Time Today', value: formatActiveTime(totalActiveMinutes), icon: Clock, color: 'text-[#6F4BFF]', bg: 'bg-[#6F4BFF]/10' },
             { title: 'Saved Properties', value: savedCount, icon: Heart, color: 'text-rose-500', bg: 'bg-rose-50' },
             { title: 'Contacted Properties', value: contactedCount, icon: PhoneCall, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { title: 'Booked Visits', value: visitCount, icon: CalendarDays, color: 'text-blue-600', bg: 'bg-blue-50' },
         ];
-    }, [filteredUsers]);
+    }, [activeApp, filteredUsers, searchQuery, statusFilter]);
+
+    const renderProjectPanelContent = () => (
+        <Card noPadding className="overflow-hidden">
+            <div className="border-b border-gray-100 bg-white p-4">
+                <div className="flex flex-wrap gap-2">
+                    {projectPanelTabs.map((tab) => {
+                        const count = projectPanelAccounts.filter((account) => account.type === tab.id).length;
+                        const isActive = projectPanelTab === tab.id;
+
+                        return (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setProjectPanelTab(tab.id)}
+                                className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all ${
+                                    isActive
+                                        ? 'bg-[#6F4BFF] text-white shadow-md shadow-[#6F4BFF]/20'
+                                        : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                                }`}
+                            >
+                                {tab.label}
+                                <span className={`ml-2 rounded-lg px-2 py-0.5 ${isActive ? 'bg-white/20' : 'bg-white border border-gray-100'}`}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div className="divide-y divide-gray-100">
+                {filteredProjectPanelAccounts.map((account) => (
+                    <div key={account.id} className="flex flex-col gap-4 bg-white p-5 transition-colors hover:bg-gray-50/70 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 gap-3">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#6F4BFF]/10 text-lg font-black text-[#6F4BFF]">
+                                {account.name.charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="truncate text-base font-black text-gray-900">{account.name}</h3>
+                                    <Badge variant={getStatusVariant(account.status)}>{account.status}</Badge>
+                                </div>
+                                <p className="mt-1 text-xs font-bold text-gray-500">{account.contactPerson} - {account.city}</p>
+                                <p className="mt-1 text-xs font-bold text-gray-400">{account.phone} - {account.email}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-center gap-4 lg:w-[480px] w-full shrink-0">
+                            <div className="grid grid-cols-3 gap-2 flex-1 w-full">
+                                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                    <p className="text-sm font-black text-gray-900">{formatActiveTime(account.activeMinutesToday)}</p>
+                                    <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Active Today</p>
+                                </div>
+                                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                    <p className="text-sm font-black text-gray-900">{account.sessionsToday}</p>
+                                    <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Sessions</p>
+                                </div>
+                                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                    <p className="truncate text-sm font-black text-gray-900">{account.lastActive}</p>
+                                    <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Last Active</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => handleViewAccount(account)}
+                                className="w-full sm:w-auto h-12 sm:h-11 rounded-xl bg-[#6F4BFF]/10 text-[#6F4BFF] hover:bg-[#6F4BFF] hover:text-white transition-all px-5 flex items-center justify-center gap-1.5 text-[11px] font-black uppercase tracking-widest shrink-0 border border-[#6F4BFF]/20"
+                            >
+                                <Eye className="w-4 h-4" />
+                                <span>View</span>
+                            </button>
+                        </div>
+                    </div>
+                ))}
+
+                {filteredProjectPanelAccounts.length === 0 && (
+                    <div className="py-16 text-center">
+                        <Activity className="mx-auto mb-3 h-12 w-12 text-gray-200" />
+                        <p className="font-bold text-gray-500">No Project Panel accounts found.</p>
+                    </div>
+                )}
+            </div>
+        </Card>
+    );
 
     const renderTabContent = () => {
         if (activeTab === 'userComplaints') {
@@ -413,14 +725,39 @@ const UserAppActivities = () => {
 
     return (
         <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
-            <Header title="User App Activities" />
+            <Header title="App activity" />
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
                 <div className="max-w-[1600px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="flex flex-wrap gap-2 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
+                        {appTabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => {
+                                    setActiveApp(tab.id);
+                                    setSearchQuery('');
+                                    setStatusFilter('All');
+                                }}
+                                className={`h-10 rounded-xl px-5 text-xs font-black uppercase tracking-widest transition-all ${
+                                    activeApp === tab.id
+                                        ? 'bg-[#6F4BFF] text-white shadow-md shadow-[#6F4BFF]/20'
+                                        : 'text-gray-500 hover:bg-gray-50 hover:text-[#6F4BFF]'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div>
-                            <h2 className="text-3xl font-black text-gray-900 tracking-tight">User App Activities</h2>
-                            <p className="text-sm text-gray-500 mt-1 font-medium">Track app sessions, saved properties, contacted properties, searches, and visit activity from the user app.</p>
+                            <h2 className="text-3xl font-black text-gray-900 tracking-tight">App activity</h2>
+                            <p className="text-sm text-gray-500 mt-1 font-medium">
+                                {activeApp === 'userApp'
+                                    ? 'Track app sessions, saved properties, contacted properties, searches, and visit activity from the user app.'
+                                    : 'Track Project Panel usage for builders and marketing companies with basic account activity.'}
+                            </p>
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row">
                             <div className="relative">
@@ -428,7 +765,7 @@ const UserAppActivities = () => {
                                 <input
                                     value={searchQuery}
                                     onChange={(event) => setSearchQuery(event.target.value)}
-                                    placeholder="Search users..."
+                                    placeholder={activeApp === 'userApp' ? 'Search users...' : 'Search builders or companies...'}
                                     className="w-full sm:w-80 pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30"
                                 />
                             </div>
@@ -441,7 +778,7 @@ const UserAppActivities = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+                    <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 ${activeApp === 'userApp' ? 'xl:grid-cols-6' : 'xl:grid-cols-4'}`}>
                         {summary.map((metric) => {
                             const Icon = metric.icon;
                             return (
@@ -456,6 +793,9 @@ const UserAppActivities = () => {
                         })}
                     </div>
 
+                    {activeApp === 'projectPanel' ? (
+                        renderProjectPanelContent()
+                    ) : (
                     <div className="grid grid-cols-1 xl:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] gap-6 min-w-0">
                         <Card noPadding className="overflow-hidden">
                             <div className="p-5 border-b border-gray-100 bg-white">
@@ -569,6 +909,7 @@ const UserAppActivities = () => {
                             </div>
                         )}
                     </div>
+                    )}
                 </div>
             </main>
         </div>

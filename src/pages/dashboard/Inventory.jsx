@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
     Plus, Search, Building2, MapPin, ArrowRight, FileText, 
     Layers, Settings, Calendar, X, Maximize, Edit2, Save,
     IndianRupee, Zap, Sparkles, Check, XCircle, CheckCircle2,
-    Trash2, Users, FileIcon, UserPlus, Filter, ChevronDown, Briefcase
+    Trash2, Users, FileIcon, UserPlus, Filter, ChevronDown, Briefcase,
+    Phone, Coins, Image as ImageIcon, ShieldCheck, Dumbbell, Car, Trees, Droplets, Download,
+    ArrowUpDown
 } from 'lucide-react';
-import { setSelectedProject, setSelectedBuilder, setViewMode, setFilters } from '../../store/inventorySlice';
-import { mockProjects } from '../../data/mockData';
+import { setSelectedProject, setSelectedBuilder, setSelectedBroker, setViewMode, setFilters } from '../../store/inventorySlice';
+import { mockProjects, projectOnboardingList } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -78,6 +80,71 @@ const matchesProjectFilters = (project, filters) => {
 
 const DEFAULT_PROJECT_IMAGE = '/inventory-images/project-main.png';
 const DEFAULT_FLOOR_PLAN_IMAGE = '/floor-plans/building-naksha.png';
+
+const PROPERTY_TYPE_HIERARCHY = [
+    { mainType: 'Residential', subTypes: ['Plot', 'Villa', 'Apartment', 'Rowhouse'] },
+    { mainType: 'Commercial', subTypes: ['Shop', 'Showroom', 'Office'] },
+];
+
+const normalizeText = (value = '') => String(value).toLowerCase().replace(/[^a-z0-9+]+/g, ' ').trim();
+
+const canonicalPropertyTypes = PROPERTY_TYPE_HIERARCHY.flatMap((group) => (
+    group.subTypes.map((subType) => ({ mainType: group.mainType, subType }))
+));
+
+const findCanonicalPropertyType = (value = '') => {
+    const normalized = normalizeText(value);
+    if (!normalized) return null;
+
+    if (normalized.includes('plot')) return { mainType: 'Residential', subType: 'Plot' };
+    if (normalized.includes('villa')) return { mainType: 'Residential', subType: 'Villa' };
+    if (normalized.includes('rowhouse') || normalized.includes('row house')) return { mainType: 'Residential', subType: 'Rowhouse' };
+    if (normalized.includes('apartment') || normalized.includes('flat') || normalized.includes('bhk') || normalized.includes('penthouse')) {
+        return { mainType: 'Residential', subType: 'Apartment' };
+    }
+    if (normalized.includes('showroom')) return { mainType: 'Commercial', subType: 'Showroom' };
+    if (normalized.includes('shop') || normalized.includes('retail')) return { mainType: 'Commercial', subType: 'Shop' };
+    if (normalized.includes('office') || normalized.includes('co working') || normalized.includes('coworking') || normalized.includes('bare shell')) {
+        return { mainType: 'Commercial', subType: 'Office' };
+    }
+
+    return canonicalPropertyTypes.find((type) => normalized.includes(normalizeText(type.subType))) || null;
+};
+
+const inferInventoryHierarchy = (project, row) => {
+    const explicit = row.propertyHierarchy || row.propertyType || row.property_type || {};
+    const explicitMainType = row.mainType || row.main_type || explicit.mainType || explicit.main_type || project.mainType || project.propertyType;
+    const explicitSubType = row.subType || row.sub_type || row.propertySubType || row.property_subtype || explicit.subType || explicit.sub_type || project.subType || project.propertySubType;
+    const inferred = findCanonicalPropertyType([
+        explicitSubType,
+        row.type,
+        row.configuration,
+        ...(project.configs || []),
+        project.specs,
+        project.projectType,
+        project.name,
+    ].filter(Boolean).join(' '));
+    const mainType = explicitMainType || inferred?.mainType || (normalizeText(project.specs).includes('commercial') ? 'Commercial' : normalizeText(project.specs).includes('residential') ? 'Residential' : '');
+    const subType = explicitSubType || inferred?.subType || '';
+    const configuration = row.configuration || row.variant || row.type || '';
+    const missing = [];
+
+    if (!explicitMainType && !inferred?.mainType) missing.push('Property main type');
+    if (!explicitSubType && !inferred?.subType) missing.push('Property type');
+    if (!configuration) missing.push('Configuration');
+    if (!row.size && !row.area) missing.push('Area / size');
+    if (!row.basePrice && !row.price) missing.push('Base price');
+    if (row.totalUnits === undefined && !row.unitsList?.length) missing.push('Total units');
+    if (row.availableUnits === undefined && !row.unitsList?.some((unit) => unit.status === 'Available')) missing.push('Available units');
+    if (!row.floorPlan && !row.floorPlanUrl) missing.push('Uploaded floor plan');
+
+    return {
+        mainType: mainType || 'Missing',
+        subType: subType || 'Missing',
+        configuration: configuration || 'Missing',
+        missing,
+    };
+};
 
 const getInventoryCounts = (project) => {
     const total = project.units || (project.inventory || []).reduce((sum, item) => sum + (item.totalUnits || 0), 0);
@@ -204,10 +271,9 @@ const ProjectInventoryCard = ({ project, onOpen }) => {
 
 const Inventory = () => {
     const dispatch = useDispatch();
-    const { filteredProjects, selectedProject, selectedBuilder, viewMode, filters } = useSelector((state) => state.inventory);
+    const { filteredProjects, selectedProject, selectedBuilder, selectedBroker, viewMode, filters } = useSelector((state) => state.inventory);
     const [showPriceDropdown, setShowPriceDropdown] = useState(false);
     const [showLocationDropdown, setShowLocationDropdown] = useState(false);
-    const [selectedBroker, setSelectedBroker] = useState(null);
 
     // Get unique locations from projects
     const uniqueLocations = [...new Set(mockProjects.map(p => p.location.split(',').pop().trim()))];
@@ -304,7 +370,7 @@ const Inventory = () => {
         dispatch(setFilters({ propertySource: source }));
         dispatch(setViewMode('projects')); // Reset view mode when changing source
         dispatch(setSelectedBuilder(null));
-        setSelectedBroker(null);
+        dispatch(setSelectedBroker(null));
     };
 
     const handlePriceRangeFilter = (range) => {
@@ -336,7 +402,7 @@ const Inventory = () => {
     };
 
     const handleBrokerClick = (broker) => {
-        setSelectedBroker(broker);
+        dispatch(setSelectedBroker(broker));
         dispatch(setViewMode('brokerProjects'));
     };
 
@@ -344,7 +410,7 @@ const Inventory = () => {
         if (viewMode === 'builderProjects' || viewMode === 'brokerProjects') {
             dispatch(setViewMode('projects'));
             dispatch(setSelectedBuilder(null));
-            setSelectedBroker(null);
+            dispatch(setSelectedBroker(null));
         } else {
             dispatch(setSelectedProject(null));
         }
@@ -700,12 +766,467 @@ const Inventory = () => {
     );
 };
 
+// Onboarding detail views & helpers (copied/derived from PanelOverview.jsx)
+const DetailField = ({ label, value }) => {
+    const isValEmpty = value === null || value === undefined || String(value).trim() === '';
+    return (
+        <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">{label}</p>
+            {isValEmpty ? (
+                <span className="inline-flex items-center text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 mt-0.5">
+                    [Pending]
+                </span>
+            ) : (
+                <p className="text-xs font-black text-[#171327] mt-0.5 tracking-wide">
+                    {value}
+                </p>
+            )}
+        </div>
+    );
+};
+
+const EmptyStepMessage = ({ message }) => (
+    <div className="p-8 border border-dashed border-[#D8D2EB] rounded-[8px] bg-[#FCFBFF] text-center">
+        <p className="text-xs font-bold text-[#797298]">{message}</p>
+    </div>
+);
+
+const Step1View = ({ form }) => (
+    <div className="space-y-4">
+        <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+            <Building2 size={14} className="text-[#2717D7]" /> Project & Developer Identity
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#F8F9FF] border border-[#E1DDF0] rounded-[8px] p-4">
+            <DetailField label="Project Name" value={form?.step1?.projectName} />
+            <DetailField label="Location / Landmark" value={form?.step1?.location} />
+            <DetailField label="City" value={form?.step1?.city} />
+            <DetailField label="State" value={form?.step1?.state} />
+            <DetailField label="Pincode" value={form?.step1?.pincode} />
+        </div>
+        <hr className="border-[#EFEAF8] my-4" />
+        <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+            <Phone size={14} className="text-[#2717D7]" /> Responsible Contacts
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#FCFBFF] border border-[#E1DDF0] rounded-[8px] p-4">
+            <DetailField label="Sales Officer Name" value={form?.step1?.salesOfficerName} />
+            <DetailField label="Sales Officer Contact" value={form?.step1?.salesOfficerContact} />
+            <DetailField label="Responsible Person" value={form?.step1?.responsiblePersonName} />
+            <DetailField label="Responsible Contact" value={form?.step1?.responsiblePersonContact} />
+        </div>
+    </div>
+);
+
+const Step2View = ({ form }) => {
+    const selectedTypes = form?.step2?.selectedTypes || [];
+    return (
+        <div className="space-y-4">
+            <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+                <Layers size={14} className="text-[#2717D7]" /> Property Classifications
+            </h4>
+            {selectedTypes.length === 0 ? (
+                <EmptyStepMessage message="No property classifications configured yet." />
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedTypes.map((type, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3.5 rounded-[8px] bg-[#F8F9FF] border border-[#E1DDF0]">
+                            <div className="h-9 w-9 rounded-full bg-[#F4F1FF] flex items-center justify-center text-[#2717D7] font-black text-xs shrink-0">
+                                {type.mainType?.charAt(0)}
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-[#797298]">{type.mainType}</p>
+                                <p className="text-xs font-black text-[#171327]">{type.subType}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const Step3View = ({ form }) => {
+    const unitConfigs = form?.step3?.unitConfigs || {};
+    const hasUnits = Object.values(unitConfigs).some(configs => configs && configs.length > 0);
+
+    return (
+        <div className="space-y-4">
+            <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+                <Building2 size={14} className="text-[#2717D7]" /> Unit Configurations
+            </h4>
+            {!hasUnits ? (
+                <EmptyStepMessage message="No specific unit configurations uploaded yet." />
+            ) : (
+                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+                    {Object.entries(unitConfigs).map(([typeId, configs]) => {
+                        if (!configs || configs.length === 0) return null;
+                        return (
+                            <div key={typeId} className="border border-[#E1DDF0] rounded-[8px] overflow-hidden">
+                                <div className="bg-[#F8F9FF] border-b border-[#E1DDF0] px-3 py-2">
+                                    <span className="text-[9px] font-black uppercase tracking-wider bg-[#F4F1FF] text-[#2717D7] px-2 py-0.5 rounded border border-[#D8D2EB]">
+                                        {typeId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                                    </span>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-[#E1DDF0] bg-white text-[8px] font-black uppercase tracking-wider text-[#797298]">
+                                                <th className="px-3 py-2">Unit No</th>
+                                                <th className="px-3 py-2">Tower/Block</th>
+                                                <th className="px-3 py-2">Floor</th>
+                                                <th className="px-3 py-2">BHK/Type</th>
+                                                <th className="px-3 py-2">Area</th>
+                                                <th className="px-3 py-2 text-right">Price</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="text-[10px] font-bold text-[#171327] divide-y divide-[#EFEAF8]">
+                                            {configs.map((config, idx) => (
+                                                <tr key={idx} className="hover:bg-[#FCFBFF]">
+                                                    <td className="px-3 py-2 font-mono font-black text-[#2717D7]">{config.propertyNumber || '-'}</td>
+                                                    <td className="px-3 py-2">{config.tower || '-'}</td>
+                                                    <td className="px-3 py-2">{config.floor || '-'}</td>
+                                                    <td className="px-3 py-2">{config.bhk || config.officeType || '-'}</td>
+                                                    <td className="px-3 py-2">{config.area || '-'}</td>
+                                                    <td className="px-3 py-2 text-right font-black text-emerald-600">₹{config.price || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const Step4View = ({ form }) => {
+    const approvals = form?.step4?.approvals || {};
+    const stages = form?.step4?.currentDevelopmentStage || [];
+    
+    return (
+        <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+            <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+                <FileText size={14} className="text-[#2717D7]" /> Project Timeline & Development Progress
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#F8F9FF] border border-[#E1DDF0] rounded-[8px] p-4">
+                <DetailField label="Possession Status" value={form?.step4?.possessionStatus} />
+                <DetailField label="Expected Possession Date" value={form?.step4?.expectedPossessionDate} />
+                <DetailField label="Launch Status" value={form?.step4?.projectLaunchStatus} />
+                <DetailField label="Launch / Expected Date" value={form?.step4?.projectLaunchDate || form?.step4?.expectedLaunchDate} />
+            </div>
+
+            <div className="space-y-2 mt-2">
+                <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Development Completion</p>
+                <div className="flex items-center gap-3">
+                    <div className="flex-1 h-3 rounded-full bg-[#EFEAF8] overflow-hidden border border-[#E1DDF0]">
+                        <div 
+                            className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+                            style={{ width: `${form?.step4?.developmentCompletionPercentage || 0}%` }}
+                        />
+                    </div>
+                    <span className="text-xs font-black text-[#171327]">{form?.step4?.developmentCompletionPercentage || 0}%</span>
+                </div>
+                {stages.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                        {stages.map((stg) => (
+                            <span key={stg} className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-wide">
+                                ✓ {stg}
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <hr className="border-[#EFEAF8] my-4" />
+            <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+                <CheckCircle2 size={14} className="text-emerald-600" /> Compliance & Approvals
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {Object.entries(approvals).map(([key, val]) => {
+                    const value = val || {};
+                    return (
+                        <div key={key} className="p-3 border border-[#E1DDF0] rounded-[8px] bg-[#FCFBFF]">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-[#797298]">
+                                    {key.toUpperCase() === 'RERA' ? 'RERA Certification' : 
+                                     key === 'buildingPermission' ? 'Building Permission' : 
+                                     key === 'developmentPermission' ? 'Development Permission' : 
+                                     key === 'tncp' ? 'TNCP Approval' : key}
+                                </span>
+                                <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                    value.status === 'Yes' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
+                                    value.status === 'No' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600'
+                                }`}>
+                                    {value.status || 'Pending'}
+                                </span>
+                            </div>
+                            {value.status === 'Yes' && value.registrationNumber && (
+                                <p className="text-[10px] font-mono font-black text-[#171327] mt-1 break-all bg-white p-1 rounded border border-[#E1DDF0]">
+                                    {value.registrationNumber}
+                                </p>
+                            )}
+                            {value.status === 'No' && value.expectedTime && (
+                                <p className="text-[10px] text-rose-600 font-bold mt-1">Expected: {value.expectedTime}</p>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+const Step5View = ({ form }) => (
+    <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+        <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+            <Coins size={14} className="text-[#2717D7]" /> Guideline Value & Registry Charges
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#F8F9FF] border border-[#E1DDF0] rounded-[8px] p-4">
+            <DetailField label="Guideline Value" value={form?.step5?.guidelineValueAmount ? `${form.step5.guidelineValueAmount} ${form?.step5?.guidelineValueUnit || ''}` : null} />
+            <DetailField label="Registry (Male)" value={form?.step5?.registryChargesMaleBuyer} />
+            <DetailField label="Registry (Female)" value={form?.step5?.registryChargesFemaleBuyer} />
+            <DetailField label="Jurisdiction" value={form?.step5?.propertyJurisdictionArea} />
+            <DetailField label="Guideline Year" value={form?.step5?.guidelineYear} />
+            <DetailField label="Other Government Charges" value={form?.step5?.otherGovernmentCharges} />
+        </div>
+
+        <hr className="border-[#EFEAF8] my-4" />
+        <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+            <CheckCircle2 size={14} className="text-[#2717D7]" /> Loan Availability & Tie-ups
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#FCFBFF] border border-[#E1DDF0] rounded-[8px] p-4">
+            <DetailField label="Bank Loan Available" value={form?.step5?.loanAvailable} />
+            <DetailField label="Tie-up with Banks" value={form?.step5?.tieUpBankName || form?.step5?.bankNameList} />
+            <DetailField label="Maximum Loan %" value={form?.step5?.maximumLoanPercentage} />
+            <DetailField label="Loan Approval Status" value={form?.step5?.loanApprovalStatus} />
+            <div className="col-span-1 md:col-span-2">
+                <DetailField label="Required Documents" value={form?.step5?.requiredLoanDocuments} />
+            </div>
+        </div>
+
+        <hr className="border-[#EFEAF8] my-4" />
+        <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+            <Building2 size={14} className="text-[#2717D7]" /> Land Ownership & JV details
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#F8F9FF] border border-[#E1DDF0] rounded-[8px] p-4">
+            <DetailField label="Ownership Type" value={form?.step5?.ownershipType} />
+            <DetailField label="Title Verification" value={form?.step5?.titleVerificationStatus} />
+            {form?.step5?.ownershipType === 'Joint Venture Project' && (
+                <>
+                    <DetailField label="JV Land Owner Name" value={form?.step5?.jvLandOwnerName} />
+                    <DetailField label="JV Developer Name" value={form?.step5?.jvDeveloperBuilderName} />
+                    <div className="col-span-1 md:col-span-2">
+                        <DetailField label="JV Share Details" value={form?.step5?.jvRevenueAreaSharingDetails} />
+                    </div>
+                </>
+            )}
+            {form?.step5?.titleVerificationStatus !== 'Clear Title' && form?.step5?.titleExpectedCompletionDate && (
+                <DetailField label="Expected Title Date" value={form?.step5?.titleExpectedCompletionDate} />
+            )}
+        </div>
+    </div>
+);
+
+const Step6DetailsView = ({ form }) => {
+    const images = form?.step6?.images || [];
+    const agreed = form?.step6?.agreed;
+
+    return (
+        <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+            <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+                <ImageIcon size={14} className="text-[#2717D7]" /> Project Media Gallery
+            </h4>
+            {images.length === 0 ? (
+                <EmptyStepMessage message="No photos uploaded yet." />
+            ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {images.map((img, idx) => (
+                        <div key={idx} className="relative aspect-[4/3] rounded-[8px] overflow-hidden border border-[#E1DDF0] bg-gray-100 group">
+                            <img src={img.uri} alt={img.fileName} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                                <p className="text-[8px] font-mono text-white truncate">{img.fileName}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <hr className="border-[#EFEAF8] my-4" />
+            <div className="flex items-center gap-3 p-4 rounded-[8px] border border-emerald-100 bg-emerald-50">
+                <CheckCircle2 size={24} className="text-emerald-600 shrink-0" />
+                <div>
+                    <h5 className="text-xs font-black text-[#04622E]">Onboarding Agreement Status</h5>
+                    <p className="text-[10px] font-bold text-emerald-700/80 mt-0.5">
+                        {agreed 
+                            ? 'The builder / field officer has verified and agreed to all registration terms.' 
+                            : 'Agreement signature is pending builder acceptance.'}
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const getOnboardingForm = (project) => {
+    const matched = projectOnboardingList.find(p => p.projectName.toLowerCase() === project.name.toLowerCase() || p.projectName.toLowerCase().includes(project.name.toLowerCase()));
+    if (matched) return matched.form;
+
+    const city = (project.location || '').split(',').pop()?.trim() || 'Mumbai';
+    return {
+        step1: {
+            projectName: project.name,
+            location: project.location,
+            city: city,
+            state: city === 'Mumbai' ? 'Maharashtra' : city === 'Delhi' ? 'Delhi' : city === 'Bangalore' ? 'Karnataka' : city === 'Chennai' ? 'Tamil Nadu' : 'Madhya Pradesh',
+            pincode: '400001',
+            salesOfficerName: project.officer || 'Rahul Sharma',
+            salesOfficerContact: '9820011223',
+            responsiblePersonName: project.builderProfile?.fullName || 'Arjun Mehra',
+            responsiblePersonContact: project.builderProfile?.phone || '9823144001'
+        },
+        step2: {
+            selectedTypes: (project.configs || []).map(config => {
+                const mainType = (project.specs || '').includes('Commercial') ? 'Commercial' : 'Residential';
+                return {
+                    id: `${mainType.toLowerCase()}-${config.toLowerCase()}`,
+                    mainType,
+                    subType: config
+                };
+            })
+        },
+        step3: {
+            unitConfigs: {
+                default: (project.inventory || []).map(inv => ({
+                    tower: 'Tower A',
+                    floor: '5',
+                    bhk: inv.type,
+                    area: inv.size.replace(/[^\d]/g, ''),
+                    price: inv.basePrice,
+                    propertyNumber: 'A-501'
+                }))
+            }
+        },
+        step4: {
+            possessionStatus: project.possession || 'Possession Pending',
+            expectedPossessionDate: '2027-12-31',
+            projectLaunchStatus: 'Already Launched',
+            projectLaunchDate: '2024-01-15',
+            developmentCompletionPercentage: project.progress || '65',
+            currentDevelopmentStage: ['Boundary wall completed', 'Work in progress'],
+            approvals: {
+                rera: { status: 'Yes', registrationNumber: project.builderProfile?.reraNumber || project.reraNumber || 'MHRERA-P51800044791' },
+                tncp: { status: 'Yes', registrationNumber: 'TNCP-MUM-2024-1882' },
+                buildingPermission: { status: 'Yes', registrationNumber: 'BP-MUM-2024-098' },
+                developmentPermission: { status: 'Yes', registrationNumber: 'DP-MUM-2024-012' }
+            }
+        },
+        step5: {
+            guidelineValueAmount: '8000',
+            guidelineValueUnit: 'Per Sq. Ft.',
+            propertyJurisdictionArea: `${city} Municipal Corporation`,
+            guidelineYear: '2026',
+            registryChargesAvailable: 'Yes',
+            registryChargesMaleBuyer: '7.5%',
+            registryChargesFemaleBuyer: '5.5%',
+            otherGovernmentCharges: '1.0% stamp duty',
+            loanAvailable: 'Yes',
+            tieUpBankName: 'SBI, HDFC, ICICI',
+            maximumLoanPercentage: '80%',
+            loanApprovalStatus: 'Approved',
+            requiredLoanDocuments: 'PAN Card, Aadhaar Card, 3 Months Salary Slip, 2 Years ITR',
+            ownershipType: 'Outright Ownership',
+            titleVerificationStatus: 'Clear Title',
+            jvLandOwnerName: '',
+            jvDeveloperBuilderName: project.builder,
+            jvRevenueAreaSharingDetails: ''
+        },
+        step6: {
+            images: (project.projectImages || []).map((img, idx) => ({
+                uri: img,
+                fileName: `project-image-${idx + 1}.png`
+            })),
+            agreed: true
+        }
+    };
+};
+
+const getAmenityConfig = (amenityName) => {
+    const name = amenityName.toLowerCase();
+    if (name.includes('gym') || name.includes('fitness')) return { icon: Dumbbell, color: 'text-rose-500 bg-rose-50 border-rose-100' };
+    if (name.includes('pool') || name.includes('swimming') || name.includes('water')) return { icon: Droplets, color: 'text-blue-500 bg-blue-50 border-blue-100' };
+    if (name.includes('security') || name.includes('cctv') || name.includes('verified')) return { icon: ShieldCheck, color: 'text-emerald-500 bg-emerald-50 border-emerald-100' };
+    if (name.includes('power') || name.includes('backup') || name.includes('electricity') || name.includes('zap')) return { icon: Zap, color: 'text-amber-500 bg-amber-50 border-amber-100' };
+    if (name.includes('garden') || name.includes('park') || name.includes('green') || name.includes('trees')) return { icon: Trees, color: 'text-green-500 bg-green-50 border-green-100' };
+    if (name.includes('club') || name.includes('community') || name.includes('lounge')) return { icon: Users, color: 'text-indigo-500 bg-indigo-50 border-indigo-100' };
+    if (name.includes('parking') || name.includes('garage') || name.includes('car')) return { icon: Car, color: 'text-cyan-500 bg-cyan-50 border-cyan-100' };
+    if (name.includes('lift') || name.includes('elevator')) return { icon: ArrowUpDown, color: 'text-purple-500 bg-purple-50 border-purple-100' };
+    if (name.includes('brochure') || name.includes('document') || name.includes('file')) return { icon: FileText, color: 'text-purple-500 bg-purple-50 border-purple-100' };
+    return { icon: Sparkles, color: 'text-[#6F4BFF] bg-[#6F4BFF]/5 border-[#6F4BFF]/10' };
+};
+
+const getProjectAmenitiesList = (project) => {
+    const isCommercial = (project?.specs || '').toLowerCase().includes('commercial');
+    if (isCommercial) {
+        return [
+            { name: 'Business Lounge', desc: 'Fully equipped spaces for meetings and conferences.', status: 'Available' },
+            { name: '24/7 CCTV Surveillance', desc: 'Complete security coverage across all floors.', status: 'Available' },
+            { name: 'Power Backup', desc: '100% electricity backup for uninterrupted operations.', status: 'Available' },
+            { name: 'Central Air Conditioning', desc: 'Advanced HVAC system for optimal temperature control.', status: 'Available' },
+            { name: 'Multi-level Parking', desc: 'Spacious reserved parking slots for employees and visitors.', status: 'Available' },
+            { name: 'Fire Safety Systems', desc: 'Full compliance with international fire safety standards.', status: 'Available' },
+            { name: 'High-speed Elevators', desc: 'Dedicated visitor and cargo elevator shafts.', status: 'Available' },
+            { name: 'High-speed Fiber Internet', desc: 'Secure high-speed connectivity throughout the premises.', status: 'Available' },
+        ];
+    }
+    return [
+        { name: 'Swimming Pool', desc: 'Temperature-controlled lap pool with kids pool section.', status: 'Available' },
+        { name: 'Modern Gymnasium', desc: 'Fully equipped fitness center with professional trainer facilities.', status: 'Available' },
+        { name: '24/7 CCTV Security', desc: 'Armed guard patrols and continuous perimeter security monitoring.', status: 'Available' },
+        { name: '100% Power Backup', desc: 'Full electricity backup for apartments and common building areas.', status: 'Available' },
+        { name: 'Kids Play Area', desc: 'Safe playground zone with soft flooring and outdoor activities.', status: 'Available' },
+        { name: 'Landscaped Gardens', desc: 'Lush green open parks with senior citizen seating zones.', status: 'Available' },
+        { name: 'Multipurpose Clubhouse', desc: 'Party hall, indoor games lounge, and community gathering space.', status: 'Available' },
+        { name: 'High-speed Elevators', desc: 'Premium passenger lift cabins with battery backup rescue systems.', status: 'Available' },
+    ];
+};
+
+const getDocumentNumberForFile = (docName, project) => {
+    const name = docName.toLowerCase();
+    if (name.includes('rera')) {
+        return project.builderProfile?.reraNumber || project.reraNumber || 'MHRERA-P51800044791';
+    }
+    if (name.includes('brochure')) {
+        return `SQ-BR-2026-${project.id}`;
+    }
+    if (name.includes('layout') || name.includes('site_plan')) {
+        return 'TNCP-MUM-2024-1882';
+    }
+    if (name.includes('id_proof') || name.includes('builder')) {
+        return project.builderProfile?.panNumber || 'AAGCA4455K';
+    }
+    if (name.includes('pricing')) {
+        return `SQ-PR-Q2-${project.id}`;
+    }
+    if (name.includes('noc') || name.includes('fire')) {
+        return 'NOC-FIRE-2024-098';
+    }
+    return `SQ-DOC-${project.id}-${Math.floor(1000 + Math.random() * 9000)}`;
+};
+
 const ProjectDetailView = ({ project, onBack }) => {
     const [activeTab, setActiveTab] = useState('inventory');
+    const [detailsActiveStep, setDetailsActiveStep] = useState(1);
     const [expandedConfigIndex, setExpandedConfigIndex] = useState(null);
     const [editingUnit, setEditingUnit] = useState(null);
     const [localProjectData, setLocalProjectData] = useState(null);
     const [floorPlanModal, setFloorPlanModal] = useState(null);
+
+    const projectForm = useMemo(() => {
+        if (!localProjectData) return null;
+        return getOnboardingForm(localProjectData);
+    }, [localProjectData]);
 
     useEffect(() => {
         const cloned = JSON.parse(JSON.stringify(project));
@@ -807,7 +1328,8 @@ const ProjectDetailView = ({ project, onBack }) => {
                     <div className="flex gap-2 border-b border-gray-200">
                         {[
                             { id: 'inventory', label: 'Inventory & Pricing', icon: Layers },
-                            { id: 'admin', label: 'Admin & Operations', icon: Settings },
+                            { id: 'details', label: 'Project Details', icon: Building2 },
+                            { id: 'amenities', label: 'Amenities', icon: Sparkles },
                             { id: 'documents', label: 'Documents', icon: FileText },
                         ].map(tab => (
                             <button
@@ -880,11 +1402,27 @@ const ProjectDetailView = ({ project, onBack }) => {
                             <Card noPadding className="overflow-hidden border-gray-100 shadow-xl shadow-gray-200/50">
                                 <div className="p-6 border-b border-gray-100 bg-white">
                                     <h3 className="text-lg font-black text-gray-800 tracking-tight">Inventory Configurations</h3>
-                                    <p className="text-xs text-gray-500 mt-1 font-bold">Compact view of unit type, area, price, and live availability.</p>
+                                    <p className="text-xs text-gray-500 mt-1 font-bold">Compact view of property hierarchy, unit configuration, area, price, and live availability.</p>
+                                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        {PROPERTY_TYPE_HIERARCHY.map((group) => (
+                                            <div key={group.mainType} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Property Main Type</p>
+                                                <p className="mt-1 text-sm font-black text-gray-900">{group.mainType}</p>
+                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                    {group.subTypes.map((subType) => (
+                                                        <span key={subType} className="rounded-lg border border-gray-100 bg-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-gray-500">
+                                                            {subType}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
 
                                 <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {localProjectData.inventory.map((row, i) => {
+                                        const hierarchy = inferInventoryHierarchy(localProjectData, row);
                                         const availableCount = row.unitsList.filter(u => u.status === 'Available').length;
                                         const percentAvailable = row.unitsList.length ? (availableCount / row.unitsList.length) * 100 : 0;
                                         const statusColor = percentAvailable > 50 ? 'bg-emerald-500' : percentAvailable > 20 ? 'bg-amber-500' : 'bg-rose-500';
@@ -895,15 +1433,40 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                 <div className="p-5">
                                                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                                                         <div>
-                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Configuration</p>
-                                                            <h4 className="text-lg font-black text-gray-900 tracking-tight">{row.type}</h4>
-                                                            <p className="mt-1 text-sm font-bold text-gray-500">{row.size}</p>
+                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Property Hierarchy</p>
+                                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                                <span className="rounded-lg bg-[#EEF2FF] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#4A43EC]">
+                                                                    {hierarchy.mainType}
+                                                                </span>
+                                                                <ChevronDown className="-rotate-90 h-3.5 w-3.5 text-gray-300" />
+                                                                <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                                                                    {hierarchy.subType}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-3">
+                                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Configuration / Variant</p>
+                                                                <h4 className="mt-1 text-lg font-black text-gray-900 tracking-tight">{hierarchy.configuration}</h4>
+                                                                <p className="mt-1 text-sm font-bold text-gray-500">{row.size || row.area || 'Area / size missing'}</p>
+                                                            </div>
                                                         </div>
                                                         <div className="sm:text-right">
                                                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Base Price</p>
-                                                            <p className="text-xl font-black text-[#6F4BFF] tracking-tight">{row.basePrice}</p>
+                                                            <p className="text-xl font-black text-[#6F4BFF] tracking-tight">{row.basePrice || row.price || 'Missing'}</p>
                                                         </div>
                                                     </div>
+
+                                                    {hierarchy.missing.length > 0 && (
+                                                        <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                                                            <p className="text-[8px] font-black uppercase tracking-widest text-amber-700">Missing property data</p>
+                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                {hierarchy.missing.map((item) => (
+                                                                    <span key={item} className="rounded-md border border-amber-200 bg-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-700">
+                                                                        {item}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
                                                         <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
@@ -963,7 +1526,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                                 <div className="px-5 py-4 border-t border-[#E0E8FF] flex items-center justify-between gap-4">
                                                                     <div>
                                                                         <p className="text-sm font-black text-gray-900">Floor Plan</p>
-                                                                        <p className="text-xs font-bold text-gray-500 mt-0.5">{row.type} | {row.size}</p>
+                                                                        <p className="text-xs font-bold text-gray-500 mt-0.5">{hierarchy.mainType} / {hierarchy.subType} / {hierarchy.configuration}</p>
                                                                     </div>
                                                                     <div className="w-9 h-9 rounded-full bg-[#F1F3FF] text-[#4A43EC] flex items-center justify-center">
                                                                         <Layers className="w-4 h-4" />
@@ -1108,64 +1671,92 @@ const ProjectDetailView = ({ project, onBack }) => {
                         </div>
                     )}
 
-                    {activeTab === 'admin' && (
-                        <div className="space-y-6 animate-in fade-in duration-500">
-                            <Card className="p-8 border-gray-100 shadow-xl shadow-gray-200/50">
-                                <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-8">Project Onboarding Status</h3>
-                                <div className="flex items-center justify-between relative px-4">
-                                    <div className="absolute left-0 top-4 -translate-y-1/2 w-full h-1 bg-gray-100 -z-10"></div>
-                                    <div className="absolute left-0 top-4 -translate-y-1/2 h-1 bg-linear-to-r from-[#6F4BFF] to-[#9D84FF] transition-all -z-10" style={{ width: `${localProjectData.progress}%` }}></div>
-
-                                    {['Basic Info', 'Legal Docs', 'Verification', 'Live Approval'].map((step, i) => {
-                                        const isCompleted = localProjectData.progress >= (i + 1) * 25;
-                                        const isCurrent = localProjectData.progress >= i * 25 && localProjectData.progress < (i + 1) * 25;
+                    {activeTab === 'details' && (
+                        <div className="space-y-6 animate-in fade-in duration-500 text-left">
+                            <Card className="p-5 border-[#D8D2EB] shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                                {/* Stepper tabs */}
+                                <div className="flex justify-between items-center border-b border-[#EFEAF8] pb-4 overflow-x-auto scrollbar-none gap-2">
+                                    {[
+                                        { id: 1, title: 'Basic Details' },
+                                        { id: 2, title: 'Property Type' },
+                                        { id: 3, title: 'Property Detail' },
+                                        { id: 4, title: 'Approvals' },
+                                        { id: 5, title: 'Finance' },
+                                        { id: 6, title: 'Gallery & Agreement' },
+                                    ].map((step) => {
+                                        const active = detailsActiveStep === step.id;
                                         return (
-                                            <div key={i} className="flex flex-col items-center gap-3 bg-white px-2">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border-2 transition-all ${isCompleted ? 'bg-[#6F4BFF] border-[#6F4BFF] text-white shadow-lg shadow-[#6F4BFF]/20' : isCurrent ? 'border-[#6F4BFF] text-[#6F4BFF] bg-white ring-4 ring-[#6F4BFF]/10' : 'border-gray-200 text-gray-400 bg-white'}`}>
-                                                    {isCompleted ? <Check className="w-5 h-5" /> : i + 1}
+                                            <button
+                                                key={step.id}
+                                                type="button"
+                                                onClick={() => setDetailsActiveStep(step.id)}
+                                                className="flex flex-col items-center min-w-[70px] focus:outline-none group relative"
+                                            >
+                                                <div className={`h-8 w-8 rounded-full border flex items-center justify-center transition-all ${
+                                                    active 
+                                                        ? 'border-[#2717D7] bg-[#F4F1FF] text-[#2717D7] font-black' 
+                                                        : 'border-[#D8D2EB] bg-white text-[#797298] group-hover:border-[#2717D7]'
+                                                }`}>
+                                                    <span className="text-[10px] font-black">{step.id}</span>
                                                 </div>
-                                                <span className={`text-[10px] font-black uppercase tracking-widest ${isCompleted || isCurrent ? 'text-gray-900' : 'text-gray-400'}`}>{step}</span>
+                                                <span className={`text-[8px] font-black uppercase tracking-wider text-center mt-1.5 transition-colors ${
+                                                    active ? 'text-[#2717D7]' : 'text-[#797298] group-hover:text-[#2717D7]'
+                                                }`}>
+                                                    {step.title}
+                                                </span>
+                                                {active && (
+                                                    <span className="absolute -bottom-4 left-0 right-0 h-0.5 bg-[#2717D7] rounded-full" />
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="pt-6 min-h-[300px]">
+                                    {detailsActiveStep === 1 && <Step1View form={projectForm} />}
+                                    {detailsActiveStep === 2 && <Step2View form={projectForm} />}
+                                    {detailsActiveStep === 3 && <Step3View form={projectForm} />}
+                                    {detailsActiveStep === 4 && <Step4View form={projectForm} />}
+                                    {detailsActiveStep === 5 && <Step5View form={projectForm} />}
+                                    {detailsActiveStep === 6 && <Step6DetailsView form={projectForm} />}
+                                </div>
+                            </Card>
+                        </div>
+                    )}
+
+                    {activeTab === 'amenities' && (
+                        <div className="space-y-6 animate-in fade-in duration-500 text-left">
+                            <Card className="p-8 border-gray-100 shadow-xl shadow-gray-200/50">
+                                <div className="border-b border-gray-100 pb-6 mb-8">
+                                    <h3 className="text-lg font-black text-gray-800 tracking-tight">Property Amenities</h3>
+                                    <p className="text-xs text-gray-500 mt-1 font-bold">List of premium amenities and facilities provided with this property.</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                    {getProjectAmenitiesList(localProjectData).map((amenity, i) => {
+                                        const config = getAmenityConfig(amenity.name);
+                                        const IconComponent = config.icon;
+                                        return (
+                                            <div key={i} className="flex items-start p-4 rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-[#6F4BFF]/25 hover:shadow-md transition-all">
+                                                <div className={`p-3 rounded-xl mr-4 ${config.color} shrink-0`}>
+                                                    <IconComponent className="w-5 h-5" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-black text-gray-900 leading-none">{amenity.name}</p>
+                                                    <p className="text-[10px] text-gray-500 font-bold mt-1.5 leading-tight">{amenity.desc}</p>
+                                                    <span className="inline-block mt-2.5 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                                        {amenity.status}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        )
+                                        );
                                     })}
                                 </div>
                             </Card>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <Card className="p-6 border-gray-100">
-                                    <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4 border-b border-gray-100 pb-3 flex items-center gap-2">
-                                        <Zap className="w-4 h-4 text-amber-500" /> Internal Verification Notes
-                                    </h3>
-                                    <div className="bg-amber-50/50 p-5 rounded-2xl border border-amber-100 text-sm text-amber-900 font-bold leading-relaxed">
-                                        <p>Site location verified on satellite mapping. Builder credentials reviewed. RERA certificate is active but awaiting the latest compliance report for Q2. Physical site audit scheduled for next week.</p>
-                                        <div className="mt-5 flex items-center gap-2">
-                                            <Badge variant="yellow" className="text-[10px] font-black uppercase tracking-widest bg-amber-200/50 border-amber-200">Pending Site Audit</Badge>
-                                            <span className="text-[10px] text-amber-600 font-black uppercase">Verified by: {localProjectData.officer}</span>
-                                        </div>
-                                    </div>
-                                </Card>
-
-                                <Card className="p-6 border-gray-100">
-                                    <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4 border-b border-gray-100 pb-3">Admin Actions & Controls</h3>
-                                    <div className="space-y-4">
-                                        <textarea
-                                            className="w-full text-sm font-bold border border-gray-200 rounded-2xl p-4 focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] outline-none transition-all bg-gray-50 placeholder:text-gray-400"
-                                            rows="3"
-                                            placeholder="Enter approval notes or reasons for hold..."
-                                        ></textarea>
-                                        <div className="flex gap-3">
-                                            <Button variant="danger" className="flex-1 font-black uppercase tracking-widest text-xs" icon={XCircle}>Hold Project</Button>
-                                            <Button variant="success" className="flex-1 font-black uppercase tracking-widest text-xs" icon={CheckCircle2}>Approve for Launch</Button>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </div>
                         </div>
                     )}
 
                     {activeTab === 'documents' && (
-                        <Card className="p-8 border-gray-100 shadow-xl shadow-gray-200/50 animate-in fade-in duration-500">
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 border-b border-gray-100 pb-6">
+                        <Card className="p-8 border-gray-100 shadow-xl shadow-gray-200/50 animate-in fade-in duration-500 text-left">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 border-b border-gray-100 pb-6 text-left">
                                 <div>
                                     <h3 className="text-lg font-black text-gray-800 tracking-tight">Project Collaterals & Legal Vault</h3>
                                     <p className="text-xs text-gray-500 mt-1 font-bold">Secure access to brochures, floor plans, and RERA certifications.</p>
@@ -1185,14 +1776,17 @@ const ProjectDetailView = ({ project, onBack }) => {
                                         key={i}
                                         href="/documents/dummy-brochure.pdf"
                                         download={`${doc.replace(/\.[^.]+$/, '')}.pdf`}
-                                        className="flex items-center p-5 border border-gray-100 rounded-2xl hover:bg-[#6F4BFF]/5 hover:border-[#6F4BFF]/30 cursor-pointer transition-all group relative overflow-hidden"
+                                        className="flex items-center p-5 border border-gray-100 rounded-2xl hover:bg-[#6F4BFF]/5 hover:border-[#6F4BFF]/30 cursor-pointer transition-all group relative overflow-hidden text-left"
                                     >
                                         <div className="absolute top-0 right-0 w-16 h-16 bg-[#6F4BFF]/5 rounded-full -mr-8 -mt-8 group-hover:bg-[#6F4BFF]/10 transition-all"></div>
-                                        <div className="bg-purple-50 p-3 rounded-xl mr-5 group-hover:bg-[#6F4BFF] transition-colors shadow-sm">
+                                        <div className="bg-purple-50 p-3 rounded-xl mr-5 group-hover:bg-[#6F4BFF] transition-colors shadow-sm shrink-0">
                                             <FileIcon className="w-6 h-6 text-[#6F4BFF] group-hover:text-white transition-colors" />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-black text-gray-900 truncate tracking-tight">{doc}</p>
+                                            <p className="my-1.5 break-all rounded border border-[#E1DDF0] bg-white px-2 py-0.5 font-mono text-[9px] font-black text-[#171327] w-fit">
+                                                {getDocumentNumberForFile(doc, localProjectData)}
+                                            </p>
                                             <p className="text-[10px] text-gray-400 mt-1 font-black uppercase tracking-widest flex items-center gap-2">
                                                 {doc.split('.').pop().toUpperCase()} • 2.4 MB 
                                                 <span className="w-1 h-1 rounded-full bg-gray-300"></span>
