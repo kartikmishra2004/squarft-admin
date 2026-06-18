@@ -18,6 +18,7 @@ import PanelOverview from '../pages/dashboard/PanelOverview';
 import BrokerCommission from '../pages/dashboard/BrokerCommission';
 import NotificationCenter from '../pages/dashboard/NotificationCenter';
 import Support from '../pages/dashboard/Support';
+import VoiceAgentCall from '../pages/dashboard/VoiceAgentCall';
 import SettingsPage from '../pages/dashboard/Settings';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -127,6 +128,11 @@ const AppRoutes = () => {
         <Route path="support" element={
           <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
             <Support />
+          </ProtectedRoute>
+        } />
+        <Route path="support/voice-agent" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <VoiceAgentCall />
           </ProtectedRoute>
         } />
       </Route>

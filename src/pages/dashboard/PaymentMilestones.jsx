@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
     BadgeCheck,
@@ -156,6 +157,7 @@ const parseDealDate = (dateStr) => {
 };
 
 const PaymentMilestones = () => {
+    const navigate = useNavigate();
     const [selectedDealId, setSelectedDealId] = useState(paymentDeals[0].id);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
@@ -200,6 +202,35 @@ const PaymentMilestones = () => {
     const reminderTarget = selectedDeal.nextMilestone || selectedDeal.paymentSchedule[selectedDeal.paymentSchedule.length - 1];
     const reminderMessage = `${tone} reminder: Dear ${selectedDeal.customer}, ${reminderTarget?.title || 'payment'} for ${selectedDeal.project} ${selectedDeal.unit} has ${reminderTarget?.status === 'Overdue' ? 'crossed the due date' : 'an upcoming due date'} of ${reminderTarget?.due_date || 'the scheduled date'}. Pending amount is ${formatCurrency(getRemainingAmount(reminderTarget || {}))}. Please complete payment or contact SquarFT support.`;
 
+    const openPaymentReminderCall = () => {
+        if (!selectedDeal?.customerPhone) return;
+
+        navigate('/dashboard/support/voice-agent', {
+            state: {
+                returnTo: '/dashboard/payment-milestones',
+                voiceContext: {
+                    source: 'payment_reminder',
+                    dealId: selectedDeal.id,
+                    dealCode: selectedDeal.dealCode,
+                    customerName: selectedDeal.customer,
+                    customerPhone: selectedDeal.customerPhone,
+                    projectName: selectedDeal.project,
+                    unit: selectedDeal.unit,
+                    builder: selectedDeal.builder,
+                    milestoneTitle: reminderTarget?.milestone_title || reminderTarget?.title || 'Payment milestone',
+                    dueDate: reminderTarget?.due_date || '',
+                    status: reminderTarget?.status || '',
+                    totalAmount: formatCurrency(getMilestoneAmount(reminderTarget || {})),
+                    collectedAmount: formatCurrency(getCollectedAmount(reminderTarget || {})),
+                    pendingAmount: formatCurrency(getRemainingAmount(reminderTarget || {})),
+                    salesOfficer: selectedDeal.salesOfficer,
+                    broker: selectedDeal.broker,
+                    tone,
+                },
+            },
+        });
+    };
+
     const portfolio = enrichedDeals.reduce((summary, deal) => ({
         deals: summary.deals + 1,
         collected: summary.collected + deal.collected,
@@ -225,11 +256,22 @@ const PaymentMilestones = () => {
                                     Track deal-wise payment schedules, milestone due dates, collection progress, receipts, transactions, and AI-assisted payment reminders.
                                 </p>
                             </div>
-                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                                <MetricTile icon={ListChecks} label="Deals" value={portfolio.deals} />
-                                <MetricTile icon={BadgeCheck} label="Collected" value={formatCurrency(portfolio.collected)} />
-                                <MetricTile icon={ShieldAlert} label="Pending" value={formatCurrency(portfolio.pending)} />
-                                <MetricTile icon={CalendarClock} label="Overdue" value={portfolio.overdue} />
+                            <div className="flex flex-col gap-2 xl:items-end">
+                                <button
+                                    type="button"
+                                    disabled={!selectedDeal?.customerPhone}
+                                    onClick={openPaymentReminderCall}
+                                    className="flex min-h-8 items-center justify-center gap-2 rounded-lg bg-[#0C6B39] px-3 py-1.5 text-xs font-black text-white shadow-sm transition hover:bg-[#094d29] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <BellRing className="h-3.5 w-3.5" />
+                                    Reminder Call
+                                </button>
+                                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                                    <MetricTile icon={ListChecks} label="Deals" value={portfolio.deals} />
+                                    <MetricTile icon={BadgeCheck} label="Collected" value={formatCurrency(portfolio.collected)} />
+                                    <MetricTile icon={ShieldAlert} label="Pending" value={formatCurrency(portfolio.pending)} />
+                                    <MetricTile icon={CalendarClock} label="Overdue" value={portfolio.overdue} />
+                                </div>
                             </div>
                         </div>
                     </section>

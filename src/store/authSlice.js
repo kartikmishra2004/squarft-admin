@@ -47,11 +47,15 @@ export const loginSuperAdmin = createAsyncThunk(
   }
 );
 
+const storedUser = authService.getUserData();
+const storedToken = authService.getAuthToken();
+const storedRole = authService.getUserRole() || storedUser?.role || null;
+
 const initialState = {
-  user: authService.getUserData(),
-  token: authService.getAuthToken(),
-  role: "super_admin",
-  isAuthenticated: true,
+  user: storedUser,
+  token: storedToken,
+  role: storedRole,
+  isAuthenticated: Boolean(storedToken),
   loading: false,
   error: null,
   successMessage: null,
@@ -104,12 +108,15 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
-        state.role = 'admin';
+        state.role = action.payload.user?.role || 'admin';
         state.successMessage = 'Admin login successful';
       })
       .addCase(loginAdmin.rejected, (state, action) => {
         state.loading = false;
         state.isAuthenticated = false;
+        state.user = null;
+        state.token = null;
+        state.role = null;
         state.error = action.payload?.message || 'Admin login failed';
       })
 
@@ -124,12 +131,15 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
-        state.role = 'super_admin';
+        state.role = action.payload.user?.role || 'super_admin';
         state.successMessage = 'Super Admin login successful';
       })
       .addCase(loginSuperAdmin.rejected, (state, action) => {
         state.loading = false;
         state.isAuthenticated = false;
+        state.user = null;
+        state.token = null;
+        state.role = null;
         state.error = action.payload?.message || 'Super Admin login failed';
       });
   },

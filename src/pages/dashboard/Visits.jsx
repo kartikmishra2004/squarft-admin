@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import {
-    Building2, Calendar, CalendarCheck, CheckCircle2, ChevronRight, Clock,
+    BellRing, Building2, Calendar, CalendarCheck, CheckCircle2, ChevronRight, Clock,
     KeyRound, LoaderCircle, PhoneCall, Plus, Save,
     Search, ShieldCheck, TrendingUp
 } from 'lucide-react';
@@ -151,6 +152,7 @@ const buildVisitPayload = (formState) => ({
 });
 
 const Visits = () => {
+    const navigate = useNavigate();
     const dispatch = useDispatch();
     const { visits } = useSelector((state) => state.visits);
     const [selectedClientKey, setSelectedClientKey] = useState(null);
@@ -248,6 +250,30 @@ const Visits = () => {
         const nextClient = clientCards.find((client) => client.key === clientKey);
         setSelectedClientKey(clientKey);
         setSelectedVisitRowId(nextClient?.propertyRows?.[0]?.id || null);
+    };
+
+    const openVisitReminderCall = (visit, property = null) => {
+        if (!visit?.customerPhone) return;
+
+        navigate('/dashboard/support/voice-agent', {
+            state: {
+                returnTo: '/dashboard/visits',
+                voiceContext: {
+                    source: 'visit_reminder',
+                    visitId: visit.id,
+                    customerName: visit.customerName,
+                    customerPhone: visit.customerPhone,
+                    visitDate: visit.date,
+                    visitTime: visit.time,
+                    purpose: visit.purpose || 'site visit',
+                    propertyName: property?.name || visit.property?.name || 'Property visit',
+                    propertyAddress: property?.address || visit.property?.address || '',
+                    propertyConfig: property?.config || visit.property?.config || property?.type || visit.property?.type || '',
+                    officerName: visit.officerName,
+                    officerPhone: visit.officerPhone,
+                },
+            },
+        });
     };
 
     const visitMetrics = useMemo(() => ([
@@ -436,7 +462,18 @@ const Visits = () => {
                                     </h2>
                                     <p className="mt-0.5 text-xs font-semibold text-gray-500">Select a client, review their properties to visit, then inspect visit result.</p>
                                 </div>
-                                <Button icon={Plus} className="w-full justify-center px-2.5 py-1.5 text-xs sm:w-auto" onClick={openCreateModal}>New Visit</Button>
+                                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                                    <button
+                                        type="button"
+                                        disabled={!selectedVisit?.customerPhone}
+                                        onClick={() => openVisitReminderCall(selectedVisit, selectedProperty)}
+                                        className="flex min-h-8 items-center justify-center gap-2 rounded-lg bg-[#0C6B39] px-3 py-1.5 text-xs font-black text-white shadow-sm transition hover:bg-[#094d29] disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <BellRing className="h-3.5 w-3.5" />
+                                        Reminder Call
+                                    </button>
+                                    <Button icon={Plus} className="w-full justify-center px-2.5 py-1.5 text-xs sm:w-auto" onClick={openCreateModal}>New Visit</Button>
+                                </div>
                             </div>
                             <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto] items-center">
                                 <div className="relative">
@@ -582,14 +619,18 @@ const Visits = () => {
                                 ) : (
                                     <Card noPadding className="overflow-hidden border-gray-200 shadow-sm">
                                         <div className="border-b border-gray-100 bg-white p-3">
-                                            <div className="flex flex-wrap items-center gap-1.5">
-                                                <h2 className="text-lg font-black text-gray-950 break-words">{selectedProperty?.name || 'Property visit'}</h2>
-                                                {getStatusBadge(selectedVisit.status)}
+                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                <div className="min-w-0">
+                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                        <h2 className="text-lg font-black text-gray-950 break-words">{selectedProperty?.name || 'Property visit'}</h2>
+                                                        {getStatusBadge(selectedVisit.status)}
+                                                    </div>
+                                                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
+                                                        <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5 text-gray-400" /> {selectedVisit.date}</span>
+                                                        <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-gray-400" /> {selectedVisit.time}</span>
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <p className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
-                                                <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5 text-gray-400" /> {selectedVisit.date}</span>
-                                                <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-gray-400" /> {selectedVisit.time}</span>
-                                            </p>
                                         </div>
 
                                         <div className="space-y-3 bg-gray-50/50 p-3">

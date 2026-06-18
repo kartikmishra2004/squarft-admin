@@ -69,3 +69,29 @@ button {
 ::-webkit-scrollbar-thumb:hover {
   background: #D1D5DB;
 }
+
+.voice-agent-wave-active .voice-agent-wave-bar {
+  animation: voice-agent-wave 1.15s ease-in-out infinite;
+}
+
+.voice-agent-wave-active .voice-agent-wave-bar:nth-child(2n) {
+  animation-delay: 0.12s;
+}
+
+.voice-agent-wave-active .voice-agent-wave-bar:nth-child(3n) {
+  animation-delay: 0.24s;
+}
+
+.voice-agent-wave-active .voice-agent-wave-bar:nth-child(4n) {
+  animation-delay: 0.36s;
+}
+
+@keyframes voice-agent-wave {
+  0%, 100% {
+    height: 8px;
+  }
+
+  50% {
+    height: 44px;
+  }
+}

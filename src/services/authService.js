@@ -13,6 +13,31 @@ const AUTH_ENDPOINTS = {
   SUPER_ADMIN_LOGIN: '/api/v1/auth/super-admin/login',
 };
 
+const storeAuthSession = ({ token, user }, role) => {
+  if (!token || !user) {
+    throw {
+      status: 500,
+      message: 'Login response did not include a valid session',
+      errors: [],
+    };
+  }
+
+  const normalizedUser = {
+    ...user,
+    branchId: user.branchId || user.branch_id || null,
+    role: user.role || role,
+  };
+
+  localStorage.setItem('authToken', token);
+  localStorage.setItem('userRole', normalizedUser.role);
+  localStorage.setItem('userData', JSON.stringify(normalizedUser));
+
+  return {
+    token,
+    user: normalizedUser,
+  };
+};
+
 /**
  * Admin login
  * @param {Object} credentials - Login credentials
@@ -32,19 +57,13 @@ export const loginAdmin = async (credentials) => {
       };
     }
 
-  const response = await apiRequest(AUTH_ENDPOINTS.ADMIN_LOGIN, {
+    const response = await apiRequest(AUTH_ENDPOINTS.ADMIN_LOGIN, {
       method: 'POST',
-      body: JSON.stringify({ phone, password, role: 'admin' }), 
+      skipAuth: true,
+      body: JSON.stringify({ phone, password }),
     });
 
-    // Store token and user data in localStorage
-    if (response.token) {
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('userRole', 'admin');
-      localStorage.setItem('userData', JSON.stringify(response.user));
-    }
-
-    return response;
+    return storeAuthSession(response, 'admin');
   } catch (error) {
     console.error('Admin login error:', error);
     throw error;
@@ -70,19 +89,13 @@ export const loginSuperAdmin = async (credentials) => {
       };
     }
 
-   const response = await apiRequest(AUTH_ENDPOINTS.SUPER_ADMIN_LOGIN, {
+    const response = await apiRequest(AUTH_ENDPOINTS.SUPER_ADMIN_LOGIN, {
       method: 'POST',
-      body: JSON.stringify({ phone, password, role: 'super_admin' }), 
+      skipAuth: true,
+      body: JSON.stringify({ phone, password }),
     });
 
-    // Store token and user data in localStorage
-    if (response.token) {
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('userRole', 'super_admin');
-      localStorage.setItem('userData', JSON.stringify(response.user));
-    }
-
-    return response;
+    return storeAuthSession(response, 'super_admin');
   } catch (error) {
     console.error('Super Admin login error:', error);
     throw error;

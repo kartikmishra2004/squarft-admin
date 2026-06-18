@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import {
     AlertCircle,
+    ArrowRight,
     Bot,
     Building2,
     CheckCircle2,
@@ -10,6 +12,7 @@ import {
     Headphones,
     Mail,
     MessageSquare,
+    Mic2,
     PhoneCall,
     Plus,
     RefreshCw,
@@ -216,6 +219,7 @@ const MetricTile = ({ icon: Icon, label, value, detail, tone = 'bg-[#F0EDFF] tex
 );
 
 const Support = () => {
+    const navigate = useNavigate();
     const { user } = useSelector((state) => state.auth);
     const users = useSelector((state) => state.users.users);
     const clients = useSelector((state) => state.clients.clients);
@@ -282,6 +286,13 @@ const Support = () => {
                         <button className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#2F1CD9] px-4 text-xs font-black text-white shadow-[0_4px_12px_rgba(47,28,217,0.25)]">
                             <Plus size={16} /> New Case
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/dashboard/support/voice-agent')}
+                            className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0C6B39] px-4 text-xs font-black text-white shadow-[0_4px_12px_rgba(12,107,57,0.22)]"
+                        >
+                            <Mic2 size={16} /> Voice Agent
+                        </button>
                     </div>
                 </div>
             </header>
@@ -294,6 +305,30 @@ const Support = () => {
                     <MetricTile icon={AlertCircle} label="P1 Urgent" value={supportMetrics.urgentTickets} detail="Escalate inside 15 min" tone="bg-[#FFF0F0] text-[#B41212]" />
                     <MetricTile icon={UsersRound} label="Context Links" value={supportMetrics.ecosystemUsers} detail="Users, visits, deals, clients" tone="bg-[#EEF6FF] text-[#155E9D]" />
                 </div>
+
+                <Panel className="mt-7 overflow-hidden">
+                    <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 items-start gap-4">
+                            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[8px] bg-[#EAF7F0] text-[#0C6B39]">
+                                <Mic2 size={22} />
+                            </div>
+                            <div className="min-w-0">
+                                <h2 className="text-2xl font-black">AI Voice Agent</h2>
+                                <p className="mt-1 max-w-[720px] text-sm font-medium text-[#342E45]">
+                                    Start a browser voice call with Shubh for live support triage, customer issue capture, and assisted handoff.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/dashboard/support/voice-agent')}
+                            className="flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#15111F] px-4 text-xs font-black text-white"
+                        >
+                            Open Voice Call
+                            <ArrowRight size={16} />
+                        </button>
+                    </div>
+                </Panel>
 
                 <div className="mt-7 grid gap-6 xl:grid-cols-[1.28fr_0.72fr]">
                     <Panel className="overflow-hidden">
