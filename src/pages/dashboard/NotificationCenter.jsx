@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     BellRing,
     CheckCircle2,
@@ -14,66 +14,15 @@ import {
     Users,
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
+import {
+    createNotificationCampaign,
+    fetchNotificationCampaigns,
+    fetchNotificationTargets,
+    fetchNotificationTemplates,
+    previewNotificationPayload,
+} from '../../services/notificationService';
 
-const appTargets = [
-    {
-        key: 'user_app',
-        name: 'User App',
-        projectId: 'squarft-user',
-        audience: 'Customers',
-        tokens: 18420,
-        active: 16880,
-        channelId: 'customer-offers',
-        defaultRoute: '/(tabs)/home',
-        color: '#2717D7',
-    },
-    {
-        key: 'sales_officer',
-        name: 'Sales Officer App',
-        projectId: 'sales_officer',
-        audience: 'Sales officers',
-        tokens: 164,
-        active: 151,
-        channelId: 'sales-ops',
-        defaultRoute: '/(tabs)/leads',
-        color: '#04622E',
-    },
-    {
-        key: 'broker_app',
-        name: 'Broker App',
-        projectId: 'squarft-broker',
-        audience: 'Brokers',
-        tokens: 2140,
-        active: 1986,
-        channelId: 'broker-updates',
-        defaultRoute: '/(tabs)/inventory',
-        color: '#8D3106',
-    },
-    {
-        key: 'project_panel',
-        name: 'Project Panel App',
-        projectId: 'squarft-project-panel',
-        audience: 'Builders',
-        tokens: 82,
-        active: 74,
-        channelId: 'project-panel',
-        defaultRoute: '/(tabs)/home',
-        color: '#173141',
-    },
-    {
-        key: 'field_officer',
-        name: 'Field Officer App',
-        projectId: 'squarft-field-officer',
-        audience: 'Field officers',
-        tokens: 96,
-        active: 88,
-        channelId: 'field-ops',
-        defaultRoute: '/(tabs)/projects',
-        color: '#A15A00',
-    },
-];
-
-const campaignTemplates = [
+const defaultCampaignTemplates = [
     {
         key: 'offer',
         label: 'Offer blast',
@@ -98,62 +47,210 @@ const campaignTemplates = [
 ];
 
 const initialForm = {
-    title: campaignTemplates[0].title,
-    body: campaignTemplates[0].body,
+    title: defaultCampaignTemplates[0].title,
+    body: defaultCampaignTemplates[0].body,
     priority: 'high',
     ttlHours: '24',
     sound: 'default',
-    categoryId: campaignTemplates[0].categoryId,
+    categoryId: defaultCampaignTemplates[0].categoryId,
     collapseId: 'campaign-properties-live',
     imageUrl: '',
     route: '/(tabs)/home',
     extraData: '{\n  "campaignId": "properties-live-001",\n  "source": "admin_custom_notification"\n}',
 };
 
-const getTargetMessage = (target, form) => {
-    const ttl = Math.max(0, Number(form.ttlHours || 0)) * 60 * 60;
-    let parsedData = {};
-
+const parseJsonObject = (value) => {
     try {
-        parsedData = JSON.parse(form.extraData || '{}');
+        const parsed = JSON.parse(value || '{}');
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? { value: parsed, hasError: false }
+            : { value: {}, hasError: true };
     } catch {
-        parsedData = { invalidJson: true };
+        return { value: {}, hasError: true };
     }
+};
 
-    return {
-        to: [`ExponentPushToken[${target.projectId}-sample-token-1]`, `ExponentPushToken[${target.projectId}-sample-token-2]`],
-        title: form.title,
-        body: form.body,
-        sound: form.sound || 'default',
-        priority: form.priority,
-        ttl,
-        channelId: target.channelId,
-        categoryId: form.categoryId || undefined,
-        collapseId: form.collapseId || undefined,
-        richContent: form.imageUrl ? { image: form.imageUrl } : undefined,
-        data: {
-            app: target.key,
-            projectId: target.projectId,
-            route: form.route || target.defaultRoute,
-            ...parsedData,
-        },
-    };
+const formatErrorMessage = (error, fallback = 'Something went wrong') => {
+    const firstError = error?.errors?.[0];
+    return error?.message
+        || firstError?.message
+        || (typeof firstError === 'string' ? firstError : fallback);
+};
+
+const formatCampaignStatus = (status) =>
+    String(status || 'Queued').replaceAll('_', ' ').toLowerCase();
+
+const formatDateTime = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('en-IN');
+};
+
+const mapCampaignToLog = (campaign) => ({
+    id: campaign.campaignCode || campaign.id,
+    title: campaign.title || 'Untitled campaign',
+    apps: campaign.appsLabel || campaign.targetApps?.join(', ') || campaign.apps?.map((app) => app.appName || app.name || app.key).join(', ') || '-',
+    tokens: Number(campaign.totalTokens || 0),
+    batches: Number(campaign.batchCount || 0),
+    status: formatCampaignStatus(campaign.status),
+    createdAt: formatDateTime(campaign.createdAt),
+});
+
+const stringifyTemplateData = (extraData) => {
+    if (!extraData || typeof extraData !== 'object' || Array.isArray(extraData)) return initialForm.extraData;
+    return JSON.stringify(extraData, null, 2);
 };
 
 const NotificationCenter = () => {
-    const [selectedApps, setSelectedApps] = useState(appTargets.map((app) => app.key));
+    const [appTargets, setAppTargets] = useState([]);
+    const [campaignTemplates, setCampaignTemplates] = useState(defaultCampaignTemplates);
+    const [selectedApps, setSelectedApps] = useState([]);
     const [form, setForm] = useState(initialForm);
     const [sendLog, setSendLog] = useState([]);
+    const [payloadPreview, setPayloadPreview] = useState(null);
+    const [loading, setLoading] = useState({
+        targets: true,
+        templates: true,
+        campaigns: true,
+        preview: false,
+        send: false,
+    });
+    const [loadError, setLoadError] = useState('');
+    const [previewError, setPreviewError] = useState('');
+    const [sendError, setSendError] = useState('');
+    const [sendSuccess, setSendSuccess] = useState('');
 
     const selectedTargets = useMemo(
         () => appTargets.filter((app) => selectedApps.includes(app.key)),
-        [selectedApps],
+        [appTargets, selectedApps],
     );
 
-    const totalActiveTokens = selectedTargets.reduce((sum, app) => sum + app.active, 0);
-    const batchCount = Math.max(1, Math.ceil(totalActiveTokens / 100));
-    const payloadPreview = selectedTargets.map((target) => getTargetMessage(target, form));
-    const hasInvalidJson = payloadPreview.some((message) => message.data.invalidJson);
+    const extraDataResult = useMemo(() => parseJsonObject(form.extraData), [form.extraData]);
+    const hasInvalidJson = extraDataResult.hasError;
+    const canRequestPreview = Boolean(selectedApps.length && form.title.trim() && form.body.trim() && !hasInvalidJson);
+    const notificationPayload = useMemo(() => ({
+        targetApps: selectedApps,
+        title: form.title,
+        body: form.body,
+        priority: form.priority,
+        ttlHours: form.ttlHours,
+        sound: form.sound,
+        categoryId: form.categoryId,
+        collapseId: form.collapseId,
+        imageUrl: form.imageUrl,
+        route: form.route,
+        extraData: extraDataResult.value,
+    }), [extraDataResult.value, form, selectedApps]);
+
+    const activePreview = canRequestPreview ? payloadPreview : null;
+    const totalActiveTokens = activePreview?.totalActiveTokens ?? selectedTargets.reduce((sum, app) => sum + (app.active || app.activeTokens || 0), 0);
+    const batchCount = activePreview?.batchCount ?? (totalActiveTokens > 0 ? Math.ceil(totalActiveTokens / 100) : 0);
+    const previewJson = activePreview || {
+        message: hasInvalidJson
+            ? 'Data JSON must be a valid object before the backend can build a payload preview.'
+            : previewError || 'Enter valid content and select active target apps to generate the backend payload preview.',
+        selectedTargets: selectedTargets.map((target) => ({
+            key: target.key,
+            name: target.name,
+            activeTokens: target.active || target.activeTokens || 0,
+            channelId: target.channelId,
+        })),
+    };
+    const isSendDisabled = (
+        loading.send ||
+        loading.preview ||
+        !canRequestPreview ||
+        Boolean(previewError)
+    );
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadNotificationData = async () => {
+            setLoading((current) => ({
+                ...current,
+                targets: true,
+                templates: true,
+                campaigns: true,
+            }));
+
+            const [targetsResult, templatesResult, campaignsResult] = await Promise.allSettled([
+                fetchNotificationTargets(),
+                fetchNotificationTemplates(),
+                fetchNotificationCampaigns({ page: 1, limit: 20 }),
+            ]);
+
+            if (!isMounted) return;
+
+            const errors = [];
+
+            if (targetsResult.status === 'fulfilled') {
+                const targets = targetsResult.value?.targets || [];
+                setAppTargets(targets);
+                setSelectedApps(targets.map((target) => target.key));
+            } else {
+                setAppTargets([]);
+                setSelectedApps([]);
+                errors.push(formatErrorMessage(targetsResult.reason, 'Failed to load notification targets'));
+            }
+
+            if (templatesResult.status === 'fulfilled') {
+                const templates = templatesResult.value?.templates || [];
+                if (templates.length) setCampaignTemplates(templates);
+            } else {
+                errors.push(formatErrorMessage(templatesResult.reason, 'Failed to load notification templates'));
+            }
+
+            if (campaignsResult.status === 'fulfilled') {
+                setSendLog((campaignsResult.value?.campaigns || []).map(mapCampaignToLog));
+            } else {
+                errors.push(formatErrorMessage(campaignsResult.reason, 'Failed to load notification campaigns'));
+            }
+
+            setLoadError([...new Set(errors)].join(' '));
+            setLoading((current) => ({
+                ...current,
+                targets: false,
+                templates: false,
+                campaigns: false,
+            }));
+        };
+
+        loadNotificationData();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!canRequestPreview) return undefined;
+
+        let isActive = true;
+        const timeoutId = window.setTimeout(async () => {
+            setLoading((current) => ({ ...current, preview: true }));
+
+            try {
+                const preview = await previewNotificationPayload(notificationPayload);
+                if (!isActive) return;
+                setPayloadPreview(preview);
+                setPreviewError('');
+            } catch (error) {
+                if (!isActive) return;
+                setPayloadPreview(null);
+                setPreviewError(formatErrorMessage(error, 'Failed to generate notification payload preview'));
+            } finally {
+                if (isActive) {
+                    setLoading((current) => ({ ...current, preview: false }));
+                }
+            }
+        }, 350);
+
+        return () => {
+            isActive = false;
+            window.clearTimeout(timeoutId);
+        };
+    }, [canRequestPreview, notificationPayload]);
 
     const toggleApp = (key) => {
         setSelectedApps((current) => (
@@ -169,24 +266,35 @@ const NotificationCenter = () => {
             title: template.title,
             body: template.body,
             categoryId: template.categoryId,
+            priority: template.priority || current.priority,
+            ttlHours: String(template.ttlHours || current.ttlHours),
+            sound: template.sound ?? current.sound,
+            route: template.route || current.route,
+            extraData: stringifyTemplateData(template.extraData),
         }));
     };
 
-    const handleSendSimulation = () => {
-        if (!selectedTargets.length || !form.title.trim() || !form.body.trim() || hasInvalidJson) return;
+    const handleQueueNotification = async () => {
+        if (isSendDisabled) return;
 
-        setSendLog((current) => [
-            {
-                id: `NTF-${String(current.length + 1).padStart(3, '0')}`,
-                title: form.title,
-                apps: selectedTargets.map((app) => app.name).join(', '),
-                tokens: totalActiveTokens,
-                batches: batchCount,
-                status: 'Ready for backend send',
-                createdAt: new Date().toLocaleString('en-IN'),
-            },
-            ...current,
-        ]);
+        setLoading((current) => ({ ...current, send: true }));
+        setSendError('');
+        setSendSuccess('');
+
+        try {
+            const campaign = await createNotificationCampaign({
+                ...notificationPayload,
+                sendMode: 'QUEUE',
+            });
+            const campaigns = await fetchNotificationCampaigns({ page: 1, limit: 20 });
+
+            setSendLog((campaigns.campaigns || []).map(mapCampaignToLog));
+            setSendSuccess(`${campaign.campaignCode || 'Campaign'} queued successfully`);
+        } catch (error) {
+            setSendError(formatErrorMessage(error, 'Failed to queue notification campaign'));
+        } finally {
+            setLoading((current) => ({ ...current, send: false }));
+        }
     };
 
     return (
@@ -206,6 +314,7 @@ const NotificationCenter = () => {
                                 <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-[#615C71]">
                                     Compose campaign-style push notifications, target one or more apps, preview the Expo message payload, and hand it to the backend sender.
                                 </p>
+                                {loadError && <p className="mt-2 text-xs font-black text-[#B41212]">{loadError}</p>}
                             </div>
                             <div className="grid grid-cols-3 gap-3 sm:min-w-[420px]">
                                 <MetricTile icon={Smartphone} label="Apps" value={selectedTargets.length} />
@@ -246,6 +355,8 @@ const NotificationCenter = () => {
                                         );
                                     })}
                                 </div>
+                                {loading.targets && <p className="mt-3 text-xs font-black text-[#615C71]">Loading notification targets...</p>}
+                                {!loading.targets && !appTargets.length && <p className="mt-3 text-xs font-black text-[#B41212]">No notification targets available.</p>}
                             </div>
 
                             <div className="rounded-[10px] border border-[#D8D2EB] bg-white p-5">
@@ -326,15 +437,18 @@ const NotificationCenter = () => {
                             <div className="rounded-[10px] border border-[#D8D2EB] bg-white p-5">
                                 <SectionHeader icon={Copy} title="Expo payload preview" helper="Backend should chunk real tokens into arrays of 100 messages per request." />
                                 <pre className="mt-4 max-h-[360px] overflow-auto rounded-[8px] bg-[#171327] p-4 text-[11px] leading-5 text-white">
-                                    {JSON.stringify(payloadPreview, null, 2)}
+                                    {JSON.stringify(previewJson, null, 2)}
                                 </pre>
+                                {previewError && <p className="mt-2 text-xs font-black text-[#B41212]">{previewError}</p>}
+                                {sendError && <p className="mt-2 text-xs font-black text-[#B41212]">{sendError}</p>}
+                                {sendSuccess && <p className="mt-2 text-xs font-black text-[#04622E]">{sendSuccess}</p>}
                                 <button
                                     type="button"
-                                    onClick={handleSendSimulation}
-                                    disabled={!selectedTargets.length || !form.title.trim() || !form.body.trim() || hasInvalidJson}
+                                    onClick={handleQueueNotification}
+                                    disabled={isSendDisabled}
                                     className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#2717D7] px-4 text-xs font-black uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:bg-[#C8C2E8]"
                                 >
-                                    <Send size={16} /> Queue notification
+                                    <Send size={16} /> {loading.send ? 'Queueing...' : 'Queue notification'}
                                 </button>
                             </div>
                         </aside>
@@ -354,7 +468,17 @@ const NotificationCenter = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {(sendLog.length ? sendLog : seedSendLog).map((item) => (
+                                    {loading.campaigns && (
+                                        <tr className="border-t border-[#E1DDF0]">
+                                            <td colSpan={5} className="px-4 py-5 text-xs font-black text-[#615C71]">Loading campaigns...</td>
+                                        </tr>
+                                    )}
+                                    {!loading.campaigns && sendLog.length === 0 && (
+                                        <tr className="border-t border-[#E1DDF0]">
+                                            <td colSpan={5} className="px-4 py-5 text-xs font-black text-[#615C71]">No notification campaigns found.</td>
+                                        </tr>
+                                    )}
+                                    {!loading.campaigns && sendLog.map((item) => (
                                         <tr key={item.id} className="border-t border-[#E1DDF0]">
                                             <td className="px-4 py-4">
                                                 <p className="text-sm font-black text-[#171327]">{item.title}</p>
@@ -379,18 +503,6 @@ const NotificationCenter = () => {
         </div>
     );
 };
-
-const seedSendLog = [
-    {
-        id: 'NTF-000',
-        title: 'Weekend inventory reminder',
-        apps: 'User App, Broker App',
-        tokens: 18866,
-        batches: 189,
-        status: 'Receipt check pending',
-        createdAt: '14/06/2026, 10:15:00',
-    },
-];
 
 const MetricTile = ({ icon: Icon, label, value }) => (
     <div className="rounded-[10px] border border-[#D8D2EB] bg-[#FCFBFF] p-3">

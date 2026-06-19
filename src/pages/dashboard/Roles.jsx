@@ -20,6 +20,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { dashboardAccessTabs } from '../../data/navigation';
 import {
+    getRoleAccessContext,
     getAccessibleBranches,
     getOperatingRoles,
     getRoleDetail,
@@ -57,6 +58,7 @@ const Roles = () => {
     // Redux selectors
     const { user, role: userRole } = useSelector((state) => state.auth);
     const { 
+        context,
         accessibleBranches, 
         operatingRoles, 
         selectedRole, 
@@ -65,7 +67,7 @@ const Roles = () => {
         successMessage 
     } = useSelector((state) => state.roleAccess);
 
-    const isSuperAdmin = userRole === 'super_admin' || user?.role === 'super_admin';
+    const isSuperAdmin = context?.mode === 'SUPER_ADMIN' || userRole === 'super_admin' || user?.role === 'super_admin';
     
     const [selectedBranchId, setSelectedBranchId] = useState(null);
     const [activeRoleId, setActiveRoleId] = useState(null);
@@ -80,6 +82,13 @@ const Roles = () => {
         if (operatingRoles.data && Array.isArray(operatingRoles.data)) return operatingRoles.data;
         return [];
     }, [operatingRoles]);
+
+    useEffect(() => {
+        dispatch(getRoleAccessContext());
+        dispatch(getAccessibleBranches({ limit: 50 }));
+    }, [dispatch]);
+
+    const effectiveBranchId = selectedBranchId || context?.assignedBranch?.id || context?.defaultBranch?.id || user?.branchId;
 
     // Fetch accessible branches on mount for super admin
     useEffect(() => {
@@ -118,18 +127,18 @@ const Roles = () => {
         console.log('⏱️ Time:', new Date().toISOString());
         console.log('🏢 Selected Branch ID:', selectedBranchId);
         
-        if (selectedBranchId) {
+        if (effectiveBranchId) {
             console.log('✅ Branch ID present - Dispatching getOperatingRoles');
-            dispatch(getOperatingRoles(selectedBranchId));
+            dispatch(getOperatingRoles(effectiveBranchId));
         } else {
             console.log('ℹ️ No Branch ID - Skipping role fetch');
         }
         console.groupEnd();
-    }, [selectedBranchId, dispatch]);
+    }, [effectiveBranchId, dispatch]);
 
     // Set default role when roles load
     useEffect(() => {
-        if (rolesList.length > 0 && !activeRoleId) {
+        if (rolesList.length > 0 && (!activeRoleId || !rolesList.some((role) => role.id === activeRoleId))) {
             setActiveRoleId(rolesList[0].id);
         }
     }, [rolesList, activeRoleId]);
@@ -141,14 +150,14 @@ const Roles = () => {
         console.log('🔑 Active Role ID:', activeRoleId);
         console.log('🏢 Selected Branch ID:', selectedBranchId);
         
-        if (activeRoleId && selectedBranchId) {
+        if (activeRoleId && effectiveBranchId) {
             console.log('✅ Both IDs present - Dispatching getRoleDetail');
-            dispatch(getRoleDetail({ roleId: activeRoleId, branchId: selectedBranchId }));
+            dispatch(getRoleDetail({ roleId: activeRoleId, branchId: effectiveBranchId }));
         } else {
             console.log('ℹ️ Missing ID - Role:', activeRoleId, 'Branch:', selectedBranchId);
         }
         console.groupEnd();
-    }, [activeRoleId, selectedBranchId, dispatch]);
+    }, [activeRoleId, effectiveBranchId, dispatch]);
 
     // Clear success message after 3 seconds
     useEffect(() => {
@@ -175,12 +184,20 @@ const Roles = () => {
     const activeRole = selectedRole || { id: '', name: '', tabs: [], locked: false };
     
     const branchesNormalized = useMemo(() => {
-        if (!accessibleBranches) return [];
-        if (Array.isArray(accessibleBranches)) return accessibleBranches;
-        return accessibleBranches.data || [];
-    }, [accessibleBranches]);
+        const branches = Array.isArray(accessibleBranches)
+            ? [...accessibleBranches]
+            : [...(accessibleBranches?.data || [])];
 
-    const activeBranch = branchesNormalized.find(b => b.id === selectedBranchId) || {};
+        [context?.assignedBranch, context?.defaultBranch, context?.selectedBranch].forEach((branch) => {
+            if (branch?.id && !branches.some((item) => item.id === branch.id)) {
+                branches.push(branch);
+            }
+        });
+
+        return branches;
+    }, [accessibleBranches, context]);
+
+    const activeBranch = branchesNormalized.find(b => b.id === effectiveBranchId) || {};
 
     const handleCreateRole = async (event) => {
         event.preventDefault();
@@ -192,7 +209,7 @@ const Roles = () => {
         console.log('📝 Role Name (trimmed):', trimmedName);
         console.log('🏢 Selected Branch ID:', selectedBranchId);
         
-        if (!trimmedName || !selectedBranchId) {
+        if (!trimmedName || !effectiveBranchId) {
             console.warn('⚠️ Validation Failed - Missing required fields');
             console.warn('   Role Name:', !!trimmedName);
             console.warn('   Branch ID:', !!selectedBranchId);
@@ -203,14 +220,14 @@ const Roles = () => {
         try {
             console.log('✅ Validation passed - Creating role...');
             await dispatch(createNewBranchRole({
-                branchId: selectedBranchId,
+                branchId: effectiveBranchId,
                 roleName: trimmedName,
             })).unwrap();
             
             console.log('✅ Role created successfully');
             setRoleName('');
             console.log('🔄 Refreshing roles list...');
-            dispatch(getOperatingRoles(selectedBranchId));
+            dispatch(getOperatingRoles(effectiveBranchId));
             console.groupEnd();
         } catch (error) {
             console.error('❌ Create role failed:', error);
@@ -237,6 +254,12 @@ const Roles = () => {
         
         console.log('🔍 Backend tab found:', backendTab);
         
+        if (!backendTab) {
+            console.warn('This tab path is not supported by the backend role-access API');
+            console.groupEnd();
+            return;
+        }
+
         if (backendTab && typeof backendTab === 'object' && backendTab.disabled === true) {
             console.warn('⚠️ This tab is disabled by backend - cannot toggle');
             console.groupEnd();
@@ -280,6 +303,18 @@ const Roles = () => {
         console.log('📤 Count:', updatedTabPaths.length);
         console.groupEnd();
 
+        const isEnabled = typeof backendTab === 'string' ? true : Boolean(backendTab.enabled);
+        const enabledPaths = currentTabs
+            .filter(t => {
+                const disabled = typeof t === 'object' ? t.disabled : false;
+                const enabled = typeof t === 'object' ? Boolean(t.enabled) : true;
+                return enabled && !disabled;
+            })
+            .map(t => typeof t === 'string' ? t : t.path);
+        updatedTabPaths = isEnabled
+            ? enabledPaths.filter(path => path !== tabPath)
+            : [...enabledPaths, tabPath];
+
         handleSavePermissions(updatedTabPaths);
     };
 
@@ -289,7 +324,12 @@ const Roles = () => {
         console.log('🔑 Active Role ID:', activeRoleId);
         console.log('🏢 Selected Branch ID:', selectedBranchId);
         
-        if (!activeRoleId || !selectedBranchId) {
+        if (activeRole.locked) {
+            console.groupEnd();
+            return;
+        }
+
+        if (!activeRoleId || !effectiveBranchId) {
             console.warn('⚠️ Cannot save: missing roleId or branchId');
             console.warn('   Role ID:', activeRoleId);
             console.warn('   Branch ID:', selectedBranchId);
@@ -297,10 +337,22 @@ const Roles = () => {
             return;
         }
 
+        const backendTabPaths = new Set(
+            (activeRole.tabs || [])
+                .map(t => typeof t === 'string' ? t : t.path)
+                .filter(Boolean)
+        );
+
         // Extract just the paths from tabs array (handle both string and object formats)
-        const tabPathsToSend = tabPaths || (activeRole.tabs || []).map(t => {
-            return typeof t === 'string' ? t : t.path;
-        });
+        const tabPathsToSend = (tabPaths || (activeRole.tabs || [])
+            .filter(t => {
+                const enabled = typeof t === 'object' ? Boolean(t.enabled) : true;
+                const disabled = typeof t === 'object' ? Boolean(t.disabled) : false;
+                return enabled && !disabled;
+            })
+            .map(t => {
+                return typeof t === 'string' ? t : t.path;
+            })).filter(path => backendTabPaths.has(path));
         
         console.log('📤 Tab paths to send:', tabPathsToSend);
         console.log('📤 Tab paths count:', tabPathsToSend.length);
@@ -310,10 +362,11 @@ const Roles = () => {
             await dispatch(updatePermissions({
                 roleId: activeRoleId,
                 permissionsData: {
-                    branchId: selectedBranchId,
+                    branchId: effectiveBranchId,
                     tabs: tabPathsToSend
                 }
             })).unwrap();
+            dispatch(getRoleDetail({ roleId: activeRoleId, branchId: effectiveBranchId }));
             console.log('✅ Permissions updated successfully');
             console.groupEnd();
         } catch (error) {
@@ -388,7 +441,7 @@ const Roles = () => {
                             <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Select Operating Branch</h3>
                             <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin shrink-0">
                                 {branchesNormalized.map((branch) => {
-                                    const isSelected = branch.id === selectedBranchId;
+                                    const isSelected = branch.id === effectiveBranchId;
                                     return (
                                         <button
                                             key={branch.id}

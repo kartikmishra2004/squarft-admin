@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -17,6 +17,7 @@ import {
     X,
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
+import { fetchMasterOptions } from '../../services/commonService';
 
 const DEALS_PER_PAGE = 5;
 
@@ -225,7 +226,7 @@ const paymentDeals = [
     },
 ];
 
-const reminderChannels = ['WhatsApp', 'SMS', 'Push', 'Email'];
+const fallbackReminderChannels = ['WhatsApp', 'SMS', 'Push', 'Email'];
 const filterOptions = ['All', 'Overdue', 'Upcoming', 'Paid'];
 
 const formatCurrency = (amount) => `Rs ${Number(amount || 0).toLocaleString('en-IN')}`;
@@ -271,6 +272,30 @@ const PaymentMilestones = () => {
     const [page, setPage] = useState(1);
     const [viewMode, setViewMode] = useState('list');
     const [scheduleFilter, setScheduleFilter] = useState('All');
+    const [reminderChannels, setReminderChannels] = useState(fallbackReminderChannels);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadReminderChannels = async () => {
+            try {
+                const options = await fetchMasterOptions(['reminder_channels']);
+                const channels = (options?.reminderChannels || []).map((option) => option.label || option.value).filter(Boolean);
+                if (isMounted && channels.length) {
+                    setReminderChannels(channels);
+                    setChannel((current) => (channels.includes(current) ? current : channels[0]));
+                }
+            } catch {
+                if (isMounted) setReminderChannels(fallbackReminderChannels);
+            }
+        };
+
+        loadReminderChannels();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const enrichedDeals = useMemo(() => paymentDeals.map((deal) => {
         const total = deal.paymentSchedule.reduce((sum, item) => sum + getMilestoneAmount(item), 0) || deal.dealValue;

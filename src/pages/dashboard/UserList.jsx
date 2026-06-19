@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
     Search, Plus, Edit2, Trash2, Eye, CheckCircle2, XCircle,
@@ -19,6 +19,7 @@ import Badge from '../../components/ui/Badge';
 import Header from '../../components/layout/Header';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
+import { uploadCommonFile } from '../../services/commonService';
 
 const emptyUserForm = {
     name: '',
@@ -90,7 +91,7 @@ const UserList = () => {
     };
 
     if (selectedUser) {
-        return <UserEditView user={selectedUser} onBack={handleBack} />;
+        return <UserEditView key={selectedUser.id} user={selectedUser} onBack={handleBack} />;
     }
 
     return (
@@ -240,10 +241,7 @@ const UserEditView = ({ user, onBack }) => {
     const fileInputRefs = useRef({});
     const [formState, setFormState] = useState({ ...emptyUserForm, ...user });
     const [previewDoc, setPreviewDoc] = useState(null);
-
-    useEffect(() => {
-        setFormState({ ...emptyUserForm, ...user });
-    }, [user]);
+    const [uploadingDocKey, setUploadingDocKey] = useState(null);
 
     const handleUpdateStatus = (status) => {
         dispatch(updateUserDocStatus({ id: user.id, status }));
@@ -255,19 +253,54 @@ const UserEditView = ({ user, onBack }) => {
         onBack();
     };
 
-    const handleDocumentUpload = (docKey, file) => {
+    const handleDocumentUpload = async (docKey, file) => {
         if (!file) return;
-        dispatch(updateUserDocument({
-            id: user.id,
-            docKey,
-            document: {
-                fileName: file.name,
-                fileType: file.type || 'File',
-                size: file.size,
-                uploadedAt: new Date().toLocaleString('en-IN'),
-                status: 'Uploaded',
-            },
-        }));
+
+        setUploadingDocKey(docKey);
+
+        try {
+            const upload = await uploadCommonFile({
+                file,
+                module: 'users',
+                metadata: {
+                    userId: user.id,
+                    documentType: docKey,
+                },
+            });
+
+            dispatch(updateUserDocument({
+                id: user.id,
+                docKey,
+                document: {
+                    fileName: upload.file?.originalName || file.name,
+                    fileType: upload.file?.fileType || file.type || 'File',
+                    size: upload.file?.sizeBytes || file.size,
+                    uploadedAt: new Date().toLocaleString('en-IN'),
+                    status: 'Uploaded',
+                    fileUrl: upload.file?.url || '',
+                    filePath: upload.file?.path || '',
+                    bucket: upload.file?.bucket || null,
+                },
+            }));
+        } catch (error) {
+            dispatch(updateUserDocument({
+                id: user.id,
+                docKey,
+                document: {
+                    fileName: file.name,
+                    fileType: file.type || 'File',
+                    size: file.size,
+                    uploadedAt: new Date().toLocaleString('en-IN'),
+                    status: 'Upload Failed',
+                    error: error.message || 'Upload failed',
+                },
+            }));
+        } finally {
+            setUploadingDocKey(null);
+            if (fileInputRefs.current[docKey]) {
+                fileInputRefs.current[docKey].value = '';
+            }
+        }
     };
 
     const handleApproveDocument = (docKey) => {
@@ -377,8 +410,12 @@ const UserEditView = ({ user, onBack }) => {
                                                         <CheckCircle2 className="w-3.5 h-3.5" /> Approve
                                                     </button>
                                                 )}
-                                                <button onClick={() => fileInputRefs.current[doc.key]?.click()} className="flex-1 py-2.5 bg-white text-gray-700 text-[10px] font-black rounded-xl hover:bg-gray-50 transition-colors border border-gray-200 uppercase tracking-widest flex items-center justify-center gap-2">
-                                                    <Upload className="w-3.5 h-3.5" /> {document ? 'Replace' : 'Upload'}
+                                                <button
+                                                    onClick={() => fileInputRefs.current[doc.key]?.click()}
+                                                    disabled={uploadingDocKey === doc.key}
+                                                    className="flex-1 py-2.5 bg-white text-gray-700 text-[10px] font-black rounded-xl hover:bg-gray-50 transition-colors border border-gray-200 uppercase tracking-widest flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                    <Upload className="w-3.5 h-3.5" /> {uploadingDocKey === doc.key ? 'Uploading' : document ? 'Replace' : 'Upload'}
                                                 </button>
                                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${document ? 'bg-emerald-50 text-emerald-500 border-emerald-100' : 'bg-gray-50 text-gray-300 border-gray-100'}`}>
                                                     <CheckCircle2 className="w-4 h-4" />

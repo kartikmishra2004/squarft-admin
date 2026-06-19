@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,6 +13,21 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Header from '../../components/layout/Header';
+import { fetchMasterOptions, fetchProperties, fetchSalesOfficers } from '../../services/commonService';
+
+const fallbackPurposeOptions = ['BUY', 'RENT', 'SELL'];
+const fallbackPropertyTypeOptions = ['APARTMENT/FLATS', 'VILLA PLOTS', 'COMMERCIAL', 'PLOT'];
+const fallbackVisitStatusOptions = ['Scheduled', 'In Progress', 'Completed', 'Cancelled'];
+
+const uniqueOptions = (...groups) => (
+    [...new Set(groups.flat().filter(Boolean).map((option) => String(option).trim()).filter(Boolean))]
+);
+
+const optionLabels = (options = []) => options.map((option) => option.label || option.value);
+
+const buildPropertyLookupLabel = (property) => (
+    [property.title, property.projectName, property.city].filter(Boolean).join(' - ')
+);
 
 const visitFormInitialState = {
     officerName: '',
@@ -243,6 +258,59 @@ const Visits = () => {
     const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
     const [editingVisitId, setEditingVisitId] = useState(null);
     const [visitForm, setVisitForm] = useState(visitFormInitialState);
+    const [purposeOptions, setPurposeOptions] = useState(fallbackPurposeOptions);
+    const [propertyTypeOptions, setPropertyTypeOptions] = useState(fallbackPropertyTypeOptions);
+    const [visitStatusOptions, setVisitStatusOptions] = useState(fallbackVisitStatusOptions);
+    const [salesOfficerOptions, setSalesOfficerOptions] = useState([]);
+    const [propertyLookupOptions, setPropertyLookupOptions] = useState([]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadCommonOptions = async () => {
+            const [masterResult, officerResult, propertyResult] = await Promise.allSettled([
+                fetchMasterOptions([
+                    'requirement_types',
+                    'property_categories',
+                    'residential_property_types',
+                    'commercial_property_types',
+                    'visit_statuses',
+                ]),
+                fetchSalesOfficers({ status: 'ACTIVE', availableOnly: true, limit: 50 }),
+                fetchProperties({ source: 'all', includeUnits: true, limit: 50 }),
+            ]);
+
+            if (!isMounted) return;
+
+            if (masterResult.status === 'fulfilled') {
+                setPurposeOptions(uniqueOptions(optionLabels(masterResult.value?.requirementTypes), fallbackPurposeOptions));
+                setPropertyTypeOptions(uniqueOptions(
+                    optionLabels(masterResult.value?.propertyCategories),
+                    optionLabels(masterResult.value?.residentialPropertyTypes),
+                    optionLabels(masterResult.value?.commercialPropertyTypes),
+                    fallbackPropertyTypeOptions,
+                ));
+                setVisitStatusOptions(uniqueOptions(optionLabels(masterResult.value?.visitStatuses), fallbackVisitStatusOptions));
+            }
+
+            if (officerResult.status === 'fulfilled') {
+                setSalesOfficerOptions(officerResult.value?.salesOfficers || []);
+            }
+
+            if (propertyResult.status === 'fulfilled') {
+                setPropertyLookupOptions([
+                    ...(propertyResult.value?.properties || []),
+                    ...(propertyResult.value?.units || []),
+                ]);
+            }
+        };
+
+        loadCommonOptions();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const filteredVisits = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
@@ -445,7 +513,37 @@ const Visits = () => {
     };
 
     const updateVisitForm = (field, value) => {
-        setVisitForm((current) => ({ ...current, [field]: value }));
+        setVisitForm((current) => {
+            if (field === 'officerName') {
+                const officer = salesOfficerOptions.find((item) => item.name === value);
+                return {
+                    ...current,
+                    officerName: value,
+                    officerPhone: officer?.phone || current.officerPhone,
+                };
+            }
+
+            if (field === 'propertyName') {
+                const property = propertyLookupOptions.find((item) => (
+                    item.title === value
+                    || item.name === value
+                    || buildPropertyLookupLabel(item) === value
+                ));
+
+                if (!property) return { ...current, propertyName: value };
+
+                return {
+                    ...current,
+                    propertyName: property.title || property.name || value,
+                    propertyType: property.type || property.subType || current.propertyType,
+                    propertyConfig: property.unitCode || property.title || property.subType || current.propertyConfig,
+                    propertyAddress: [property.area, property.city, property.pincode].filter(Boolean).join(', ') || current.propertyAddress,
+                    propertyPrice: property.price ? String(property.price) : current.propertyPrice,
+                };
+            }
+
+            return { ...current, [field]: value };
+        });
     };
 
     const handleSubmitVisit = (event) => {
@@ -800,22 +898,36 @@ const Visits = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Field label="Customer Name" value={visitForm.customerName} onChange={(value) => updateVisitForm('customerName', value)} required />
                         <Field label="Customer Phone" value={visitForm.customerPhone} onChange={(value) => updateVisitForm('customerPhone', value)} required />
-                        <Field label="Officer Name" value={visitForm.officerName} onChange={(value) => updateVisitForm('officerName', value)} required />
+                        <Field label="Officer Name" value={visitForm.officerName} onChange={(value) => updateVisitForm('officerName', value)} listId="visit-officer-options" required />
                         <Field label="Officer Phone" value={visitForm.officerPhone} onChange={(value) => updateVisitForm('officerPhone', value)} required />
+                        <datalist id="visit-officer-options">
+                            {salesOfficerOptions.map((officer) => (
+                                <option key={officer.id} value={officer.name}>
+                                    {officer.phone || officer.branchName || 'Sales officer'}
+                                </option>
+                            ))}
+                        </datalist>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <SelectField label="Purpose" value={visitForm.purpose} onChange={(value) => updateVisitForm('purpose', value)} options={['BUY', 'RENT', 'SELL']} />
+                        <SelectField label="Purpose" value={visitForm.purpose} onChange={(value) => updateVisitForm('purpose', value)} options={purposeOptions} />
                         <Field label="Date" type="text" value={visitForm.date} onChange={(value) => updateVisitForm('date', value)} placeholder="05/04/26" required />
                         <Field label="Time" value={visitForm.time} onChange={(value) => updateVisitForm('time', value)} placeholder="10:00 - 11:00 AM" required />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Field label="Property Name" value={visitForm.propertyName} onChange={(value) => updateVisitForm('propertyName', value)} required />
-                        <SelectField label="Property Type" value={visitForm.propertyType} onChange={(value) => updateVisitForm('propertyType', value)} options={['APARTMENT/FLATS', 'VILLA PLOTS', 'COMMERCIAL', 'PLOT']} />
+                        <Field label="Property Name" value={visitForm.propertyName} onChange={(value) => updateVisitForm('propertyName', value)} listId="visit-property-options" required />
+                        <datalist id="visit-property-options">
+                            {propertyLookupOptions.map((property) => (
+                                <option key={`${property.source || 'property'}-${property.id}`} value={property.title || property.name}>
+                                    {buildPropertyLookupLabel(property)}
+                                </option>
+                            ))}
+                        </datalist>
+                        <SelectField label="Property Type" value={visitForm.propertyType} onChange={(value) => updateVisitForm('propertyType', value)} options={propertyTypeOptions} />
                         <Field label="Configuration" value={visitForm.propertyConfig} onChange={(value) => updateVisitForm('propertyConfig', value)} placeholder="3BHK Premium" />
                         <Field label="Price" value={visitForm.propertyPrice} onChange={(value) => updateVisitForm('propertyPrice', value)} placeholder="1.85 Cr" />
                     </div>
                     <Field label="Property Address" value={visitForm.propertyAddress} onChange={(value) => updateVisitForm('propertyAddress', value)} />
-                    <SelectField label="Status" value={visitForm.status} onChange={(value) => updateVisitForm('status', value)} options={['Scheduled', 'In Progress', 'Completed', 'Cancelled']} />
+                    <SelectField label="Status" value={visitForm.status} onChange={(value) => updateVisitForm('status', value)} options={visitStatusOptions} />
                     <div>
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Notes</label>
                         <textarea rows="3" value={visitForm.notes} onChange={(event) => updateVisitForm('notes', event.target.value)} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 text-sm font-medium" />
@@ -830,7 +942,7 @@ const Visits = () => {
     );
 };
 
-const Field = ({ label, value, onChange, type = 'text', placeholder = '', required = false }) => (
+const Field = ({ label, value, onChange, type = 'text', placeholder = '', required = false, listId }) => (
     <div>
         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</label>
         <input
@@ -839,6 +951,7 @@ const Field = ({ label, value, onChange, type = 'text', placeholder = '', requir
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={placeholder}
+            list={listId}
             className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
         />
     </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     Bot,
     ChevronDown,
@@ -14,6 +14,7 @@ import {
     X,
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
+import { fetchMasterOptions } from '../../services/commonService';
 
 const leadRows = [
     {
@@ -84,8 +85,13 @@ const leadRows = [
     },
 ];
 
-const sourceOptions = ['All Sources', 'Broker', 'User', 'Sales Officer'];
-const statusOptions = ['Any Status', 'Hot', 'Cold', 'Warm', 'Suspended'];
+const fallbackSourceOptions = ['All Sources', 'Broker', 'User', 'Sales Officer'];
+const fallbackStatusOptions = ['Any Status', 'Hot', 'Cold', 'Warm', 'Suspended'];
+
+const mergeFilterOptions = (leadingOption, apiOptions = [], fallbackOptions = []) => {
+    const labels = apiOptions.map((option) => option.label || option.value).filter(Boolean);
+    return [leadingOption, ...new Set([...labels, ...fallbackOptions.filter((option) => option !== leadingOption)])];
+};
 
 const statusStyles = {
     Hot: 'bg-rose-100 text-rose-700',
@@ -146,17 +152,6 @@ const SourceBadge = ({ lead }) => (
                 {lead.attribution}
             </p>
         )}
-    </div>
-);
-
-const ScoreBadge = ({ status, score }) => (
-    <div className="inline-flex flex-col items-start gap-1">
-        <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${statusStyles[status]}`}>
-            {status}
-        </span>
-        <span className={`rounded-lg px-2 py-1 text-xs font-black ${statusStyles[status]}`}>
-            ({score})
-        </span>
     </div>
 );
 
@@ -306,6 +301,32 @@ const Leads = () => {
     const [statusFilter, setStatusFilter] = useState('Any Status');
     const [selectedLeadId, setSelectedLeadId] = useState(leadRows[0]?.id ?? null);
     const [manualSummaryDraft, setManualSummaryDraft] = useState('');
+    const [sourceOptions, setSourceOptions] = useState(fallbackSourceOptions);
+    const [statusOptions, setStatusOptions] = useState(fallbackStatusOptions);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadLeadOptions = async () => {
+            try {
+                const options = await fetchMasterOptions(['lead_sources', 'lead_temperatures']);
+                if (!isMounted) return;
+
+                setSourceOptions(mergeFilterOptions('All Sources', options?.leadSources, fallbackSourceOptions));
+                setStatusOptions(mergeFilterOptions('Any Status', options?.leadTemperatures, fallbackStatusOptions));
+            } catch {
+                if (!isMounted) return;
+                setSourceOptions(fallbackSourceOptions);
+                setStatusOptions(fallbackStatusOptions);
+            }
+        };
+
+        loadLeadOptions();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const visibleLeads = useMemo(() => (
         leads.filter((lead) => {

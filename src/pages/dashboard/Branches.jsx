@@ -18,6 +18,31 @@ import {
     clearSuccess,
     clearBranchTeam,
 } from '../../store/branchesSlice';
+import { fetchCities, fetchCommonUsers, fetchMasterOptions } from '../../services/commonService';
+
+const fallbackBranchTypes = [
+    { label: 'Regional Branch', value: 'REGIONAL_BRANCH' },
+    { label: 'Satellite Office', value: 'SATELLITE_OFFICE' },
+    { label: 'Head Office', value: 'HEAD_OFFICE' },
+];
+
+const fallbackBranchStatuses = [
+    { label: 'Active', value: 'ACTIVE' },
+    { label: 'Setup Pending', value: 'SETUP_PENDING' },
+    { label: 'Inactive', value: 'INACTIVE' },
+];
+
+const normalizeOptionLabel = (value) => String(value || '').trim();
+
+const findOptionLabel = (options, value, fallback) => {
+    const normalized = normalizeOptionLabel(value).toLowerCase();
+    const match = options.find((option) => (
+        normalizeOptionLabel(option.value).toLowerCase() === normalized
+        || normalizeOptionLabel(option.label).toLowerCase() === normalized
+    ));
+
+    return match?.label || fallback;
+};
 
 const initialFormState = {
     name: '',
@@ -42,11 +67,52 @@ const Branches = () => {
     const [selectedTeamBranch, setSelectedTeamBranch] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+    const [branchTypeOptions, setBranchTypeOptions] = useState(fallbackBranchTypes);
+    const [branchStatusOptions, setBranchStatusOptions] = useState(fallbackBranchStatuses);
+    const [cityOptions, setCityOptions] = useState([]);
+    const [managerOptions, setManagerOptions] = useState([]);
 
     // Fetch branches on mount
     useEffect(() => {
         dispatch(getBranches());
     }, [dispatch]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadCommonOptions = async () => {
+            const [masterResult, citiesResult, managersResult] = await Promise.allSettled([
+                fetchMasterOptions(['branch_types', 'branch_statuses']),
+                fetchCities({ status: 'ACTIVE' }),
+                fetchCommonUsers({ userType: 'BRANCH_MANAGER', status: 'ACTIVE', limit: 50 }),
+            ]);
+
+            if (!isMounted) return;
+
+            if (masterResult.status === 'fulfilled') {
+                if (masterResult.value?.branchTypes?.length) {
+                    setBranchTypeOptions(masterResult.value.branchTypes);
+                }
+                if (masterResult.value?.branchStatuses?.length) {
+                    setBranchStatusOptions(masterResult.value.branchStatuses);
+                }
+            }
+
+            if (citiesResult.status === 'fulfilled' && Array.isArray(citiesResult.value)) {
+                setCityOptions(citiesResult.value);
+            }
+
+            if (managersResult.status === 'fulfilled') {
+                setManagerOptions(managersResult.value?.users || []);
+            }
+        };
+
+        loadCommonOptions();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     // Clear success message after 3 seconds
     useEffect(() => {
@@ -103,9 +169,9 @@ const Branches = () => {
 
         setFormState({
             name: branch.name,
-            type: typeDisplayMap[branch.typeValue || branch.type] || 'Regional Branch',
+            type: findOptionLabel(branchTypeOptions, branch.typeValue || branch.type, typeDisplayMap[branch.typeValue || branch.type] || 'Regional Branch'),
             head: (branch.head === '-' || !branch.head) ? '' : branch.head,
-            status: statusDisplayMap[branch.statusValue || branch.status] || 'Active',
+            status: findOptionLabel(branchStatusOptions, branch.statusValue || branch.status, statusDisplayMap[branch.statusValue || branch.status] || 'Active'),
             city: branch.city || '',
             state: branch.state || '',
             address: branch.address || '',
@@ -123,7 +189,16 @@ const Branches = () => {
     };
 
     const handleChange = (field, value) => {
-        setFormState((current) => ({ ...current, [field]: value }));
+        setFormState((current) => {
+            if (field !== 'city') return { ...current, [field]: value };
+
+            const selectedCity = cityOptions.find((city) => city.name === value);
+            return {
+                ...current,
+                city: value,
+                state: selectedCity?.state || current.state,
+            };
+        });
     };
 
     const handleBranchSubmit = async (event) => {
@@ -142,17 +217,8 @@ const Branches = () => {
             console.log('Form Status:', formState.status);
 
             // Map frontend display values to backend constants
-            const typeMap = {
-                'Regional Branch': 'REGIONAL_BRANCH',
-                'Satellite Office': 'SATELLITE_OFFICE',
-                'Head Office': 'HEAD_OFFICE'
-            };
-
-            const statusMap = {
-                'Active': 'ACTIVE',
-                'Setup Pending': 'SETUP_PENDING',
-                'Inactive': 'INACTIVE'
-            };
+            const typeMap = Object.fromEntries(branchTypeOptions.map((option) => [option.label, option.value]));
+            const statusMap = Object.fromEntries(branchStatusOptions.map((option) => [option.label, option.value]));
 
             const mappedType = typeMap[formState.type] || 'REGIONAL_BRANCH';
             const mappedStatus = statusMap[formState.status] || 'ACTIVE';
@@ -357,10 +423,18 @@ const Branches = () => {
                                 required
                                 value={formState.city}
                                 onChange={(event) => handleChange('city', event.target.value)}
+                                list="branch-city-options"
                                 className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
                                 placeholder="e.g. Mumbai"
                                 disabled={isSubmitting}
                             />
+                            <datalist id="branch-city-options">
+                                {cityOptions.map((city) => (
+                                    <option key={city.id || `${city.name}-${city.state}`} value={city.name}>
+                                        {city.state}
+                                    </option>
+                                ))}
+                            </datalist>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">State</label>
@@ -383,9 +457,9 @@ const Branches = () => {
                                 className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white"
                                 disabled={isSubmitting}
                             >
-                                <option>Regional Branch</option>
-                                <option>Satellite Office</option>
-                                <option>Head Office</option>
+                                {branchTypeOptions.map((option) => (
+                                    <option key={option.value} value={option.label}>{option.label}</option>
+                                ))}
                             </select>
                         </div>
                         <div>
@@ -396,9 +470,9 @@ const Branches = () => {
                                 className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white"
                                 disabled={isSubmitting}
                             >
-                                <option>Active</option>
-                                <option>Setup Pending</option>
-                                <option>Inactive</option>
+                                {branchStatusOptions.map((option) => (
+                                    <option key={option.value} value={option.label}>{option.label}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
@@ -411,11 +485,9 @@ const Branches = () => {
                             disabled={isSubmitting}
                         >
                             <option value="">No Manager Assigned</option>
-                            <option>Manas Gangrade</option>
-                            <option>Rahul M.</option>
-                            <option>Sneha P.</option>
-                            <option>Ravi T.</option>
-                            <option>Rajesh Gurjar</option>
+                            {managerOptions.map((manager) => (
+                                <option key={manager.id} value={manager.name}>{manager.name}</option>
+                            ))}
                         </select>
                         <p className="text-xs text-gray-500 mt-1">Manager assignment requires backend user UUID integration</p>
                     </div>
