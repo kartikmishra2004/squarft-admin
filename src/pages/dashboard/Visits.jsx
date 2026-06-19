@@ -7,13 +7,21 @@ import {
     Search, ShieldCheck, TrendingUp
 } from 'lucide-react';
 import { addDeal } from '../../store/dealsSlice';
-import { addVisit, addVisitNote, updateVisit, updateVisitStatus } from '../../store/visitsSlice';
+import { addVisit, addVisitNote, setVisits, updateVisit, updateVisitStatus } from '../../store/visitsSlice';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Header from '../../components/layout/Header';
 import { fetchMasterOptions, fetchProperties, fetchSalesOfficers } from '../../services/commonService';
+import {
+    canPersistVisitPayload,
+    createVisit,
+    createVisitNote,
+    fetchVisits,
+    saveVisit,
+    saveVisitStatus,
+} from '../../services/visitManagementService';
 
 const fallbackPurposeOptions = ['BUY', 'RENT', 'SELL'];
 const fallbackPropertyTypeOptions = ['APARTMENT/FLATS', 'VILLA PLOTS', 'COMMERCIAL', 'PLOT'];
@@ -30,10 +38,13 @@ const buildPropertyLookupLabel = (property) => (
 );
 
 const visitFormInitialState = {
+    officerId: '',
     officerName: '',
     officerPhone: '',
+    customerId: '',
     customerName: '',
     customerPhone: '',
+    propertyId: '',
     purpose: 'BUY',
     date: '',
     time: '',
@@ -208,10 +219,13 @@ const buildDealFromVisit = (visit, property, dealCode) => {
 };
 
 const mapVisitToForm = (visit) => ({
+    officerId: visit.officerId || '',
     officerName: visit.officerName || '',
     officerPhone: visit.officerPhone || '',
+    customerId: visit.customerId || '',
     customerName: visit.customerName || '',
     customerPhone: visit.customerPhone || '',
+    propertyId: visit.propertyId || visit.property?.id || '',
     purpose: visit.purpose || 'BUY',
     date: visit.date || '',
     time: visit.time || '',
@@ -225,10 +239,13 @@ const mapVisitToForm = (visit) => ({
 });
 
 const buildVisitPayload = (formState) => ({
+    officerId: formState.officerId,
     officerName: formState.officerName.trim(),
     officerPhone: formState.officerPhone.trim(),
+    customerId: formState.customerId,
     customerName: formState.customerName.trim(),
     customerPhone: formState.customerPhone.trim(),
+    propertyId: formState.propertyId,
     purpose: formState.purpose,
     date: formState.date,
     time: formState.time,
@@ -263,6 +280,27 @@ const Visits = () => {
     const [visitStatusOptions, setVisitStatusOptions] = useState(fallbackVisitStatusOptions);
     const [salesOfficerOptions, setSalesOfficerOptions] = useState([]);
     const [propertyLookupOptions, setPropertyLookupOptions] = useState([]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadVisits = async () => {
+            try {
+                const result = await fetchVisits({ page: 1, pageSize: 100 });
+                if (isMounted) {
+                    dispatch(setVisits(result.items));
+                }
+            } catch (error) {
+                console.error('Failed to load visit management data:', error);
+            }
+        };
+
+        loadVisits();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [dispatch]);
 
     useEffect(() => {
         let isMounted = true;
@@ -518,6 +556,7 @@ const Visits = () => {
                 const officer = salesOfficerOptions.find((item) => item.name === value);
                 return {
                     ...current,
+                    officerId: officer?.id || current.officerId,
                     officerName: value,
                     officerPhone: officer?.phone || current.officerPhone,
                 };
@@ -534,6 +573,7 @@ const Visits = () => {
 
                 return {
                     ...current,
+                    propertyId: property.propertyId || property.id || current.propertyId,
                     propertyName: property.title || property.name || value,
                     propertyType: property.type || property.subType || current.propertyType,
                     propertyConfig: property.unitCode || property.title || property.subType || current.propertyConfig,
@@ -546,28 +586,63 @@ const Visits = () => {
         });
     };
 
-    const handleSubmitVisit = (event) => {
+    const handleSubmitVisit = async (event) => {
         event.preventDefault();
-        const payload = buildVisitPayload(visitForm);
+        let payload = buildVisitPayload(visitForm);
 
         if (editingVisitId) {
+            if (canPersistVisitPayload(payload)) {
+                try {
+                    payload = await saveVisit(editingVisitId, payload);
+                } catch (error) {
+                    console.error('Failed to update visit:', error);
+                    return;
+                }
+            }
             dispatch(updateVisit({ id: editingVisitId, changes: payload }));
             setSelectedVisitRowId((current) => current || `${editingVisitId}-0`);
         } else {
+            if (canPersistVisitPayload(payload)) {
+                try {
+                    payload = await createVisit(payload);
+                } catch (error) {
+                    console.error('Failed to create visit:', error);
+                    return;
+                }
+            }
             dispatch(addVisit(payload));
         }
         closeVisitModal();
     };
 
     // eslint-disable-next-line no-unused-vars
-    const handleUpdateStatus = (id, status) => {
+    const handleUpdateStatus = async (id, status) => {
+        if (id && !String(id).startsWith('V')) {
+            try {
+                await saveVisitStatus(id, status);
+            } catch (error) {
+                console.error('Failed to update visit status:', error);
+                return;
+            }
+        }
+
         dispatch(updateVisitStatus({ id, status }));
         setSelectedVisitRowId((current) => current || `${id}-0`);
     };
 
     // eslint-disable-next-line no-unused-vars
-    const handleAddNote = () => {
+    const handleAddNote = async () => {
         if (!selectedVisit || !newNote.trim()) return;
+
+        if (selectedVisit.id && !String(selectedVisit.id).startsWith('V')) {
+            try {
+                await createVisitNote(selectedVisit.id, newNote.trim());
+            } catch (error) {
+                console.error('Failed to add visit note:', error);
+                return;
+            }
+        }
+
         dispatch(addVisitNote({ id: selectedVisit.id, note: newNote.trim() }));
         setNewNote('');
     };

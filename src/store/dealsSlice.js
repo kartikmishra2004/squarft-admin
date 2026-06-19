@@ -32,6 +32,15 @@ const dealsSlice = createSlice({
       state.deals.unshift(incomingDeal);
       state.selectedDeal = incomingDeal;
     },
+    setDeals: (state, action) => {
+      state.deals = action.payload;
+      if (state.selectedDeal) {
+        state.selectedDeal = action.payload.find((deal) => (
+          deal.dealCode === state.selectedDeal.dealCode
+          || (deal.id && deal.id === state.selectedDeal.id)
+        )) || state.selectedDeal;
+      }
+    },
     setSelectedDeal: (state, action) => {
       state.selectedDeal = action.payload;
     },
@@ -61,5 +70,5 @@ const dealsSlice = createSlice({
   },
 });
 
-export const { addDeal, setSelectedDeal, deleteDeal, updateDealStatus, updateDealDetails } = dealsSlice.actions;
+export const { addDeal, setDeals, setSelectedDeal, deleteDeal, updateDealStatus, updateDealDetails } = dealsSlice.actions;
 export default dealsSlice.reducer;

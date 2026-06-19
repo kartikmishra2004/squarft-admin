@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
     Eye, Trash2, ArrowRight, PhoneCall, Check, X,
@@ -7,7 +7,7 @@ import {
     Settings, Search, IndianRupee, Briefcase, Clock,
     Edit2, CheckCircle2
 } from 'lucide-react';
-import { setSelectedDeal, deleteDeal, updateDealStatus, updateDealDetails } from '../../store/dealsSlice';
+import { setDeals, setSelectedDeal, deleteDeal, updateDealStatus, updateDealDetails } from '../../store/dealsSlice';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -16,6 +16,18 @@ import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
 import { mockProjects } from '../../data/mockData';
 import samplePropertyImage from '../../assets/login-bg.png';
+import {
+    addDealMeeting,
+    addDealNote,
+    addPaymentMilestone,
+    fetchDealById,
+    fetchDeals,
+    markPaymentReceived,
+    removeDeal,
+    updateDealStatus as updateDealStatusApi,
+    updatePaymentMilestone,
+    uploadDealDocument,
+} from '../../services/dealManagementService';
 
 const getStatusBadge = (status) => {
     if (!status) return null;
@@ -117,6 +129,15 @@ const formatAmount = (value) => `Rs. ${toAmount(value).toLocaleString('en-IN')}`
 const todayDate = () => new Date().toISOString().slice(0, 10);
 
 const normalizeDealStatus = (status = '') => String(status).trim().toUpperCase();
+
+const getApiDealId = (deal) => deal?.id || null;
+
+const toBackendDealStatus = (status) => {
+    const normalized = normalizeDealStatus(status);
+    if (normalized === 'FINALIZED') return 'DEAL COMPLETED';
+    if (normalized === 'LOSTED') return 'LOST';
+    return normalized;
+};
 
 const getSearchableDealText = (deal) => [
     deal.dealCode,
@@ -409,6 +430,27 @@ const Deals = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeDealFilter, setActiveDealFilter] = useState('all');
 
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadDeals = async () => {
+            try {
+                const result = await fetchDeals({ page: 1, pageSize: 100 });
+                if (isMounted) {
+                    dispatch(setDeals(result.items));
+                }
+            } catch (error) {
+                console.error('Failed to load deal management data:', error);
+            }
+        };
+
+        loadDeals();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [dispatch]);
+
     const dealFilters = useMemo(() => ([
         { id: 'all', label: 'All', icon: ClipboardList },
         { id: 'inProcess', label: 'Deal in Process', icon: Briefcase },
@@ -429,12 +471,33 @@ const Deals = () => {
         });
     }, [activeDealFilter, deals, searchTerm]);
 
-    const handleViewDeal = (deal) => {
+    const handleViewDeal = async (deal) => {
         dispatch(setSelectedDeal(deal));
+
+        const dealId = getApiDealId(deal);
+        if (!dealId) return;
+
+        try {
+            const detail = await fetchDealById(dealId);
+            dispatch(updateDealDetails({ dealCode: deal.dealCode, changes: detail }));
+            dispatch(setSelectedDeal({ ...deal, ...detail }));
+        } catch (error) {
+            console.error('Failed to load deal details:', error);
+        }
     };
 
-    const handleDeleteDeal = (dealCode) => {
+    const handleDeleteDeal = async (deal) => {
+        const dealCode = deal.dealCode;
         if (window.confirm(`Are you sure you want to delete deal ${dealCode}?`)) {
+            const dealId = getApiDealId(deal);
+            if (dealId) {
+                try {
+                    await removeDeal(dealId);
+                } catch (error) {
+                    console.error('Failed to delete deal:', error);
+                    return;
+                }
+            }
             dispatch(deleteDeal(dealCode));
         }
     };
@@ -531,7 +594,7 @@ const Deals = () => {
                                                 <Eye className="w-4 h-4" />
                                             </button>
                                             <button 
-                                                onClick={() => handleDeleteDeal(deal.dealCode)}
+                                                onClick={() => handleDeleteDeal(deal)}
                                                 className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center hover:bg-rose-600 transition-all shadow-lg shadow-rose-500/10" 
                                                 title="Delete Deal"
                                             >
@@ -583,18 +646,44 @@ const DealDetailView = ({ deal, onBack }) => {
         dispatch(updateDealDetails({ dealCode: deal.dealCode, changes }));
     };
 
-    const handleDealStatusChange = (status) => {
-        dispatch(updateDealStatus({ dealCode: deal.dealCode, status }));
+    const handleDealStatusChange = async (status) => {
+        const nextStatus = toBackendDealStatus(status);
+        const dealId = getApiDealId(deal);
+
+        if (dealId) {
+            try {
+                await updateDealStatusApi(dealId, {
+                    status: nextStatus,
+                    note: `Status changed to ${nextStatus}`,
+                });
+            } catch (error) {
+                console.error('Failed to update deal status:', error);
+                return;
+            }
+        }
+
+        dispatch(updateDealStatus({ dealCode: deal.dealCode, status: nextStatus }));
     };
 
-    const handleAddMeeting = (event) => {
+    const handleAddMeeting = async (event) => {
         event.preventDefault();
         if (!meetingForm.date || !meetingForm.time) return;
-        const nextMeeting = {
+        let nextMeeting = {
             id: Date.now(),
             ...meetingForm,
             status: 'SCHEDULED',
         };
+
+        const dealId = getApiDealId(deal);
+        if (dealId) {
+            try {
+                nextMeeting = await addDealMeeting(dealId, nextMeeting);
+            } catch (error) {
+                console.error('Failed to add deal meeting:', error);
+                return;
+            }
+        }
+
         updateDeal({ meetings: [nextMeeting, ...(deal.meetings || [])] });
         setMeetingForm({ date: '', time: '', remarks: '' });
     };
@@ -615,11 +704,23 @@ const DealDetailView = ({ deal, onBack }) => {
         setNegotiationForm({ expectedAmount: '', customerOffer: '', finalOffer: '', finalDeal: '' });
     };
 
-    const handleAddNote = (event) => {
+    const handleAddNote = async (event) => {
         event.preventDefault();
         if (!noteText.trim()) return;
+        let nextNote = { id: Date.now(), text: noteText.trim(), createdOn: todayDate() };
+        const dealId = getApiDealId(deal);
+
+        if (dealId) {
+            try {
+                nextNote = await addDealNote(dealId, noteText.trim());
+            } catch (error) {
+                console.error('Failed to add deal note:', error);
+                return;
+            }
+        }
+
         updateDeal({
-            notes: [{ id: Date.now(), text: noteText.trim(), createdOn: todayDate() }, ...(deal.notes || [])],
+            notes: [nextNote, ...(deal.notes || [])],
         });
         setNoteText('');
     };
@@ -648,30 +749,58 @@ const DealDetailView = ({ deal, onBack }) => {
         });
     };
 
-    const handleSavePayment = (event) => {
+    const handleSavePayment = async (event) => {
         event.preventDefault();
         if (!paymentForm.milestone || !paymentForm.amount || !paymentForm.dueDate) return;
         const currentPayments = deal.payments || [];
+        const dealId = getApiDealId(deal);
+
         if (editingPaymentId) {
+            let updatedPayment = {
+                id: editingPaymentId,
+                ...paymentForm,
+                amount: toAmount(paymentForm.amount),
+            };
+
+            if (dealId) {
+                try {
+                    updatedPayment = await updatePaymentMilestone(dealId, editingPaymentId, updatedPayment);
+                } catch (error) {
+                    console.error('Failed to update payment milestone:', error);
+                    return;
+                }
+            }
+
             updateDeal({
                 payments: currentPayments.map((payment) => (
                     payment.id === editingPaymentId
-                        ? { ...payment, ...paymentForm, amount: toAmount(paymentForm.amount) }
+                        ? { ...payment, ...updatedPayment }
                         : payment
                 )),
             });
             setEditingPaymentId(null);
         } else {
+            let nextPayment = {
+                id: Date.now(),
+                ...paymentForm,
+                amount: toAmount(paymentForm.amount),
+                status: 'PENDING',
+                updated: '-',
+            };
+
+            if (dealId) {
+                try {
+                    nextPayment = await addPaymentMilestone(dealId, nextPayment);
+                } catch (error) {
+                    console.error('Failed to add payment milestone:', error);
+                    return;
+                }
+            }
+
             updateDeal({
                 payments: [
                     ...currentPayments,
-                    {
-                        id: Date.now(),
-                        ...paymentForm,
-                        amount: toAmount(paymentForm.amount),
-                        status: 'PENDING',
-                        updated: '-',
-                    },
+                    nextPayment,
                 ],
             });
         }
@@ -692,7 +821,21 @@ const DealDetailView = ({ deal, onBack }) => {
         updateDeal({ payments: (deal.payments || []).filter((payment) => payment.id !== paymentId) });
     };
 
-    const handleCollectPayment = (paymentId) => {
+    const handleCollectPayment = async (paymentId) => {
+        const dealId = getApiDealId(deal);
+
+        if (dealId) {
+            try {
+                await markPaymentReceived(dealId, paymentId, {
+                    status: 'COMPLETED',
+                    paidOn: todayDate(),
+                });
+            } catch (error) {
+                console.error('Failed to collect payment:', error);
+                return;
+            }
+        }
+
         updateDeal({
             payments: (deal.payments || []).map((payment) => (
                 payment.id === paymentId
@@ -721,26 +864,46 @@ const DealDetailView = ({ deal, onBack }) => {
         )));
     };
 
-    const handleShareAdminDocument = (event) => {
+    const handleShareAdminDocument = async (event) => {
         event.preventDefault();
         if (!adminDocumentForm.file) return;
         const uploadedFile = adminDocumentForm.file;
         const uploadedName = adminDocumentForm.name.trim() || uploadedFile.name.replace(/\.pdf$/i, '');
+        let uploadedDocument = {
+            id: `${deal.dealCode}-admin-${Date.now()}`,
+            name: uploadedName,
+            category: adminDocumentForm.category,
+            source: 'admin',
+            uploadedBy: 'admin',
+            status: 'verified',
+            meta: uploadedFile.name,
+            visibleToUser: true,
+            uploadedAt: todayDate(),
+            reviewedAt: todayDate(),
+            reviewedBy: 'Admin',
+            fileUrl: URL.createObjectURL(uploadedFile),
+        };
+
+        const dealId = getApiDealId(deal);
+        if (dealId) {
+            try {
+                const apiDocument = await uploadDealDocument(dealId, {
+                    file: uploadedFile,
+                    type: adminDocumentForm.category,
+                });
+                uploadedDocument = {
+                    ...uploadedDocument,
+                    id: apiDocument.id || uploadedDocument.id,
+                    fileUrl: apiDocument.url || uploadedDocument.fileUrl,
+                };
+            } catch (error) {
+                console.error('Failed to upload deal document:', error);
+                return;
+            }
+        }
+
         updateDocuments([
-            {
-                id: `${deal.dealCode}-admin-${Date.now()}`,
-                name: uploadedName,
-                category: adminDocumentForm.category,
-                source: 'admin',
-                uploadedBy: 'admin',
-                status: 'verified',
-                meta: uploadedFile.name,
-                visibleToUser: true,
-                uploadedAt: todayDate(),
-                reviewedAt: todayDate(),
-                reviewedBy: 'Admin',
-                fileUrl: URL.createObjectURL(uploadedFile),
-            },
+            uploadedDocument,
             ...dealDocuments,
         ]);
         setAdminDocumentForm({ name: '', category: 'AGREEMENT DOCUMENTS', file: null });

@@ -11,7 +11,15 @@ const visitsSlice = createSlice({
   name: 'visits',
   initialState,
   reducers: {
+    setVisits: (state, action) => {
+      state.visits = action.payload;
+    },
     addVisit: (state, action) => {
+      if (action.payload?.id) {
+        state.visits.unshift(action.payload);
+        return;
+      }
+
       const nextNumber = state.visits.reduce((max, visit) => {
         const visitNumber = Number(String(visit.id).replace(/\D/g, '')) || 0;
         return Math.max(max, visitNumber);
@@ -42,5 +50,5 @@ const visitsSlice = createSlice({
   },
 });
 
-export const { addVisit, updateVisitStatus, updateVisit, addVisitNote } = visitsSlice.actions;
+export const { setVisits, addVisit, updateVisitStatus, updateVisit, addVisitNote } = visitsSlice.actions;
 export default visitsSlice.reducer;
