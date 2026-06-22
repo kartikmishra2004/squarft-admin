@@ -15,75 +15,67 @@ import {
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
 import { fetchMasterOptions } from '../../services/commonService';
+import {
+    addManualSummary,
+    exportLeadsCsv,
+    fetchLeadSummary,
+    fetchLeads,
+    markLeadQualified,
+} from '../../services/leadService';
 
-const leadRows = [
-    {
-        id: '#L-9405',
-        name: 'Priya Malhotra',
-        added: 'Added 2h ago',
-        phone: '+91 98765 43210',
-        contactMode: 'WhatsApp Active',
-        sourceType: 'Broker',
-        sourceLabel: 'Broker App',
-        broker: 'SkyHigh Realty',
-        attribution: 'CONFIRMED ATTRIBUTION',
-        requirement: '2BHK • High-rise',
-        budget: '₹85L - 1.1Cr',
-        timeline: 'Immediate',
-        status: 'Warm',
-        score: 72,
-        callTitle: 'AI Call Success',
-        callDetail: 'Manual: Not Scheduled',
-        callState: 'success',
-        aiSummary: 'Customer expressed high interest in north-facing units. Primary concern is parking space. Confirmed budget is flexible up to 1.1Cr. Requested floor plans for Tower B.',
-        manualSummary: 'Followed up on the floor plans. Scheduled site visit for Saturday morning.',
-        brokerPhone: '+91 98220 23411',
-    },
-    {
-        id: '#L-9402',
-        name: 'Vikram Singh',
-        added: 'Added 5h ago',
-        phone: '+91 99999 88888',
+// Temperature → display label mapping
+const TEMP_DISPLAY = { HOT: 'Hot', WARM: 'Warm', COLD: 'Cold' };
+
+// Derive display-friendly fields from a normalized lead
+const toDisplayLead = (lead) => {
+    const budgetParts = [
+        lead.budgetMin != null ? `₹${Number(lead.budgetMin).toLocaleString('en-IN')}` : null,
+        lead.budgetMax != null ? `₹${Number(lead.budgetMax).toLocaleString('en-IN')}` : null,
+    ].filter(Boolean);
+
+    const requirement = [lead.configuration, lead.propertyType, lead.category]
+        .filter(Boolean)
+        .join(' • ');
+
+    const brokerName = lead.broker?.name || (lead.attributionStatus === 'DIRECT' ? 'Direct Attribution' : null) || '';
+    const attribution = lead.attributionStatus && lead.attributionStatus !== 'DIRECT' ? lead.attributionStatus : '';
+
+    const callState = lead.aiCallStatus === 'IN_PROGRESS'
+        ? 'active'
+        : ['FAILED', 'RETRY_SCHEDULED'].includes(lead.manualCallStatus)
+            ? 'failed'
+            : 'success';
+
+    const callTitle = callState === 'active'
+        ? 'AI Call Active'
+        : callState === 'failed'
+            ? 'Manual Call Failed'
+            : 'AI Call Success';
+
+    const callDetail = callState === 'failed'
+        ? (lead.manualCallStatus === 'RETRY_SCHEDULED' ? 'Retry Scheduled' : 'Call Failed')
+        : lead.manualCallStatus === 'NOT_SCHEDULED'
+            ? 'Manual: Not Scheduled'
+            : '';
+
+    return {
+        ...lead,
+        status: TEMP_DISPLAY[lead.temperature] || lead.temperature,
+        broker: brokerName,
+        attribution,
+        requirement: requirement || '-',
+        budget: budgetParts.length ? budgetParts.join(' - ') : '-',
+        timeline: lead.timelineLabel || '',
+        callState,
+        callTitle,
+        callDetail,
+        brokerPhone: lead.broker?.phone || '',
+        manualSummary: lead.manualSummaries?.[0]?.summary || lead.manualSummary || '',
+        aiSummary: lead.aiSummary || 'No AI summary available.',
+        added: lead.createdAt ? `Added ${new Date(lead.createdAt).toLocaleDateString('en-IN')}` : '',
         contactMode: '',
-        sourceType: 'User',
-        sourceLabel: 'Meta Ads',
-        broker: 'Direct Attribution',
-        attribution: '',
-        requirement: '3BHK • Penthouse',
-        budget: '₹1.5Cr - 2Cr',
-        timeline: '3 Months',
-        status: 'Hot',
-        score: 94,
-        callTitle: 'AI Call Active',
-        callDetail: '',
-        callState: 'active',
-        aiSummary: 'AI call is currently active. Lead is asking for luxury inventory, possession timeline, and payment plan clarity before scheduling a site visit.',
-        manualSummary: 'No manual call note added yet.',
-        brokerPhone: '',
-    },
-    {
-        id: '#L-9408',
-        name: 'Rahul Jain',
-        added: 'Added 12h ago',
-        phone: '+91 88888 77777',
-        contactMode: '',
-        sourceType: 'Broker',
-        sourceLabel: 'Broker App',
-        broker: 'Elite Estates',
-        attribution: 'DISPUTED ATTRIBUTION',
-        requirement: 'Plots • Investment',
-        budget: '₹40L - 60L',
-        timeline: '',
-        status: 'Cold',
-        score: 28,
-        callTitle: 'Manual Call Failed',
-        callDetail: 'Retry Scheduled',
-        callState: 'failed',
-        aiSummary: 'Manual call attempt failed. Retry is scheduled because the lead did not answer. Interest is currently low and budget range is still tentative.',
-        manualSummary: 'Retry scheduled for next working slot.',
-        brokerPhone: '+91 90000 77777',
-    },
-];
+    };
+};
 
 const fallbackSourceOptions = ['All Sources', 'Broker', 'User', 'Sales Officer'];
 const fallbackStatusOptions = ['Any Status', 'Hot', 'Cold', 'Warm', 'Suspended'];
@@ -296,10 +288,12 @@ const escapeCsvValue = (value) => {
 };
 
 const Leads = () => {
-    const [leads, setLeads] = useState(leadRows);
+    const [leads, setLeads] = useState([]);
+    const [summary, setSummary] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [sourceFilter, setSourceFilter] = useState('All Sources');
     const [statusFilter, setStatusFilter] = useState('Any Status');
-    const [selectedLeadId, setSelectedLeadId] = useState(leadRows[0]?.id ?? null);
+    const [selectedLeadId, setSelectedLeadId] = useState(null);
     const [manualSummaryDraft, setManualSummaryDraft] = useState('');
     const [sourceOptions, setSourceOptions] = useState(fallbackSourceOptions);
     const [statusOptions, setStatusOptions] = useState(fallbackStatusOptions);
@@ -307,26 +301,43 @@ const Leads = () => {
     useEffect(() => {
         let isMounted = true;
 
-        const loadLeadOptions = async () => {
+        const loadData = async () => {
             try {
-                const options = await fetchMasterOptions(['lead_sources', 'lead_temperatures']);
+                const [optionsRes, leadsRes, summaryRes] = await Promise.allSettled([
+                    fetchMasterOptions(['lead_sources', 'lead_temperatures']),
+                    fetchLeads({ page: 1, limit: 100 }),
+                    fetchLeadSummary(),
+                ]);
+
                 if (!isMounted) return;
 
-                setSourceOptions(mergeFilterOptions('All Sources', options?.leadSources, fallbackSourceOptions));
-                setStatusOptions(mergeFilterOptions('Any Status', options?.leadTemperatures, fallbackStatusOptions));
+                if (optionsRes.status === 'fulfilled') {
+                    const options = optionsRes.value;
+                    setSourceOptions(mergeFilterOptions('All Sources', options?.leadSources, fallbackSourceOptions));
+                    setStatusOptions(mergeFilterOptions('Any Status', options?.leadTemperatures, fallbackStatusOptions));
+                }
+
+                if (leadsRes.status === 'fulfilled') {
+                    setLeads(leadsRes.value.leads.map(toDisplayLead));
+                    if (!selectedLeadId && leadsRes.value.leads.length) {
+                        setSelectedLeadId(leadsRes.value.leads[0].id);
+                    }
+                }
+
+                if (summaryRes.status === 'fulfilled') {
+                    setSummary(summaryRes.value);
+                }
             } catch {
-                if (!isMounted) return;
-                setSourceOptions(fallbackSourceOptions);
-                setStatusOptions(fallbackStatusOptions);
+                // fallback to empty state — already set above
+            } finally {
+                if (isMounted) setLoading(false);
             }
         };
 
-        loadLeadOptions();
+        loadData();
 
-        return () => {
-            isMounted = false;
-        };
-    }, []);
+        return () => { isMounted = false; };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const visibleLeads = useMemo(() => (
         leads.filter((lead) => {
@@ -341,23 +352,29 @@ const Leads = () => {
     ), [leads, selectedLeadId]);
 
     const metrics = useMemo(() => {
-        const total = leads.length;
-        const brokerSources = leads.filter((lead) => lead.sourceType === 'Broker').length;
-        const callPending = leads.filter((lead) => lead.callDetail.includes('Not Scheduled') || lead.callDetail.includes('Retry')).length;
-        const conversionRate = total ? Math.round((leads.filter((lead) => lead.score >= 70).length / total) * 100) : 0;
-        const averageResponse = total ? Math.round(leads.reduce((sum, lead) => sum + lead.score, 0) / total) : 0;
+        const total = summary?.totalLeads ?? leads.length;
+        const brokerSources = summary?.brokerSources ?? leads.filter((l) => l.sourceType === 'BROKER').length;
+        const callPending = summary?.callPending ?? 0;
+        const conversionRate = summary?.conversionRate ?? 0;
+        const avgScore = summary?.averageLeadScore ?? (leads.length ? Math.round(leads.reduce((s, l) => s + l.score, 0) / leads.length) : 0);
 
         return [
-            { label: 'Total leads', value: total, detail: `${visibleLeads.length} visible after filters`, icon: UserRound, tone: 'bg-blue-50 text-blue-600' },
+            { label: 'Total leads', value: total, detail: `${summary?.visibleAfterFilters ?? visibleLeads.length} visible after filters`, icon: UserRound, tone: 'bg-blue-50 text-blue-600' },
             { label: 'Broker sources', value: brokerSources, detail: 'Confirmed and disputed broker leads', icon: ShieldCheck, tone: 'bg-emerald-50 text-emerald-600' },
             { label: 'Call pending', value: callPending, detail: 'Manual or retry follow-ups', icon: Phone, tone: 'bg-orange-50 text-orange-600' },
-            { label: 'Conversion rate', value: `${conversionRate}%`, detail: 'Hot plus warm scored leads', icon: TrendingUp, tone: 'bg-violet-50 text-violet-600' },
-            { label: 'Average response', value: `${averageResponse}`, detail: 'Average lead score', icon: MessageSquareText, tone: 'bg-slate-100 text-slate-700' },
+            { label: 'Conversion rate', value: `${conversionRate}%`, detail: 'Qualified leads ratio', icon: TrendingUp, tone: 'bg-violet-50 text-violet-600' },
+            { label: 'Average score', value: avgScore, detail: 'Average lead score', icon: MessageSquareText, tone: 'bg-slate-100 text-slate-700' },
         ];
-    }, [leads, visibleLeads.length]);
+    }, [leads, summary, visibleLeads.length]);
 
-    const handleMarkQualified = (leadId) => {
-        setLeads((currentLeads) => currentLeads.filter((lead) => lead.id !== leadId));
+    const handleMarkQualified = async (leadId) => {
+        try {
+            await markLeadQualified(leadId);
+        } catch (error) {
+            console.error('Failed to qualify lead:', error);
+            return;
+        }
+        setLeads((current) => current.filter((l) => l.id !== leadId));
         if (selectedLeadId === leadId) {
             setSelectedLeadId(null);
             setManualSummaryDraft('');
@@ -369,34 +386,51 @@ const Leads = () => {
         setManualSummaryDraft('');
     };
 
-    const handleAddManualSummary = () => {
+    const handleAddManualSummary = async () => {
         const summary = manualSummaryDraft.trim();
         if (!selectedLead || !summary) return;
 
-        setLeads((currentLeads) => (
-            currentLeads.map((lead) => (
-                lead.id === selectedLead.id ? { ...lead, manualSummary: summary } : lead
-            ))
-        ));
+        try {
+            const updated = await addManualSummary(selectedLead.id, summary);
+            setLeads((current) =>
+                current.map((l) =>
+                    l.id === selectedLead.id ? { ...l, ...toDisplayLead(updated) } : l
+                )
+            );
+        } catch (error) {
+            console.error('Failed to add summary:', error);
+        }
         setManualSummaryDraft('');
     };
 
-    const handleDownloadCsv = () => {
-        const headers = csvColumns.map(([label]) => label);
-        const rows = visibleLeads.map((lead) => (
-            csvColumns.map(([, key]) => escapeCsvValue(lead[key])).join(',')
-        ));
-        const csv = [headers.map(escapeCsvValue).join(','), ...rows].join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-
-        link.href = url;
-        link.download = 'lead-pipeline.csv';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+    const handleDownloadCsv = async () => {
+        try {
+            const blob = await exportLeadsCsv({ page: 1, limit: 10000 });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'lead-pipeline.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch {
+            // fallback: client-side CSV from visible rows
+            const headers = csvColumns.map(([label]) => label);
+            const rows = visibleLeads.map((lead) =>
+                csvColumns.map(([, key]) => escapeCsvValue(lead[key])).join(',')
+            );
+            const csv = [headers.map(escapeCsvValue).join(','), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'lead-pipeline.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
     };
 
     return (
@@ -449,8 +483,7 @@ const Leads = () => {
                                             className={`cursor-pointer bg-white align-middle transition hover:bg-[#FAFAFF] ${selectedLeadId === lead.id ? 'bg-[#FAFAFF]' : ''}`}
                                         >
                                             <td className="px-5 py-4">
-                                                <p className="text-sm font-black text-slate-950">{lead.id}</p>
-                                                <p className="mt-1 text-base font-black leading-tight text-black">{lead.name.split(' ')[0]}<br />{lead.name.split(' ').slice(1).join(' ')}</p>
+                                                <p className="text-base font-black leading-tight text-black">{lead.name.split(' ')[0]}<br />{lead.name.split(' ').slice(1).join(' ')}</p>
                                                 <p className="mt-1 text-xs font-medium text-slate-600">{lead.added}</p>
                                             </td>
                                             <td className="px-5 py-4">
@@ -506,7 +539,7 @@ const Leads = () => {
 
                         {visibleLeads.length === 0 && (
                             <div className="px-6 py-12 text-center text-sm font-black text-slate-400">
-                                No leads match the selected filters.
+                                {loading ? 'Loading leads...' : 'No leads match the selected filters.'}
                             </div>
                         )}
                         </div>
