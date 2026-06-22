@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
     Activity,
@@ -11,7 +10,6 @@ import {
     Eye,
     FileText,
     
-    IndianRupee,
     Layers,
     MapPin,
     MessageSquare,
@@ -26,21 +24,28 @@ import {
     X,
     Zap
 } from 'lucide-react';
-import {
-    addClient,
-    addClientMeeting,
-    addClientNote,
-    updateClient,
-} from '../../store/clientsSlice';
-import { addVisit } from '../../store/visitsSlice';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Header from '../../components/layout/Header';
 import Table from '../../components/ui/Table';
-import { mockProjects, sample2Visits } from '../../data/mockData';
 import propertyHeroImage from '../../assets/login-bg.png';
+import {
+    addClientRequirement,
+    assignUnitsToClient,
+    convertClientToDeal,
+    fetchAvailableOfficers,
+    fetchClientHubClients,
+    fetchClientProfileBundle,
+    fetchTodayVisits,
+    parseBudgetRange,
+    registerClient,
+    saveClientNote,
+    scheduleClientVisit,
+    updateClientProfile,
+    updateClientRequirement,
+} from '../../services/clientHubService';
 
 const clientFormInitialState = {
     name: '',
@@ -87,7 +92,6 @@ const requirementInitialState = {
     contactVerified: false,
 };
 
-const requirementTypes = ['Buy', 'Rent/Lease'];
 const propertyCategories = ['Residential', 'Commercial'];
 const propertyTypesByCategory = {
     Residential: ['Plot', 'Villa', 'Apartment', 'Rowhouse'],
@@ -99,13 +103,6 @@ const configurationOptions = {
     Office: ['Ready to move', 'Co-working', 'Bare shell'],
 };
 const areaUnits = ['Square Feet (Sq. ft)', 'Square Meter (Sq. m)', 'Square Yard (Sq. yd)', 'Acre', 'Hectare', 'Bigha'];
-
-const formatRequirementAmount = (value) => {
-    const amount = Number(value || 0);
-    if (amount >= 10000000) return `Rs. ${(amount / 10000000).toFixed(amount % 10000000 === 0 ? 0 : 1)} Cr`;
-    if (amount >= 100000) return `Rs. ${(amount / 100000).toFixed(amount % 100000 === 0 ? 0 : 1)} L`;
-    return `Rs. ${amount.toLocaleString('en-IN')}`;
-};
 
 const getStatusBadge = (status) => {
     if (['Active', 'Completed'].includes(status)) return <Badge variant="green">{status}</Badge>;
@@ -120,6 +117,10 @@ const getNowStamp = () => ({
 });
 
 const buildInventoryWithUnits = (project) => (project.inventory || []).map((config, configIndex) => {
+    if (Array.isArray(config.unitsList) && config.unitsList.length > 0) {
+        return config;
+    }
+
     const displayUnits = Math.min(config.totalUnits || 0, 24);
     const availableUnits = Math.max(0, config.availableUnits || 0);
     const availableDisplayCount = Math.ceil((availableUnits / Math.max(config.totalUnits || 1, 1)) * displayUnits);
@@ -144,28 +145,26 @@ const buildInventoryWithUnits = (project) => (project.inventory || []).map((conf
     };
 });
 
-const getSelectedUnitLabel = (assignment) => `${assignment.configType} - Unit ${assignment.unitNumber}`;
-
-const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdateClient, onAddNote, onAddMeeting, onScheduleVisit }) => {
+const ClientProfileView = ({
+    client,
+    projects,
+    visits,
+    officers,
+    onBack,
+    onUpdateClient,
+    onAddNote,
+    onAddMeeting,
+    onContinueToDeal,
+    onScheduleVisit,
+    onSaveRequirement,
+    onAssignUnits,
+}) => {
     const [activeProfileTab, setActiveProfileTab] = useState('Selected Properties');
     const [newNote, setNewNote] = useState('');
-    const [isEditingProperty, setIsEditingProperty] = useState(false);
-    const [isEditingProfile, setIsEditingProfile] = useState(false);
-    const [profileEditForm, setProfileEditForm] = useState({
-        name: client.name || '',
-        phone: client.phone || '',
-        budget: client.budget || '',
-        status: client.status || 'Active',
-        score: client.score || 'Warm',
-        officer: client.officer || '',
-        location: client.req?.loc?.[0] || '',
-        timeline: client.req?.timeline || '30 Days',
-        nextFollowUp: client.nextFollowUp || '',
-    });
-    const [propertyTypeEdit, setPropertyTypeEdit] = useState({
+    const propertyTypeEdit = {
         category: client.listingKind || 'Residential',
         bhkOptions: client.req?.bhk || ['3BHK'],
-    });
+    };
     const [followUpForm, setFollowUpForm] = useState({
         type: 'Call Note',
         nextFollowUp: client.nextFollowUp || '',
@@ -199,15 +198,6 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
         propertyPrice: '',
         notes: '',
     });
-    const [requirementForm, setRequirementForm] = useState({
-        ...requirementInitialState,
-        customerName: client.name || '',
-        contactNumber: client.phone || '',
-        propertyCategory: client.req?.type || client.listingKind || 'Residential',
-        propertyType: client.propType || 'Plot',
-        configuration: client.req?.bhk?.[0] || 'N/A',
-        location: client.req?.loc?.[0] || '',
-    });
     const [isEditingRequirement, setIsEditingRequirement] = useState(false);
     const [editRequirementForm, setEditRequirementForm] = useState(null);
 
@@ -225,7 +215,7 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
         ...getNowStamp(),
     });
 
-    const handleAddNote = () => {
+    const handleAddNote = async () => {
         const text = newNote.trim();
         if (!text) return;
 
@@ -238,29 +228,12 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
             ...now,
         };
 
-        onAddNote(note);
-        onUpdateClient({
-            status: followUpForm.status,
-            nextFollowUp: followUpForm.nextFollowUp,
-            latestNote: text,
-            timeline: [
-                createTimelineEvent(followUpForm.type, `${text.slice(0, 60)}${text.length > 60 ? '...' : ''}`),
-                ...(client.timeline || []),
-            ],
-        });
-        setNewNote('');
-    };
-
-    const handleSavePropertyType = () => {
-        onUpdateClient({
-            listingKind: propertyTypeEdit.category,
-            req: {
-                ...client.req,
-                type: propertyTypeEdit.category,
-                bhk: propertyTypeEdit.bhkOptions,
-            },
-        });
-        setIsEditingProperty(false);
+        try {
+            await onAddNote(note, followUpForm);
+            setNewNote('');
+        } catch (error) {
+            console.error('Failed to save client note:', error);
+        }
     };
 
     const openEditRequirement = () => {
@@ -306,11 +279,11 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
         });
     };
 
-    const handleSaveEditRequirement = () => {
+    const handleSaveEditRequirement = async () => {
         if (!editRequirementForm?.customerName?.trim() || !editRequirementForm?.contactNumber?.trim()) return;
         const now = getNowStamp();
         const updated = {
-            id: editRequirementForm._id || `REQ-${Date.now()}`,
+            id: editRequirementForm._id || null,
             customer_name: editRequirementForm.customerName.trim(),
             contact_number: editRequirementForm.contactNumber.trim(),
             requirement_type: editRequirementForm.status,
@@ -327,31 +300,16 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
             contact_verified: editRequirementForm.contactVerified,
             created_at: `${now.date} ${now.time}`,
         };
-        const existing = client.customerRequirements || [];
-        const nextRequirements = editRequirementForm._id
-            ? existing.map((r) => r.id === editRequirementForm._id ? updated : r)
-            : [updated, ...existing];
-        onUpdateClient({
-            customerRequirements: nextRequirements,
-            req: {
-                type: updated.property_category,
-                bhk: updated.configuration !== 'N/A' ? [updated.configuration] : [updated.property_type],
-                loc: updated.preferred_locations.length ? updated.preferred_locations : ['Location pending'],
-                timeline: client.req?.timeline || '30 Days',
-            },
-            timeline: [
-                createTimelineEvent('Customer Requirement Updated', `${updated.requirement_type} - ${updated.property_type}`),
-                ...((client.timeline || [])),
-            ],
-        });
-        setIsEditingRequirement(false);
+
+        try {
+            await onSaveRequirement(updated);
+            setIsEditingRequirement(false);
+        } catch (error) {
+            console.error('Failed to save client requirement:', error);
+        }
     };
 
-    const bhkOptions = ['1BHK', '2BHK', '3BHK', '4BHK', '5+BHK'];
-    const commercialOptions = ['Shop', 'Office', 'Showroom'];
-    const propertyTypeOptions = propertyTypeEdit.category === 'Residential' ? bhkOptions : commercialOptions;
-
-    const handleSaveMeeting = () => {
+    const handleSaveMeeting = async () => {
         if (!meetingForm.date || !meetingForm.time) return;
 
         const meeting = {
@@ -366,8 +324,10 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
         };
 
         if (editingMeetingIndex === null) {
-            onAddMeeting(meeting);
+            await onAddMeeting(meeting);
             onUpdateClient({
+                meetings: [meeting, ...(client.meetings || [])],
+                nextFollowUp: meeting.date,
                 timeline: [
                     createTimelineEvent('Meeting Scheduled', `For ${meeting.date} at ${meeting.time}`),
                     ...(client.timeline || []),
@@ -442,74 +402,6 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
         return 'bg-blue-50 text-blue-700 border-blue-100';
     };
 
-    const updateRequirementForm = (field, value) => {
-        setRequirementForm((current) => {
-            if (field === 'propertyCategory') {
-                const nextPropertyType = propertyTypesByCategory[value]?.[0] || 'Plot';
-                return { ...current, propertyCategory: value, propertyType: nextPropertyType, configuration: 'N/A' };
-            }
-            if (field === 'propertyType') {
-                return { ...current, propertyType: value, configuration: 'N/A' };
-            }
-            if (field === 'otp') {
-                return { ...current, otp: value, contactVerified: value.length === 4 };
-            }
-            if (field === 'contactNumber') {
-                return { ...current, contactNumber: value, contactVerified: false, otp: '' };
-            }
-            return { ...current, [field]: value };
-        });
-    };
-
-    const handleAddRequirement = (event) => {
-        event.preventDefault();
-        if (!requirementForm.customerName.trim() || !requirementForm.contactNumber.trim()) return;
-
-        const now = getNowStamp();
-        const requirement = {
-            id: `REQ-${Date.now()}`,
-            customer_name: requirementForm.customerName.trim(),
-            contact_number: requirementForm.contactNumber.trim(),
-            requirement_type: requirementForm.status,
-            property_category: requirementForm.propertyCategory,
-            property_type: requirementForm.propertyType,
-            configuration: requirementForm.configuration,
-            min_area: requirementForm.minArea,
-            max_area: requirementForm.maxArea,
-            area_unit: requirementForm.unit,
-            budget_min: Number(requirementForm.budgetMin || 0),
-            budget_max: Number(requirementForm.budgetMax || 0),
-            preferred_locations: requirementForm.location.trim() ? [requirementForm.location.trim()] : [],
-            notes: requirementForm.notes.trim(),
-            contact_verified: requirementForm.contactVerified,
-            created_at: `${now.date} ${now.time}`,
-        };
-
-        onUpdateClient({
-            customerRequirements: [requirement, ...(client.customerRequirements || [])],
-            req: {
-                type: requirement.property_category,
-                bhk: requirement.configuration !== 'N/A' ? [requirement.configuration] : [requirement.property_type],
-                loc: requirement.preferred_locations.length ? requirement.preferred_locations : ['Location pending'],
-                timeline: client.req?.timeline || '30 Days',
-            },
-            latestNote: requirement.notes || `Requirement added for ${requirement.property_type}.`,
-            timeline: [
-                createTimelineEvent('Customer Requirement Added', `${requirement.requirement_type} - ${requirement.property_type} in ${requirement.preferred_locations[0] || 'location pending'}`),
-                ...(client.timeline || []),
-            ],
-        });
-
-        setRequirementForm({
-            ...requirementInitialState,
-            customerName: client.name || '',
-            contactNumber: client.phone || '',
-            propertyCategory: client.req?.type || client.listingKind || 'Residential',
-            propertyType: client.propType || 'Plot',
-            location: client.req?.loc?.[0] || '',
-        });
-    };
-
     const openProjectFloorPlan = (project) => {
         setExpandedProjectId((current) => (current === project.id ? null : project.id));
         setExpandedConfigByProject((current) => ({
@@ -548,31 +440,19 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
         });
     };
 
-    const handleAssignSubmit = () => {
+    const handleAssignSubmit = async () => {
         if (!selectedSalesOfficer || selectedProps.length === 0) return;
-
-        const pipelineItems = selectedProps.map((assignment) => ({
-            projectId: assignment.projectId,
-            status: 'Shown',
-            units: [getSelectedUnitLabel(assignment)],
-            selectedUnit: assignment,
-            visitedOn: null,
-            notes: 'Newly assigned',
-        }));
-        const timelineEvent = createTimelineEvent('Properties Assigned', `${selectedProps.length} unit${selectedProps.length === 1 ? '' : 's'} assigned to ${selectedSalesOfficer}`);
-
-        setAssignmentSuccess(true);
-        onUpdateClient({
-            officer: selectedSalesOfficer,
-            propertyPipeline: [...pipelineItems, ...(client.propertyPipeline || [])],
-            timeline: [timelineEvent, ...(client.timeline || [])],
-        });
-
-        window.setTimeout(() => {
-            setAssignmentSuccess(false);
-            setSelectedProps([]);
-            setAssignedOfficer('');
-        }, 900);
+        try {
+            await onAssignUnits(selectedProps, selectedSalesOfficer);
+            setAssignmentSuccess(true);
+            window.setTimeout(() => {
+                setAssignmentSuccess(false);
+                setSelectedProps([]);
+                setAssignedOfficer('');
+            }, 900);
+        } catch (error) {
+            console.error('Failed to assign units:', error);
+        }
     };
 
     const pendingDealItem = pendingDealIndex !== null ? client.propertyPipeline?.[pendingDealIndex] : null;
@@ -580,58 +460,29 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
 
     const [pendingVisitDeal, setPendingVisitDeal] = useState(null);
 
-    const handleConfirmContinueToDeal = () => {
+    const handleConfirmContinueToDeal = async () => {
         if (pendingDealIndex === null || !pendingDealItem || !pendingDealProject) return;
 
-        const nextPipeline = (client.propertyPipeline || []).map((item, index) => (
-            index === pendingDealIndex
-                ? {
-                    ...item,
-                    status: 'Continued to Deal',
-                    continuedToDeal: true,
-                    notes: 'Continued to deal from assigned property.',
-                }
-                : item
-        ));
-
-        onUpdateClient({
-            status: 'Negotiating',
-            propertyPipeline: nextPipeline,
-            timeline: [
-                createTimelineEvent('Continued to Deal', `${pendingDealProject.name} moved from assigned property to deal.`),
-                ...(client.timeline || []),
-            ],
-        });
-        setPendingDealIndex(null);
+        try {
+            await onContinueToDeal({
+                pipelineItem: pendingDealItem,
+                project: pendingDealProject,
+            });
+            setPendingDealIndex(null);
+        } catch (error) {
+            console.error('Failed to continue assigned property to deal:', error);
+        }
     };
 
-    const handleConfirmVisitDeal = () => {
+    const handleConfirmVisitDeal = async () => {
         if (!pendingVisitDeal) return;
-        const visit = pendingVisitDeal;
-        const alreadyInPipeline = (client.propertyPipeline || []).some(
-            (item) => item.visitId === visit.id
-        );
-        if (!alreadyInPipeline) {
-            onUpdateClient({
-                status: 'Negotiating',
-                propertyPipeline: [
-                    {
-                        visitId: visit.id,
-                        projectId: visit.property?.name,
-                        status: 'Continued to Deal',
-                        continuedToDeal: true,
-                        units: [visit.property?.config || visit.property?.type || ''],
-                        notes: `Continued to deal from site visit on ${visit.date}.`,
-                    },
-                    ...(client.propertyPipeline || []),
-                ],
-                timeline: [
-                    createTimelineEvent('Continued to Deal', `${visit.property?.name} moved from site visit to deal.`),
-                    ...(client.timeline || []),
-                ],
-            });
+
+        try {
+            await onContinueToDeal({ visit: pendingVisitDeal });
+            setPendingVisitDeal(null);
+        } catch (error) {
+            console.error('Failed to continue visit to deal:', error);
         }
-        setPendingVisitDeal(null);
     };
 
     const getCheckInTime = (timeRange) => {
@@ -662,7 +513,7 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                     <button onClick={openEditRequirement} className="px-3 py-1.5 rounded-lg border border-[#6F4BFF]/30 bg-[#6F4BFF]/5 text-xs font-bold text-[#6F4BFF] hover:bg-[#6F4BFF]/10 transition-all flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5" /> Edit Customer Requirement
                     </button>
-                    <button onClick={() => setIsEditingProfile(true)} className="p-2 hover:bg-white/60 rounded-lg text-gray-500 transition-colors backdrop-blur-sm border border-gray-200">
+                    <button onClick={() => setActiveProfileTab('Follow-up & Notes')} className="p-2 hover:bg-white/60 rounded-lg text-gray-500 transition-colors backdrop-blur-sm border border-gray-200">
                         <MessageSquare className="w-4 h-4" />
                     </button>
                     <button onClick={onBack} className="p-2 hover:bg-white/60 rounded-lg text-gray-500 transition-colors backdrop-blur-sm border border-gray-200">
@@ -1256,7 +1107,17 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><MapPin className="w-5 h-5 text-rose-500" /> Property Site Visits</h3>
                                 <Button icon={Calendar} onClick={() => {
-                                        setVisitForm((f) => ({ ...f, customerName: client.name, customerPhone: client.phone, officerName: client.officer || '' }));
+                                        const firstProject = projects[0];
+                                        setVisitForm((f) => ({
+                                            ...f,
+                                            customerName: client.name,
+                                            customerPhone: client.phone,
+                                            officerName: client.officer || officers[0] || '',
+                                            propertyName: firstProject?.name || f.propertyName,
+                                            propertyType: firstProject?.specs || f.propertyType,
+                                            propertyAddress: firstProject?.location || f.propertyAddress,
+                                            propertyPrice: firstProject?.priceRange || f.propertyPrice,
+                                        }));
                                         setIsScheduleVisitOpen(true);
                                     }}>Schedule New Visit</Button>
                             </div>
@@ -1746,27 +1607,31 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
             </Modal>
 
             <Modal isOpen={isScheduleVisitOpen} onClose={() => setIsScheduleVisitOpen(false)} title="Schedule New Visit" size="lg">
-                <form onSubmit={(event) => {
+                <form onSubmit={async (event) => {
                     event.preventDefault();
-                    onScheduleVisit({
-                        officerName: visitForm.officerName.trim(),
-                        officerPhone: visitForm.officerPhone.trim(),
-                        customerName: visitForm.customerName.trim(),
-                        customerPhone: visitForm.customerPhone.trim(),
-                        purpose: visitForm.purpose,
-                        date: visitForm.date,
-                        time: visitForm.time,
-                        status: 'Scheduled',
-                        property: {
-                            name: visitForm.propertyName.trim(),
-                            type: visitForm.propertyType,
-                            config: visitForm.propertyConfig.trim(),
-                            address: visitForm.propertyAddress.trim(),
-                            price: visitForm.propertyPrice.trim(),
-                        },
-                        notes: visitForm.notes.trim(),
-                    });
-                    setIsScheduleVisitOpen(false);
+                    try {
+                        await onScheduleVisit({
+                            officerName: visitForm.officerName.trim(),
+                            officerPhone: visitForm.officerPhone.trim(),
+                            customerName: visitForm.customerName.trim(),
+                            customerPhone: visitForm.customerPhone.trim(),
+                            purpose: visitForm.purpose,
+                            date: visitForm.date,
+                            time: visitForm.time,
+                            status: 'Scheduled',
+                            property: {
+                                name: visitForm.propertyName.trim(),
+                                type: visitForm.propertyType,
+                                config: visitForm.propertyConfig.trim(),
+                                address: visitForm.propertyAddress.trim(),
+                                price: visitForm.propertyPrice.trim(),
+                            },
+                            notes: visitForm.notes.trim(),
+                        });
+                        setIsScheduleVisitOpen(false);
+                    } catch (error) {
+                        console.error('Failed to schedule client hub visit:', error);
+                    }
                 }} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
@@ -1779,7 +1644,10 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                         </div>
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Officer Name</label>
-                            <input required value={visitForm.officerName} onChange={(e) => setVisitForm((f) => ({ ...f, officerName: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                            <input required list="client-hub-visit-officers" value={visitForm.officerName} onChange={(e) => setVisitForm((f) => ({ ...f, officerName: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                            <datalist id="client-hub-visit-officers">
+                                {officers.map((officer) => <option key={officer} value={officer} />)}
+                            </datalist>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Officer Phone</label>
@@ -1805,7 +1673,19 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property Name</label>
-                            <input required value={visitForm.propertyName} onChange={(e) => setVisitForm((f) => ({ ...f, propertyName: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                            <input required list="client-hub-visit-properties" value={visitForm.propertyName} onChange={(e) => setVisitForm((f) => {
+                                const project = projects.find((item) => normalizeLookup(item.name) === normalizeLookup(e.target.value));
+                                return {
+                                    ...f,
+                                    propertyName: e.target.value,
+                                    propertyType: project?.specs || f.propertyType,
+                                    propertyAddress: project?.location || f.propertyAddress,
+                                    propertyPrice: project?.priceRange || f.propertyPrice,
+                                };
+                            })} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                            <datalist id="client-hub-visit-properties">
+                                {projects.map((project) => <option key={project.id} value={project.name} />)}
+                            </datalist>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property Type</label>
@@ -1840,13 +1720,74 @@ const ClientProfileView = ({ client, projects, visits, officers, onBack, onUpdat
     );
 };
 
+const normalizeLookup = (value) => String(value || '').trim().toLowerCase();
+
+const pickDealValue = (...candidates) => {
+    for (const candidate of candidates) {
+        const parsed = parseBudgetRange(candidate || '');
+        if (parsed.budget_max || parsed.budget_min) {
+            return parsed.budget_max || parsed.budget_min;
+        }
+    }
+
+    return null;
+};
+
+const resolveTimeToken = (token, fallbackMeridiem = '') => {
+    const match = String(token || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    if (!match) return null;
+
+    let hour = Number(match[1]);
+    const minute = Number(match[2] || 0);
+    const meridiem = (match[3] || fallbackMeridiem || '').toLowerCase();
+
+    if (meridiem === 'pm' && hour < 12) hour += 12;
+    if (meridiem === 'am' && hour === 12) hour = 0;
+
+    return { hour, minute };
+};
+
+const toIndiaOffsetIso = (date, hour, minute) => (
+    `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+05:30`
+);
+
+const buildVisitSlotRange = (date, timeRange) => {
+    const [startRaw, endRaw] = String(timeRange || '').split(/\s*-\s*/);
+    const endMeridiem = endRaw?.match(/\b(am|pm)\b/i)?.[1] || '';
+    const startMeridiem = startRaw?.match(/\b(am|pm)\b/i)?.[1] || endMeridiem;
+    const start = resolveTimeToken(startRaw, startMeridiem);
+    const end = resolveTimeToken(endRaw, endMeridiem || startMeridiem);
+
+    if (!date || !start) return null;
+
+    const startDate = new Date(toIndiaOffsetIso(date, start.hour, start.minute));
+    let endDate = end
+        ? new Date(toIndiaOffsetIso(date, end.hour, end.minute))
+        : new Date(startDate.getTime() + 60 * 60 * 1000);
+
+    if (endDate <= startDate) {
+        endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+    }
+
+    return {
+        slot_start: startDate.toISOString(),
+        slot_end: endDate.toISOString(),
+    };
+};
+
 const Clients = () => {
-    const dispatch = useDispatch();
     const location = useLocation();
-    const { clients } = useSelector((state) => state.clients);
-    const { visits: allVisits } = useSelector((state) => state.visits);
     const [isAddClientOpen, setIsAddClientOpen] = useState(false);
-    const [selectedClientId, setSelectedClientId] = useState(null);
+    const [selectedClientId, setSelectedClientId] = useState(location.state?.selectedClientId || null);
+    const [clients, setClients] = useState([]);
+    const [todayVisitCards, setTodayVisitCards] = useState([]);
+    const [officerOptions, setOfficerOptions] = useState([]);
+    const [selectedClientDetails, setSelectedClientDetails] = useState(null);
+    const [selectedProjects, setSelectedProjects] = useState([]);
+    const [selectedVisits, setSelectedVisits] = useState([]);
+    const [isLoadingClients, setIsLoadingClients] = useState(false);
+    const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+    const [pageError, setPageError] = useState('');
     const [activeTab, setActiveTab] = useState('All');
     const [dateFilter, setDateFilter] = useState('');
     const [sourceFilter, setSourceFilter] = useState('All');
@@ -1854,84 +1795,374 @@ const Clients = () => {
     const [clientForm, setClientForm] = useState(clientFormInitialState);
 
     useEffect(() => {
-        if (location.state?.selectedClientId) {
+        if (!location.state?.selectedClientId) return undefined;
+        const timeout = window.setTimeout(() => {
             setSelectedClientId(location.state.selectedClientId);
-        }
-    }, [location.state]);
+        }, 0);
+        return () => window.clearTimeout(timeout);
+    }, [location.state?.selectedClientId]);
 
-    const selectedClient = clients.find((client) => client.id === selectedClientId);
+    const fetchClientList = useCallback(async () => {
+        setIsLoadingClients(true);
+        setPageError('');
+
+        try {
+            const tabMap = {
+                Hot: 'Hot Clients',
+                Cold: 'Cold Clients',
+                Suspended: 'Suspended Clients',
+            };
+            const [{ items }, visits, officers] = await Promise.all([
+                fetchClientHubClients({
+                    search: searchQuery.trim(),
+                    tab: tabMap[activeTab] || 'All Clients',
+                    follow_up_date: dateFilter,
+                    via: sourceFilter,
+                    page: 1,
+                    limit: 50,
+                }),
+                fetchTodayVisits(),
+                fetchAvailableOfficers(),
+            ]);
+
+            setClients(items);
+            setTodayVisitCards(visits);
+            setOfficerOptions(officers);
+            console.info('[ClientsHub] Loaded list dependencies', {
+                clientsCount: items.length,
+                todayVisitsCount: visits.length,
+                availableOfficersCount: officers.length,
+                availableOfficers: officers.map((officer) => ({
+                    id: officer.id,
+                    name: officer.name,
+                })),
+                filters: {
+                    search: searchQuery.trim(),
+                    activeTab,
+                    dateFilter,
+                    sourceFilter,
+                },
+            });
+        } catch (error) {
+            console.error('Failed to load client hub:', error);
+            setPageError(error.message || 'Failed to load clients hub.');
+        } finally {
+            setIsLoadingClients(false);
+        }
+    }, [activeTab, dateFilter, sourceFilter, searchQuery]);
+
+    useEffect(() => {
+        const timeout = window.setTimeout(() => {
+            fetchClientList();
+        }, 0);
+        return () => window.clearTimeout(timeout);
+    }, [fetchClientList]);
+
+    useEffect(() => {
+        if (!officerOptions.length) {
+            console.warn('[ClientsHub] No available officers returned from /api/admin/client-hub/officers/available. Registration requires one officer id from that endpoint.');
+            return;
+        }
+        const timeout = window.setTimeout(() => {
+            setClientForm((current) => {
+                if (current.officer && officerOptions.some((officer) => officer.name === current.officer)) {
+                    return current;
+                }
+                return { ...current, officer: officerOptions[0].name };
+            });
+        }, 0);
+        return () => window.clearTimeout(timeout);
+    }, [officerOptions]);
+
+    const selectedSummary = clients.find((client) => client.id === selectedClientId);
+    const selectedClient = selectedClientDetails?.id === selectedClientId
+        ? selectedClientDetails
+        : selectedSummary;
+
+    const refreshSelectedClient = useCallback(async (clientId = selectedClientId) => {
+        if (!clientId) return;
+        const summary = clients.find((client) => client.id === clientId) || {};
+        setIsLoadingProfile(true);
+        setPageError('');
+
+        try {
+            const bundle = await fetchClientProfileBundle(clientId, summary);
+            setSelectedClientDetails(bundle.client);
+            setSelectedProjects(bundle.projects);
+            setSelectedVisits(bundle.visits);
+        } catch (error) {
+            console.error('Failed to load client profile:', error);
+            setPageError(error.message || 'Failed to load client profile.');
+        } finally {
+            setIsLoadingProfile(false);
+        }
+    }, [clients, selectedClientId]);
+
+    useEffect(() => {
+        const timeout = window.setTimeout(() => {
+            if (selectedClientId) {
+                refreshSelectedClient(selectedClientId);
+            } else {
+                setSelectedClientDetails(null);
+                setSelectedProjects([]);
+                setSelectedVisits([]);
+            }
+        }, 0);
+        return () => window.clearTimeout(timeout);
+    }, [selectedClientId, refreshSelectedClient]);
 
     const officers = useMemo(() => (
-        Array.from(new Set([...clients.map((client) => client.officer), 'Neha K.', 'Ravi T.', 'Rahul M.', 'Sneha P.'].filter(Boolean)))
-    ), [clients]);
+        officerOptions.map((officer) => officer.name).filter(Boolean)
+    ), [officerOptions]);
 
-    const filteredClients = useMemo(() => {
-        const query = searchQuery.trim().toLowerCase();
+    const filteredClients = clients;
 
-        return clients.filter((client) => {
-            const matchTab = activeTab === 'All' ||
-                (activeTab === 'Hot' && client.score === 'Hot') ||
-                (activeTab === 'Cold' && client.score === 'Cold') ||
-                (activeTab === 'Suspended' && client.status === 'Suspended');
-            const matchDate = dateFilter ? client.nextFollowUp === dateFilter : true;
-            const matchSource = sourceFilter === 'All' || client.source === sourceFilter;
-            const matchSearch = !query || [client.name, client.phone, client.budget, client.propType, client.latestNote, client.officer]
-                .filter(Boolean)
-                .some((value) => String(value).toLowerCase().includes(query));
-
-            return matchTab && matchDate && matchSource && matchSearch;
-        });
-    }, [activeTab, clients, dateFilter, sourceFilter, searchQuery]);
-
-    const todaysVisits = clients.filter((client) => client.visitToday);
-    const createClientId = () => {
-        const nextNumber = clients.reduce((max, client) => {
-            const clientNumber = Number(String(client.id).replace(/\D/g, '')) || 0;
-            return Math.max(max, clientNumber);
-        }, 0) + 1;
-        return `C${String(nextNumber).padStart(3, '0')}`;
-    };
+    const todaysVisits = useMemo(() => (
+        todayVisitCards.map((visit) => {
+            const matchedClient = clients.find((client) => client.phone && client.phone === visit.phone);
+            return {
+                ...visit,
+                id: matchedClient?.id || visit.id,
+                displayCode: matchedClient?.displayCode || visit.displayCode,
+            };
+        })
+    ), [clients, todayVisitCards]);
 
     const updateClientForm = (field, value) => {
         setClientForm((current) => ({ ...current, [field]: value }));
     };
 
-    const handleRegisterClient = (event) => {
-        event.preventDefault();
-        const now = getNowStamp();
-        const newClient = {
-            id: createClientId(),
-            name: clientForm.name.trim(),
-            phone: clientForm.phone.trim(),
-            budget: clientForm.budget.trim(),
-            source: clientForm.source || '',
-            listingType: clientForm.listingType,
-            listingKind: clientForm.listingKind,
-            propType: clientForm.propType,
-            date: now.date,
-            time: now.time,
-            req: {
-                type: clientForm.listingKind,
-                bhk: [clientForm.bhk],
-                loc: [clientForm.location || 'Location pending'],
-                timeline: '30 Days',
-            },
-            status: clientForm.status,
-            officer: clientForm.officer,
-            score: clientForm.score,
-            visitToday: false,
-            nextFollowUp: clientForm.nextFollowUp,
-            latestNote: clientForm.latestNote || 'Client registered from Clients Hub.',
-            actionRequired: false,
-            propertyPipeline: [],
-            timeline: [{ title: 'Client Registered', details: 'Client created from Clients Hub', date: now.date, time: now.time }],
-            notes: clientForm.latestNote ? [{ text: clientForm.latestNote, date: now.date, time: now.time }] : [],
-            meetings: [],
-        };
+    const toRequirementPayload = (requirement) => ({
+        requirement_type: String(requirement.requirement_type || 'Buy').toLowerCase(),
+        property_category: requirement.property_category,
+        property_type: requirement.property_type,
+        min_area: requirement.min_area,
+        max_area: requirement.max_area,
+        area_unit: requirement.area_unit,
+        customer_name: requirement.customer_name,
+        contact_number: requirement.contact_number,
+        preferred_location: requirement.preferred_locations?.[0] || '',
+        budget_min: requirement.budget_min,
+        budget_max: requirement.budget_max,
+        details: requirement.notes,
+        otp: requirement.otp,
+    });
 
-        dispatch(addClient(newClient));
-        setClientForm(clientFormInitialState);
-        setIsAddClientOpen(false);
+    const handleRegisterClient = async (event) => {
+        event.preventDefault();
+        const selectedOfficer = officerOptions.find((officer) => officer.name === clientForm.officer);
+        console.info('[ClientsHub] Register client submit', {
+            selectedOfficerName: clientForm.officer,
+            matchedOfficer: selectedOfficer || null,
+            availableOfficersCount: officerOptions.length,
+            availableOfficers: officerOptions.map((officer) => ({
+                id: officer.id,
+                name: officer.name,
+            })),
+            form: {
+                name: clientForm.name,
+                phone: clientForm.phone,
+                budget: clientForm.budget,
+                location: clientForm.location,
+                propertyType: clientForm.propType,
+                bhk: clientForm.bhk,
+                status: clientForm.status,
+                score: clientForm.score,
+                nextFollowUp: clientForm.nextFollowUp,
+            },
+        });
+        if (!selectedOfficer) {
+            console.error('[ClientsHub] Registration blocked because no selected officer id was available.', {
+                selectedOfficerName: clientForm.officer,
+                availableOfficersCount: officerOptions.length,
+            });
+            setPageError('Select an available officer before registering a client. Check console logs for available-officers response details.');
+            return;
+        }
+
+        try {
+            const budgetRange = parseBudgetRange(clientForm.budget);
+            const payload = {
+                name: clientForm.name.trim(),
+                phone: clientForm.phone.trim(),
+                budget_min: budgetRange.budget_min,
+                budget_max: budgetRange.budget_max,
+                location: clientForm.location.trim(),
+                property_type: clientForm.propType,
+                configuration: clientForm.bhk,
+                assigned_officer_id: selectedOfficer.id,
+                status: clientForm.status,
+                score: clientForm.score,
+                follow_up_date: clientForm.nextFollowUp,
+                initial_note: clientForm.latestNote,
+            };
+            console.info('[ClientsHub] Register client payload', payload);
+            const created = await registerClient(payload);
+            console.info('[ClientsHub] Register client success', created);
+
+            setClientForm({
+                ...clientFormInitialState,
+                officer: officerOptions[0]?.name || '',
+            });
+            setIsAddClientOpen(false);
+            await fetchClientList();
+            if (created?.id) {
+                setSelectedClientId(created.id);
+            }
+        } catch (error) {
+            console.error('Failed to register client:', error);
+            setPageError(error.message || 'Failed to register client.');
+        }
+    };
+
+    const handleUpdateSelectedClient = async (changes) => {
+        setSelectedClientDetails((current) => current ? { ...current, ...changes } : current);
+
+        const profilePayload = {};
+        if (Object.hasOwn(changes, 'name')) profilePayload.name = changes.name;
+        if (Object.hasOwn(changes, 'phone')) profilePayload.phone = changes.phone;
+        if (Object.hasOwn(changes, 'status')) profilePayload.pipeline_status = changes.status;
+
+        if (Object.hasOwn(changes, 'officer')) {
+            const officer = officerOptions.find((item) => item.name === changes.officer);
+            if (!officer) {
+                setPageError('Selected officer could not be resolved to an available officer ID.');
+                return;
+            }
+            profilePayload.assigned_officer_id = officer.id;
+        }
+
+        if (!Object.keys(profilePayload).length) return;
+
+        try {
+            await updateClientProfile(selectedClientId, profilePayload);
+            await refreshSelectedClient();
+            await fetchClientList();
+        } catch (error) {
+            console.error('Failed to update client profile:', error);
+            setPageError(error.message || 'Failed to update client profile.');
+        }
+    };
+
+    const handleSaveClientNote = async (note, followUp) => {
+        await saveClientNote(selectedClientId, {
+            note_type: note.type,
+            next_follow_up: followUp.nextFollowUp,
+            client_status: followUp.status,
+            content: note.text,
+        });
+        await refreshSelectedClient();
+        await fetchClientList();
+    };
+
+    const toRequirementUpdatePayload = (requirement) => ({
+        property_type: [
+            requirement.property_category,
+            requirement.property_type,
+            requirement.configuration && requirement.configuration !== 'N/A' ? requirement.configuration : '',
+        ].filter(Boolean).join(' - '),
+        budget_min: requirement.budget_min ? Number(requirement.budget_min) : null,
+        budget_max: requirement.budget_max ? Number(requirement.budget_max) : null,
+        preferred_locations: requirement.preferred_locations || [],
+        timeline: selectedClient?.req?.timeline && selectedClient.req.timeline !== 'Not Specified'
+            ? selectedClient.req.timeline
+            : null,
+    });
+
+    const handleSaveRequirement = async (requirement) => {
+        if (requirement.id) {
+            await updateClientRequirement(selectedClientId, toRequirementUpdatePayload(requirement));
+        } else {
+            await addClientRequirement(selectedClientId, toRequirementPayload(requirement));
+        }
+        await refreshSelectedClient();
+        await fetchClientList();
+    };
+
+    const handleAssignUnits = async (assignments) => {
+        const assignmentsByProject = assignments.reduce((acc, assignment) => {
+            acc[assignment.projectId] = acc[assignment.projectId] || [];
+            acc[assignment.projectId].push(assignment.unitNumber);
+            return acc;
+        }, {});
+
+        await Promise.all(Object.entries(assignmentsByProject).map(([projectId, unitCodes]) => (
+            assignUnitsToClient(selectedClientId, projectId, unitCodes)
+        )));
+        await refreshSelectedClient();
+        await fetchClientList();
+    };
+
+    const handleSaveMeetingNote = async (meeting) => {
+        await saveClientNote(selectedClientId, {
+            note_type: 'General Note',
+            next_follow_up: meeting.date,
+            client_status: selectedClient?.status || 'Active',
+            content: `${meeting.mode}: ${meeting.agenda}. ${meeting.remarks}`.trim(),
+        });
+        await refreshSelectedClient();
+    };
+
+    const handleScheduleVisit = async (visit) => {
+        const officer = officerOptions.find((item) => normalizeLookup(item.name) === normalizeLookup(visit.officerName || selectedClient?.officer));
+        if (!officer) {
+            const message = 'Select an available officer before scheduling the visit.';
+            setPageError(message);
+            throw new Error(message);
+        }
+
+        const project = selectedProjects.find((item) => (
+            normalizeLookup(item.name) === normalizeLookup(visit.property?.name)
+        ));
+        const propertyId = project?.propertyId || project?.property_id || project?.id;
+        if (!propertyId) {
+            const message = 'Select a property already available in this Client Hub profile before scheduling the visit.';
+            setPageError(message);
+            throw new Error(message);
+        }
+
+        const slot = buildVisitSlotRange(visit.date, visit.time);
+        if (!slot) {
+            const message = 'Use a visit time like "10:00 - 11:00 AM" so the slot can be scheduled.';
+            setPageError(message);
+            throw new Error(message);
+        }
+
+        await scheduleClientVisit(selectedClientId, {
+            property_id: propertyId,
+            officer_id: officer.id,
+            ...slot,
+            note: visit.notes || `Scheduled from Client Hub for ${visit.property?.name || 'property visit'}.`,
+        });
+        await refreshSelectedClient();
+        await fetchClientList();
+        setPageError('');
+    };
+
+    const handleContinueToDeal = async ({ pipelineItem, project, visit } = {}) => {
+        const propertyId = pipelineItem?.propertyId
+            || pipelineItem?.property_id
+            || project?.propertyId
+            || project?.property_id
+            || visit?.propertyId
+            || visit?.property_id
+            || project?.id;
+        const dealValue = pickDealValue(project?.priceRange, visit?.property?.price, selectedClient?.budget);
+
+        if (!propertyId || !dealValue) {
+            const message = 'Could not resolve property ID and deal value for this conversion.';
+            setPageError(message);
+            throw new Error(message);
+        }
+
+        await convertClientToDeal(selectedClientId, {
+            property_id: propertyId,
+            deal_value: dealValue,
+            booking_date: new Date().toISOString().slice(0, 10),
+        });
+        await refreshSelectedClient();
+        await fetchClientList();
+        setPageError('');
     };
 
     if (selectedClient) {
@@ -1939,18 +2170,29 @@ const Clients = () => {
             <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
                 <Header title="Clients Hub" showBack onBack={() => setSelectedClientId(null)} />
                 <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
+                    {pageError && (
+                        <Card className="mb-4 border-l-4 border-l-rose-500 bg-rose-50">
+                            <p className="text-sm font-bold text-rose-700">{pageError}</p>
+                        </Card>
+                    )}
                     <ClientProfileView
                         key={selectedClient.id}
                         client={selectedClient}
-                        projects={mockProjects}
-                        visits={allVisits}
+                        projects={selectedProjects}
+                        visits={selectedVisits}
                         officers={officers}
                         onBack={() => setSelectedClientId(null)}
-                        onUpdateClient={(changes) => dispatch(updateClient({ id: selectedClient.id, changes }))}
-                        onAddNote={(note) => dispatch(addClientNote({ id: selectedClient.id, note }))}
-                        onAddMeeting={(meeting) => dispatch(addClientMeeting({ id: selectedClient.id, meeting }))}
-                        onScheduleVisit={(visit) => dispatch(addVisit(visit))}
+                        onUpdateClient={handleUpdateSelectedClient}
+                        onAddNote={handleSaveClientNote}
+                        onAddMeeting={handleSaveMeetingNote}
+                        onContinueToDeal={handleContinueToDeal}
+                        onScheduleVisit={handleScheduleVisit}
+                        onSaveRequirement={handleSaveRequirement}
+                        onAssignUnits={handleAssignUnits}
                     />
+                    {isLoadingProfile && (
+                        <p className="mt-4 text-center text-xs font-bold uppercase tracking-widest text-gray-400">Refreshing client data...</p>
+                    )}
                 </main>
             </div>
         );
@@ -1962,6 +2204,11 @@ const Clients = () => {
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
                 <div className="max-w-[1600px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    {pageError && (
+                        <Card className="border-l-4 border-l-rose-500 bg-rose-50">
+                            <p className="text-sm font-bold text-rose-700">{pageError}</p>
+                        </Card>
+                    )}
                     {todaysVisits.length > 0 && (
                         <Card className="border-l-4 border-l-emerald-500 bg-linear-to-r from-emerald-50 to-white">
                             <div className="flex items-center gap-3 mb-4">
@@ -1976,7 +2223,7 @@ const Clients = () => {
                                     <div key={visit.id} onClick={() => setSelectedClientId(visit.id)} className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm cursor-pointer hover:shadow-md hover:border-emerald-300 transition-all group">
                                         <div className="flex justify-between items-start mb-2">
                                             <div>
-                                                <h4 className="font-bold text-gray-900 group-hover:text-emerald-600 transition-colors flex items-center gap-2">{visit.name} <Badge variant="green"># {visit.id}</Badge></h4>
+                                                <h4 className="font-bold text-gray-900 group-hover:text-emerald-600 transition-colors flex items-center gap-2">{visit.name} <Badge variant="green">{visit.displayCode}</Badge></h4>
                                                 <p className="text-xs font-medium text-gray-500 flex items-center gap-1 mt-1"><PhoneCall className="w-3 h-3" /> {visit.phone}</p>
                                             </div>
                                             <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
@@ -2081,7 +2328,7 @@ const Clients = () => {
                                         <tr>
                                             <td colSpan="5" className="px-6 py-16 text-center">
                                                 <Search className="w-12 h-12 text-gray-200 mb-3 mx-auto" />
-                                                <p className="text-gray-500 font-bold text-lg">No clients found</p>
+                                                <p className="text-gray-500 font-bold text-lg">{isLoadingClients ? 'Loading clients...' : 'No clients found'}</p>
                                                 <p className="text-gray-400 text-sm mt-1">Try adjusting your filters or date selection.</p>
                                             </td>
                                         </tr>
@@ -2093,7 +2340,7 @@ const Clients = () => {
                                                     <div>
                                                         <div className="flex items-center gap-2 mb-1">
                                                             <span className="font-bold text-gray-900 text-base group-hover:text-[#6F4BFF] transition-colors">{row.name}</span>
-                                                            <Badge variant="gray" className="text-[10px]">#{row.id}</Badge>
+                                                            <Badge variant="gray" className="text-[10px]">{row.displayCode}</Badge>
                                                             {row.score === 'Hot' && <Badge variant="red" className="shadow-sm">Hot</Badge>}
                                                             {row.score === 'Cold' && <Badge variant="blue" className="shadow-sm">Cold</Badge>}
                                                         </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -15,11 +15,16 @@ import {
     User,
     Zap,
 } from 'lucide-react';
-import { userAppActivities, mockProjects } from '../../data/mockData';
+import { mockProjects } from '../../data/mockData';
 import { setSelectedBuilder, setSelectedBroker, setViewMode } from '../../store/inventorySlice';
 import Header from '../../components/layout/Header';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
+import {
+    fetchAppUserActivityBundle,
+    fetchAppUserMetrics,
+    fetchAppUsers,
+} from '../../services/appUserActivityService';
 
 const tabs = [
     { id: 'savedProperties', label: 'Saved Properties', icon: Heart },
@@ -141,7 +146,13 @@ const UserAppActivities = () => {
     const [activeApp, setActiveApp] = useState('userApp');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
-    const [selectedUserId, setSelectedUserId] = useState(userAppActivities[0]?.id);
+    const [selectedUserId, setSelectedUserId] = useState(null);
+    const [appUsers, setAppUsers] = useState([]);
+    const [selectedUserDetails, setSelectedUserDetails] = useState(null);
+    const [appMetrics, setAppMetrics] = useState(null);
+    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+    const [isLoadingUserDetails, setIsLoadingUserDetails] = useState(false);
+    const [pageError, setPageError] = useState('');
     const [activeTab, setActiveTab] = useState('savedProperties');
     const [projectPanelTab, setProjectPanelTab] = useState('builders');
     const [expandedDealId, setExpandedDealId] = useState(null);
@@ -341,18 +352,84 @@ const UserAppActivities = () => {
         ]
     }), []);
 
-    const filteredUsers = useMemo(() => {
-        const query = searchQuery.trim().toLowerCase();
-        return userAppActivities.filter((user) => {
-            const matchesSearch = !query || [user.name, user.phone, user.email, user.city]
-                .filter(Boolean)
-                .some((value) => String(value).toLowerCase().includes(query));
-            const matchesStatus = statusFilter === 'All' || user.status === statusFilter;
-            return matchesSearch && matchesStatus;
-        });
-    }, [searchQuery, statusFilter]);
+    const loadAppUsers = useCallback(async () => {
+        if (activeApp !== 'userApp') return;
 
-    const selectedUser = userAppActivities.find((user) => user.id === selectedUserId) || filteredUsers[0] || userAppActivities[0];
+        setIsLoadingUsers(true);
+        setPageError('');
+
+        try {
+            const [metrics, usersResult] = await Promise.all([
+                fetchAppUserMetrics({ range: 'today' }),
+                fetchAppUsers({
+                    search: searchQuery.trim(),
+                    status: statusFilter === 'All' ? '' : statusFilter,
+                    page: 1,
+                    limit: 50,
+                }),
+            ]);
+
+            setAppMetrics(metrics);
+            setAppUsers(usersResult.items);
+            setSelectedUserId((current) => {
+                if (current && usersResult.items.some((user) => user.id === current)) return current;
+                return usersResult.items[0]?.id || null;
+            });
+        } catch (error) {
+            console.error('Failed to load app activity users:', error);
+            setPageError(error.message || 'Failed to load app activity users.');
+            setAppUsers([]);
+            setSelectedUserId(null);
+            setSelectedUserDetails(null);
+        } finally {
+            setIsLoadingUsers(false);
+        }
+    }, [activeApp, searchQuery, statusFilter]);
+
+    useEffect(() => {
+        const timeout = window.setTimeout(() => {
+            loadAppUsers();
+        }, 250);
+
+        return () => window.clearTimeout(timeout);
+    }, [loadAppUsers]);
+
+    const selectedUserSummary = appUsers.find((user) => user.id === selectedUserId);
+
+    const loadSelectedUser = useCallback(async () => {
+        if (activeApp !== 'userApp' || !selectedUserId) {
+            setSelectedUserDetails(null);
+            return;
+        }
+
+        setIsLoadingUserDetails(true);
+        setPageError('');
+
+        try {
+            const user = await fetchAppUserActivityBundle(selectedUserId, selectedUserSummary);
+            setSelectedUserDetails(user);
+        } catch (error) {
+            console.error('Failed to load app user profile:', error);
+            setPageError(error.message || 'Failed to load app user activity.');
+            setSelectedUserDetails(selectedUserSummary || null);
+        } finally {
+            setIsLoadingUserDetails(false);
+        }
+    }, [activeApp, selectedUserId, selectedUserSummary]);
+
+    useEffect(() => {
+        const timeout = window.setTimeout(() => {
+            loadSelectedUser();
+        }, 0);
+
+        return () => window.clearTimeout(timeout);
+    }, [loadSelectedUser]);
+
+    const filteredUsers = appUsers;
+
+    const selectedUser = selectedUserDetails?.id === selectedUserId
+        ? selectedUserDetails
+        : selectedUserSummary || appUsers[0] || null;
 
     const filteredProjectPanelAccounts = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
@@ -387,12 +464,13 @@ const UserAppActivities = () => {
             ];
         }
 
-        const totalUsers = userAppActivities.length;
-        const activeUsers = userAppActivities.filter((user) => user.status === 'Online').length;
-        const totalActiveMinutes = filteredUsers.reduce((sum, user) => sum + user.activeMinutesToday, 0);
-        const savedCount = filteredUsers.reduce((sum, user) => sum + user.savedProperties.length, 0);
-        const contactedCount = filteredUsers.reduce((sum, user) => sum + user.contactedProperties.length, 0);
-        const visitCount = filteredUsers.reduce((sum, user) => sum + user.bookedVisits.length, 0);
+        const totalUsers = filteredUsers.length;
+        const activeUsers = filteredUsers.filter((user) => user.status === 'Online').length;
+        const totalActiveMinutes = appMetrics?.activeMinutes
+            ?? filteredUsers.reduce((sum, user) => sum + user.activeMinutesToday, 0);
+        const savedCount = appMetrics?.saved ?? filteredUsers.reduce((sum, user) => sum + user.savedProperties.length, 0);
+        const contactedCount = appMetrics?.contacted ?? filteredUsers.reduce((sum, user) => sum + user.contactedProperties.length, 0);
+        const visitCount = appMetrics?.visits ?? filteredUsers.reduce((sum, user) => sum + user.bookedVisits.length, 0);
 
         return [
             { title: 'Total Users', value: totalUsers, icon: User, color: 'text-[#2717D7]', bg: 'bg-[#2717D7]/10' },
@@ -402,7 +480,7 @@ const UserAppActivities = () => {
             { title: 'Contacted Properties', value: contactedCount, icon: PhoneCall, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { title: 'Booked Visits', value: visitCount, icon: CalendarDays, color: 'text-blue-600', bg: 'bg-blue-50' },
         ];
-    }, [activeApp, filteredUsers, searchQuery, statusFilter]);
+    }, [activeApp, appMetrics, filteredUsers, searchQuery, statusFilter]);
 
     const renderProjectPanelContent = () => (
         <Card noPadding className="overflow-hidden">
@@ -729,6 +807,12 @@ const UserAppActivities = () => {
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
                 <div className="max-w-[1600px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    {pageError && (
+                        <Card className="border-l-4 border-l-rose-500 bg-rose-50">
+                            <p className="text-sm font-bold text-rose-700">{pageError}</p>
+                        </Card>
+                    )}
+
                     <div className="flex flex-wrap gap-2 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
                         {appTabs.map((tab) => (
                             <button
@@ -800,10 +884,12 @@ const UserAppActivities = () => {
                         <Card noPadding className="overflow-hidden">
                             <div className="p-5 border-b border-gray-100 bg-white">
                                 <h3 className="text-lg font-black text-gray-900">App Users</h3>
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{filteredUsers.length} users in current view</p>
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                                    {isLoadingUsers ? 'Loading users...' : `${filteredUsers.length} users in current view`}
+                                </p>
                             </div>
                             <div className="max-h-[680px] overflow-y-auto p-3 space-y-3 bg-gray-50/50">
-                                {filteredUsers.map((user) => {
+                                {!isLoadingUsers && filteredUsers.map((user) => {
                                     const isSelected = selectedUser?.id === user.id;
                                     return (
                                         <button
@@ -831,11 +917,29 @@ const UserAppActivities = () => {
                                         </button>
                                     );
                                 })}
+                                {!isLoadingUsers && filteredUsers.length === 0 && (
+                                    <div className="py-16 text-center">
+                                        <User className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                                        <p className="text-gray-500 font-bold">No app users found.</p>
+                                    </div>
+                                )}
+                                {isLoadingUsers && (
+                                    <div className="py-16 text-center">
+                                        <Activity className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                                        <p className="text-gray-500 font-bold">Loading app users...</p>
+                                    </div>
+                                )}
                             </div>
                         </Card>
 
                         {selectedUser && (
                             <div className="space-y-6 min-w-0">
+                                {isLoadingUserDetails && (
+                                    <Card className="border-l-4 border-l-[#6F4BFF] bg-[#6F4BFF]/5">
+                                        <p className="text-xs font-black uppercase tracking-widest text-[#6F4BFF]">Refreshing selected user activity...</p>
+                                    </Card>
+                                )}
+
                                 <Card noPadding className="overflow-hidden">
                                     <div className="p-6 bg-linear-to-r from-white to-[#6F4BFF]/5 border-b border-gray-100 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                                         <div className="flex gap-5 min-w-0">
