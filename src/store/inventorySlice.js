@@ -1,13 +1,61 @@
-import { createSlice } from '@reduxjs/toolkit';
-import { mockProjects } from '../data/mockData';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import * as inventoryService from '../services/inventoryService';
+
+/**
+ * Async thunks for fetching inventory data from the backend
+ */
+export const getProjects = createAsyncThunk(
+  'inventory/getProjects',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      return await inventoryService.fetchProjects(params);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const getSourceProfiles = createAsyncThunk(
+  'inventory/getSourceProfiles',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      return await inventoryService.fetchSourceProfiles(params);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const getProjectById = createAsyncThunk(
+  'inventory/getProjectById',
+  async (projectId, { rejectWithValue }) => {
+    try {
+      return await inventoryService.fetchProjectById(projectId);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const getConfigurationUnits = createAsyncThunk(
+  'inventory/getConfigurationUnits',
+  async ({ projectId, configurationId }, { rejectWithValue }) => {
+    try {
+      return await inventoryService.fetchConfigurationUnits(projectId, configurationId);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
 
 const initialState = {
-  projects: mockProjects,
-  filteredProjects: mockProjects,
+  projects: [],
+  filteredProjects: [],
+  sourceProfiles: [],
   selectedProject: null,
-  selectedBuilder: null, // New: for builder view
+  selectedBuilder: null,
   selectedBroker: null,
-  viewMode: 'projects', // 'projects' or 'builders' or 'builderProjects'
+  viewMode: 'projects', // 'projects', 'builderProjects', 'brokerProjects'
   loading: false,
   error: null,
   filters: {
@@ -16,7 +64,72 @@ const initialState = {
     propertySource: 'all', // 'all', 'builder', 'broker'
     priceRange: 'all', // 'all', 'under-1cr', '1cr-2cr', '2cr-5cr', '5cr-plus'
     location: 'all', // 'all', or specific city names
-  }
+  },
+  pagination: {
+    total: 0,
+    limit: 50,
+    offset: 0,
+    hasMore: false,
+  },
+};
+
+const applyLocalFilters = (projects, filters) => {
+  const { search, status, propertySource, priceRange, location } = filters;
+  
+  return projects.filter(project => {
+    // Search filter (in case frontend wants local refining)
+    const matchesSearch = 
+      !search ||
+      project.name.toLowerCase().includes(search.toLowerCase()) || 
+      (project.builder && project.builder.toLowerCase().includes(search.toLowerCase())) ||
+      project.location.toLowerCase().includes(search.toLowerCase());
+    
+    // Status filter
+    const matchesStatus = status === 'All' || project.status === status;
+    
+    // Property source filter
+    const matchesSource = propertySource === 'all' || project.addedBy === propertySource;
+    
+    // Price range filter
+    let matchesPriceRange = true;
+    if (priceRange !== 'all' && project.priceRange) {
+      const priceStr = project.priceRange.toLowerCase();
+      let minPrice = 0;
+      
+      // Parse the minimum price
+      if (priceStr.includes('cr')) {
+        const match = priceStr.match(/(\d+\.?\d*)\s*cr/i);
+        if (match) minPrice = parseFloat(match[1]) * 100; // Convert Cr to Lacs
+      } else if (priceStr.includes('l') || priceStr.includes('lacs')) {
+        const match = priceStr.match(/(\d+\.?\d*)\s*(l|lacs?)/i);
+        if (match) minPrice = parseFloat(match[1]);
+      }
+      
+      // Apply price range filter
+      switch(priceRange) {
+        case 'under-1cr':
+          matchesPriceRange = minPrice < 100;
+          break;
+        case '1cr-2cr':
+          matchesPriceRange = minPrice >= 100 && minPrice < 200;
+          break;
+        case '2cr-5cr':
+          matchesPriceRange = minPrice >= 200 && minPrice < 500;
+          break;
+        case '5cr-plus':
+          matchesPriceRange = minPrice >= 500;
+          break;
+      }
+    }
+    
+    // Location filter
+    let matchesLocation = true;
+    if (location !== 'all') {
+      matchesLocation = project.location.toLowerCase().includes(location.toLowerCase());
+    }
+    
+    return matchesSearch && matchesStatus && matchesSource && matchesPriceRange && matchesLocation;
+  });
 };
 
 const inventorySlice = createSlice({
@@ -25,7 +138,7 @@ const inventorySlice = createSlice({
   reducers: {
     setProjects: (state, action) => {
       state.projects = action.payload;
-      state.filteredProjects = action.payload;
+      state.filteredProjects = applyLocalFilters(action.payload, state.filters);
     },
     setSelectedProject: (state, action) => {
       state.selectedProject = action.payload;
@@ -41,72 +154,96 @@ const inventorySlice = createSlice({
     },
     setFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
-      const { search, status, propertySource, priceRange, location } = state.filters;
-      
-      state.filteredProjects = state.projects.filter(project => {
-        // Search filter
-        const matchesSearch = project.name.toLowerCase().includes(search.toLowerCase()) || 
-                             project.builder.toLowerCase().includes(search.toLowerCase()) ||
-                             project.location.toLowerCase().includes(search.toLowerCase());
-        
-        // Status filter
-        const matchesStatus = status === 'All' || project.status === status;
-        
-        // Property source filter
-        const matchesSource = propertySource === 'all' || project.addedBy === propertySource;
-        
-        // Price range filter
-        let matchesPriceRange = true;
-        if (priceRange !== 'all') {
-          // Extract minimum price from priceRange string (e.g., "1.2 Cr - 2.5 Cr" or "85 L - 1.5 Cr")
-          const priceStr = project.priceRange.toLowerCase();
-          let minPrice = 0;
-          
-          // Parse the minimum price
-          if (priceStr.includes('cr')) {
-            const match = priceStr.match(/(\d+\.?\d*)\s*cr/i);
-            if (match) minPrice = parseFloat(match[1]) * 100; // Convert Cr to Lacs
-          } else if (priceStr.includes('l')) {
-            const match = priceStr.match(/(\d+)\s*l/i);
-            if (match) minPrice = parseFloat(match[1]);
-          }
-          
-          // Apply price range filter
-          switch(priceRange) {
-            case 'under-1cr':
-              matchesPriceRange = minPrice < 100;
-              break;
-            case '1cr-2cr':
-              matchesPriceRange = minPrice >= 100 && minPrice < 200;
-              break;
-            case '2cr-5cr':
-              matchesPriceRange = minPrice >= 200 && minPrice < 500;
-              break;
-            case '5cr-plus':
-              matchesPriceRange = minPrice >= 500;
-              break;
+      state.filteredProjects = applyLocalFilters(state.projects, state.filters);
+    },
+    clearInventoryError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      // Get projects
+      .addCase(getProjects.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getProjects.fulfilled, (state, action) => {
+        state.loading = false;
+        const responseData = action.payload?.projects || action.payload || [];
+        state.projects = responseData;
+        state.filteredProjects = applyLocalFilters(responseData, state.filters);
+        if (action.payload?.pagination) {
+          state.pagination = action.payload.pagination;
+        }
+      })
+      .addCase(getProjects.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || 'Failed to fetch inventory projects';
+      })
+
+      // Get source profiles
+      .addCase(getSourceProfiles.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getSourceProfiles.fulfilled, (state, action) => {
+        state.loading = false;
+        state.sourceProfiles = action.payload?.profiles || action.payload || [];
+        if (action.payload?.pagination) {
+          state.pagination = action.payload.pagination;
+        }
+      })
+      .addCase(getSourceProfiles.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || 'Failed to fetch inventory source profiles';
+      })
+
+      // Get project details by ID
+      .addCase(getProjectById.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getProjectById.fulfilled, (state, action) => {
+        state.loading = false;
+        state.selectedProject = action.payload;
+      })
+      .addCase(getProjectById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || 'Failed to fetch project details';
+      })
+
+      // Get configuration units
+      .addCase(getConfigurationUnits.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getConfigurationUnits.fulfilled, (state, action) => {
+        state.loading = false;
+        if (state.selectedProject && state.selectedProject.inventory) {
+          const configId = action.meta.arg.configurationId;
+          const configIndex = state.selectedProject.inventory.findIndex(
+            (c) => c.id === configId
+          );
+          if (configIndex !== -1) {
+            state.selectedProject.inventory[configIndex].unitsList = action.payload?.units || [];
           }
         }
-        
-        // Location filter
-        let matchesLocation = true;
-        if (location !== 'all') {
-          matchesLocation = project.location.toLowerCase().includes(location.toLowerCase());
-        }
-        
-        return matchesSearch && matchesStatus && matchesSource && matchesPriceRange && matchesLocation;
+      })
+      .addCase(getConfigurationUnits.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || 'Failed to fetch configuration units';
       });
-    },
-    updateProjectStatus: (state, action) => {
-      const { id, status } = action.payload;
-      const project = state.projects.find(p => p.id === id);
-      if (project) {
-        project.status = status;
-      }
-      state.filteredProjects = state.projects;
-    },
   },
 });
 
-export const { setProjects, setSelectedProject, setSelectedBuilder, setSelectedBroker, setViewMode, setFilters, updateProjectStatus } = inventorySlice.actions;
+export const {
+  setProjects,
+  setSelectedProject,
+  setSelectedBuilder,
+  setSelectedBroker,
+  setViewMode,
+  setFilters,
+  clearInventoryError,
+} = inventorySlice.actions;
+
 export default inventorySlice.reducer;
