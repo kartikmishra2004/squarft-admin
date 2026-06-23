@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -11,6 +11,7 @@ import {
     ListChecks,
     Mail,
     MessageSquareText,
+    RefreshCw,
     Search,
     Send,
     ShieldAlert,
@@ -20,8 +21,22 @@ import {
 import Header from '../../components/layout/Header';
 import { fetchMasterOptions } from '../../services/commonService';
 import { clearDealPayment } from '../../services/dealPaymentClearanceService';
+import {
+    collectMilestonePayment,
+    createMilestone,
+    fetchAllInventoryDeals,
+    fetchPaymentSchedule,
+    updateMilestone,
+} from '../../services/paymentMilestoneService';
 
 const DEALS_PER_PAGE = 5;
+
+// ---------------------------------------------------------------------------
+// Helpers to extract inventory deal ID from a deal object.
+// Backend canonical APIs require the inventory deal UUID (project_inventory_deals.id).
+// dealManagementService.normalizeDeal maps it to deal.id when fetched via /api/v1/deals.
+// ---------------------------------------------------------------------------
+const getInventoryDealId = (deal) => deal?.id ?? null;
 
 const paymentDeals = [
     {
@@ -265,7 +280,15 @@ const parseDealDate = (dateStr) => {
 
 const PaymentMilestones = () => {
     const navigate = useNavigate();
-    const [selectedDealId, setSelectedDealId] = useState(paymentDeals[0].id);
+
+    // deal list state (fetched from backend)
+    const [deals, setDeals] = useState([]);
+    const [dealsLoading, setDealsLoading] = useState(true);
+
+    // per-deal schedule state { [dealId]: { milestones, transactions, loading, error } }
+    const [scheduleMap, setScheduleMap] = useState({});
+
+    const [selectedDealId, setSelectedDealId] = useState(null);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [dateFilter, setDateFilter] = useState('');
@@ -279,6 +302,92 @@ const PaymentMilestones = () => {
     const [clearanceForm, setClearanceForm] = useState({ amount: '', paymentMode: 'Bank Transfer', referenceNo: '', note: '' });
     const [clearanceLoading, setClearanceLoading] = useState(false);
 
+    // collect payment modal state
+    const [collectModal, setCollectModal] = useState(false);
+    const [collectTarget, setCollectTarget] = useState(null); // milestone object
+    const [collectForm, setCollectForm] = useState({ amount: '', paymentMode: 'Bank Transfer', referenceNo: '', receiptNo: '' });
+    const [collectLoading, setCollectLoading] = useState(false);
+    const [collectError, setCollectError] = useState('');
+
+    // load all deals from backend on mount
+    useEffect(() => {
+        let isMounted = true;
+        setDealsLoading(true);
+
+        const load = async () => {
+            try {
+                const items = await fetchAllInventoryDeals();
+                if (isMounted) {
+                    setDeals(items || []);
+                    if (items?.length) setSelectedDealId(items[0].id);
+                }
+            } catch (error) {
+                console.error('Failed to load deals for payment milestones:', error);
+                // fall back to mock data shape when backend is unreachable
+                if (isMounted) {
+                    const fallback = paymentDeals.map((d) => ({
+                        id: d.id,
+                        dealCode: d.dealCode,
+                        customer: d.customer,
+                        customerPhone: d.customerPhone,
+                        customerEmail: d.customerEmail,
+                        property: d.project,
+                        salesOfficer: d.salesOfficer,
+                        broker: d.broker,
+                        status: d.status,
+                        createdOn: d.createdOn,
+                        negotiationPrice: d.dealValue,
+                        remainingBalance: d.dealValue - d.collected,
+                        _mockSchedule: d.paymentSchedule,
+                        _mockTransactions: d.transactions,
+                        _mockReminders: d.reminders,
+                        _unit: d.unit,
+                        _project: d.project,
+                    }));
+                    setDeals(fallback);
+                    if (fallback.length) setSelectedDealId(fallback[0].id);
+                }
+            } finally {
+                if (isMounted) setDealsLoading(false);
+            }
+        };
+
+        load();
+        return () => { isMounted = false; };
+    }, []);
+
+    // load payment schedule for a deal whenever selectedDealId changes
+    const loadSchedule = useCallback(async (dealId) => {
+        if (!dealId) return;
+        const deal = deals.find((d) => d.id === dealId);
+
+        // if mock fallback data is present, use it
+        if (deal?._mockSchedule) {
+            setScheduleMap((prev) => ({
+                ...prev,
+                [dealId]: { milestones: deal._mockSchedule, transactions: deal._mockTransactions || [], loading: false, error: null },
+            }));
+            return;
+        }
+
+        setScheduleMap((prev) => ({ ...prev, [dealId]: { ...(prev[dealId] || {}), loading: true, error: null } }));
+        try {
+            const { milestones, transactions } = await fetchPaymentSchedule(dealId);
+            setScheduleMap((prev) => ({ ...prev, [dealId]: { milestones, transactions, loading: false, error: null } }));
+        } catch (error) {
+            console.error('Failed to load payment schedule:', error);
+            setScheduleMap((prev) => ({
+                ...prev,
+                [dealId]: { milestones: [], transactions: [], loading: false, error: error?.message || 'Failed to load schedule' },
+            }));
+        }
+    }, [deals]);
+
+    useEffect(() => {
+        if (selectedDealId) loadSchedule(selectedDealId);
+    }, [selectedDealId, loadSchedule]);
+
+    // load reminder channels
     useEffect(() => {
         let isMounted = true;
 
@@ -296,22 +405,41 @@ const PaymentMilestones = () => {
         };
 
         loadReminderChannels();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, []);
 
-    const enrichedDeals = useMemo(() => paymentDeals.map((deal) => {
-        const total = deal.paymentSchedule.reduce((sum, item) => sum + getMilestoneAmount(item), 0) || deal.dealValue;
-        const collected = deal.paymentSchedule.reduce((sum, item) => sum + getCollectedAmount(item), 0);
-        const pending = Math.max(total - collected, 0);
-        const nextMilestone = deal.paymentSchedule.find((item) => getRemainingAmount(item) > 0);
-        const progress = total > 0 ? Math.round((collected / total) * 100) : 0;
-        const dealStatus = nextMilestone ? nextMilestone.status : 'Paid';
+    const enrichedDeals = useMemo(() => deals.map((deal) => {
+        const schedule = scheduleMap[deal.id];
+        const paymentSchedule = schedule?.milestones || deal._mockSchedule || [];
+        const transactions = schedule?.transactions || deal._mockTransactions || [];
+        const reminders = deal._mockReminders || [];
 
-        return { ...deal, total, collected, pending, nextMilestone, progress, dealStatus };
-    }), []);
+        const total = paymentSchedule.reduce((sum, item) => sum + getMilestoneAmount(item), 0) || Number(deal.negotiationPrice || deal.dealValue || 0);
+        const collected = paymentSchedule.reduce((sum, item) => sum + getCollectedAmount(item), 0);
+        const pending = Math.max(total - collected, 0);
+        const nextMilestone = paymentSchedule.find((item) => getRemainingAmount(item) > 0);
+        const progress = total > 0 ? Math.round((collected / total) * 100) : 0;
+        const dealStatus = nextMilestone ? (nextMilestone.status || 'Upcoming') : 'Paid';
+
+        return {
+            ...deal,
+            dealCode: deal.dealCode || deal.id,
+            customer: deal.customer || deal.bookedByName || '-',
+            customerPhone: deal.customerPhone || deal.bookedByMobile || '-',
+            project: deal.property || deal._project || '-',
+            unit: deal._unit || deal.unitId || '-',
+            paymentSchedule,
+            transactions,
+            reminders,
+            dealValue: total,
+            total,
+            collected,
+            pending,
+            nextMilestone,
+            progress,
+            dealStatus,
+        };
+    }), [deals, scheduleMap]);
 
     const filteredDeals = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -331,16 +459,19 @@ const PaymentMilestones = () => {
     }, [enrichedDeals, search, statusFilter, dateFilter]);
 
     const selectedDeal = enrichedDeals.find((deal) => deal.id === selectedDealId) || filteredDeals[0] || enrichedDeals[0];
+    const selectedScheduleState = selectedDeal ? scheduleMap[selectedDeal.id] : null;
+    const scheduleLoading = selectedScheduleState?.loading ?? false;
+
     const totalPages = Math.max(1, Math.ceil(filteredDeals.length / DEALS_PER_PAGE));
     const currentPage = Math.min(page, totalPages);
     const paginatedDeals = filteredDeals.slice((currentPage - 1) * DEALS_PER_PAGE, currentPage * DEALS_PER_PAGE);
-    const visibleSchedule = selectedDeal.paymentSchedule.filter((item) => {
+    const visibleSchedule = (selectedDeal?.paymentSchedule || []).filter((item) => {
         if (scheduleFilter === 'Pending') return getRemainingAmount(item) > 0;
         if (scheduleFilter === 'Complete') return getRemainingAmount(item) === 0;
         return true;
     });
-    const reminderTarget = selectedDeal.nextMilestone || selectedDeal.paymentSchedule[selectedDeal.paymentSchedule.length - 1];
-    const reminderMessage = `${tone} reminder: Dear ${selectedDeal.customer}, ${reminderTarget?.title || 'payment'} for ${selectedDeal.project} ${selectedDeal.unit} has ${reminderTarget?.status === 'Overdue' ? 'crossed the due date' : 'an upcoming due date'} of ${reminderTarget?.due_date || 'the scheduled date'}. Pending amount is ${formatCurrency(getRemainingAmount(reminderTarget || {}))}. Please complete payment or contact SquarFT support.`;
+    const reminderTarget = selectedDeal?.nextMilestone || (selectedDeal?.paymentSchedule || []).slice(-1)[0];
+    const reminderMessage = `${tone} reminder: Dear ${selectedDeal?.customer || 'Customer'}, ${reminderTarget?.title || 'payment'} for ${selectedDeal?.project || 'the property'} ${selectedDeal?.unit || ''} has ${String(reminderTarget?.status || '').toLowerCase() === 'overdue' ? 'crossed the due date' : 'an upcoming due date'} of ${reminderTarget?.due_date || 'the scheduled date'}. Pending amount is ${formatCurrency(getRemainingAmount(reminderTarget || {}))}. Please complete payment or contact SquarFT support.`;
 
     const openPaymentReminderCall = () => {
         if (!selectedDeal?.customerPhone) return;
@@ -383,6 +514,8 @@ const PaymentMilestones = () => {
             });
             setClearanceModal(false);
             setClearanceForm({ amount: '', paymentMode: 'Bank Transfer', referenceNo: '', note: '' });
+            // refresh schedule after clearance
+            loadSchedule(selectedDeal.id);
         } catch (error) {
             console.error('Payment clearance failed:', error);
         } finally {
@@ -390,10 +523,46 @@ const PaymentMilestones = () => {
         }
     };
 
-    const portfolio = enrichedDeals.reduce((summary, deal) => ({        deals: summary.deals + 1,
+    const openCollectModal = (milestone) => {
+        setCollectTarget(milestone);
+        setCollectForm({
+            amount: String(getRemainingAmount(milestone)),
+            paymentMode: 'Bank Transfer',
+            referenceNo: '',
+            receiptNo: '',
+        });
+        setCollectError('');
+        setCollectModal(true);
+    };
+
+    const handleCollectPayment = async () => {
+        if (!collectTarget?.id || !collectForm.amount) return;
+        setCollectLoading(true);
+        setCollectError('');
+        try {
+            await collectMilestonePayment(collectTarget.id, {
+                amount: Number(collectForm.amount),
+                paymentMode: collectForm.paymentMode,
+                referenceNo: collectForm.referenceNo || undefined,
+                receiptNo: collectForm.receiptNo || undefined,
+            });
+            setCollectModal(false);
+            setCollectTarget(null);
+            // refresh schedule to show updated collected amounts
+            if (selectedDeal?.id) loadSchedule(selectedDeal.id);
+        } catch (error) {
+            console.error('Collect payment failed:', error);
+            setCollectError(error?.message || 'Failed to collect payment. Please try again.');
+        } finally {
+            setCollectLoading(false);
+        }
+    };
+
+    const portfolio = enrichedDeals.reduce((summary, deal) => ({
+        deals: summary.deals + 1,
         collected: summary.collected + deal.collected,
         pending: summary.pending + deal.pending,
-        overdue: summary.overdue + deal.paymentSchedule.filter((item) => item.status === 'Overdue').length,
+        overdue: summary.overdue + (deal.paymentSchedule || []).filter((item) => String(item.status || '').toLowerCase() === 'overdue').length,
     }), { deals: 0, collected: 0, pending: 0, overdue: 0 });
 
     return (
@@ -401,6 +570,14 @@ const PaymentMilestones = () => {
         <div className="flex h-full flex-1 flex-col bg-[#F5F6FA] text-[#15121F]">
             <Header title="Payment Milestones" />
 
+            {dealsLoading && (
+                <div className="flex flex-1 items-center justify-center">
+                    <RefreshCw className="h-6 w-6 animate-spin text-[#2717D7]" />
+                    <span className="ml-2 text-sm font-bold text-[#615C71]">Loading deals…</span>
+                </div>
+            )}
+
+            {!dealsLoading && (
             <main className="flex-1 overflow-y-auto p-3 md:p-4">
                 <div className="mx-auto max-w-[1600px] space-y-3">
                     <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-3 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
@@ -640,28 +817,55 @@ const PaymentMilestones = () => {
 
                                     <div className="mt-3 overflow-hidden rounded-[8px] border border-[#E1DDF0]">
                                         <div className="overflow-x-auto">
-                                            <table className="w-full min-w-[680px] text-left">
+                                            <table className="w-full min-w-[780px] text-left">
                                                 <thead className="bg-[#F8F9FF] text-[9px] font-black uppercase tracking-[0.1em] text-[#7B7486]">
                                                     <tr>
                                                         <th className="px-3 py-2">#</th>
                                                         <th className="px-3 py-2">Milestone</th>
-                                                        <th className="px-3 py-2">Amount</th>
+                                                        <th className="px-3 py-2">Total</th>
+                                                        <th className="px-3 py-2">Collected</th>
+                                                        <th className="px-3 py-2">Remaining</th>
                                                         <th className="px-3 py-2">Due Date</th>
-                                                        <th className="px-3 py-2">Mode</th>
                                                         <th className="px-3 py-2">Status</th>
+                                                        <th className="px-3 py-2">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-[#EFEAF8] bg-white">
-                                                    {visibleSchedule.map((milestone, index) => (
-                                                        <tr key={milestone.id} className="hover:bg-[#FCFBFF]">
-                                                            <td className="px-3 py-3 text-[10px] font-black text-[#8B8498]">{index + 1}</td>
-                                                            <td className="px-3 py-3 text-xs font-black uppercase tracking-tight text-[#171327]">{milestone.milestone_title || milestone.title}</td>
-                                                            <td className="px-3 py-3 text-xs font-black text-[#171327]">{formatCurrency(getMilestoneAmount(milestone))}</td>
-                                                            <td className="px-3 py-3 text-[10px] font-bold text-[#615C71]">{milestone.due_date}</td>
-                                                            <td className="px-3 py-3 text-[9px] font-black uppercase tracking-wider text-[#8B8498]">{milestone.mode}</td>
-                                                            <td className="px-3 py-3"><StatusPill status={milestone.status} /></td>
+                                                    {scheduleLoading ? (
+                                                        <tr>
+                                                            <td colSpan={8} className="px-3 py-6 text-center">
+                                                                <RefreshCw className="mx-auto h-5 w-5 animate-spin text-[#2717D7]" />
+                                                            </td>
                                                         </tr>
-                                                    ))}
+                                                    ) : visibleSchedule.map((milestone, index) => {
+                                                        const remaining = getRemainingAmount(milestone);
+                                                        const isPaid = remaining === 0;
+                                                        return (
+                                                            <tr key={milestone.id} className="hover:bg-[#FCFBFF]">
+                                                                <td className="px-3 py-3 text-[10px] font-black text-[#8B8498]">{index + 1}</td>
+                                                                <td className="px-3 py-3 text-xs font-black uppercase tracking-tight text-[#171327]">{milestone.milestone_title || milestone.title}</td>
+                                                                <td className="px-3 py-3 text-xs font-black text-[#171327]">{formatCurrency(getMilestoneAmount(milestone))}</td>
+                                                                <td className="px-3 py-3 text-xs font-bold text-emerald-700">{formatCurrency(getCollectedAmount(milestone))}</td>
+                                                                <td className="px-3 py-3 text-xs font-bold text-amber-700">{formatCurrency(remaining)}</td>
+                                                                <td className="px-3 py-3 text-[10px] font-bold text-[#615C71]">{milestone.due_date}</td>
+                                                                <td className="px-3 py-3"><StatusPill status={milestone.status} /></td>
+                                                                <td className="px-3 py-3">
+                                                                    {!isPaid && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => openCollectModal(milestone)}
+                                                                            className="inline-flex items-center gap-1 rounded-[6px] bg-[#2717D7] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-[#1f12a8]"
+                                                                        >
+                                                                            <IndianRupee size={10} /> Collect
+                                                                        </button>
+                                                                    )}
+                                                                    {isPaid && (
+                                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">Cleared</span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -703,11 +907,30 @@ const PaymentMilestones = () => {
 
                             <div className="grid gap-3">
                                 <DataTable
+                                    icon={CreditCard}
+                                    title="Transaction history"
+                                    helper="All payment collections recorded for this deal."
+                                    columns={['Milestone', 'Amount', 'Mode', 'Reference', 'Collected On', 'Collected By']}
+                                    rows={
+                                        ((selectedDeal.transactions || []).length
+                                            ? selectedDeal.transactions
+                                            : [{ id: 'NO-TXN', milestone: 'No transactions yet', amount: 0, mode: '-', referenceNo: '-', collectedOn: '-', collectedBy: '-' }]
+                                        ).map((txn) => [
+                                            txn.milestone,
+                                            txn.amount ? formatCurrency(txn.amount) : '-',
+                                            txn.mode || '-',
+                                            txn.referenceNo || txn.receipt || '-',
+                                            txn.collectedOn || '-',
+                                            txn.collectedBy || '-',
+                                        ])
+                                    }
+                                />
+                                <DataTable
                                     icon={BellRing}
                                     title="Reminder history"
                                     helper="Customer reminder attempts for due payment milestones."
                                     columns={['Channel', 'Message', 'Sent at', 'Status']}
-                                    rows={(selectedDeal.reminders.length ? selectedDeal.reminders : [{ id: 'NO-REM', channel: 'None', message: 'No reminders sent for this deal yet.', sentAt: '-', status: 'Clear' }]).map((reminder) => [
+                                    rows={((selectedDeal.reminders || []).length ? selectedDeal.reminders : [{ id: 'NO-REM', channel: 'None', message: 'No reminders sent for this deal yet.', sentAt: '-', status: 'Clear' }]).map((reminder) => [
                                         reminder.channel,
                                         reminder.message,
                                         reminder.sentAt,
@@ -719,6 +942,7 @@ const PaymentMilestones = () => {
                     )}
                 </div>
             </main>
+            )}
         </div>
 
         {clearanceModal && (            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -791,6 +1015,86 @@ const PaymentMilestones = () => {
                             className="rounded-[7px] bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700 disabled:opacity-50"
                         >
                             {clearanceLoading ? 'Processing...' : 'Confirm Clearance'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {collectModal && collectTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="w-full max-w-md rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-xl">
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm font-black uppercase tracking-[0.1em] text-[#171327]">Collect Payment</p>
+                        <button type="button" onClick={() => setCollectModal(false)} className="rounded p-1 hover:bg-slate-100">
+                            <X size={16} />
+                        </button>
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-[#615C71]">
+                        {collectTarget.milestone_title || collectTarget.title} — Max: {formatCurrency(getRemainingAmount(collectTarget))}
+                    </p>
+                    {collectError && (
+                        <p className="mt-2 rounded-[6px] bg-[#FDECEC] px-3 py-2 text-[11px] font-bold text-[#B42318]">{collectError}</p>
+                    )}
+                    <div className="mt-4 space-y-3">
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Amount (Rs)</span>
+                            <input
+                                type="number"
+                                value={collectForm.amount}
+                                onChange={(e) => setCollectForm((f) => ({ ...f, amount: e.target.value }))}
+                                max={getRemainingAmount(collectTarget)}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Payment Mode</span>
+                            <select
+                                value={collectForm.paymentMode}
+                                onChange={(e) => setCollectForm((f) => ({ ...f, paymentMode: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] bg-white px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            >
+                                {['Bank Transfer', 'UPI', 'RTGS', 'NEFT', 'Cheque', 'Cash', 'DD'].map((mode) => (
+                                    <option key={mode}>{mode}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Reference No (optional)</span>
+                            <input
+                                type="text"
+                                value={collectForm.referenceNo}
+                                onChange={(e) => setCollectForm((f) => ({ ...f, referenceNo: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder="UTR / Txn ID"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Receipt No (optional)</span>
+                            <input
+                                type="text"
+                                value={collectForm.receiptNo}
+                                onChange={(e) => setCollectForm((f) => ({ ...f, receiptNo: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder="RCT-XXXX"
+                            />
+                        </label>
+                    </div>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setCollectModal(false)}
+                            className="rounded-[7px] border border-[#D8D2EB] px-4 py-2 text-xs font-black text-[#514B63] hover:bg-slate-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleCollectPayment}
+                            disabled={!collectForm.amount || collectLoading}
+                            className="rounded-[7px] bg-[#2717D7] px-4 py-2 text-xs font-black text-white hover:bg-[#1f12a8] disabled:opacity-50"
+                        >
+                            {collectLoading ? 'Processing…' : 'Confirm Collection'}
                         </button>
                     </div>
                 </div>
