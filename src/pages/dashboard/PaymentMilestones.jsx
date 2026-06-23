@@ -7,6 +7,7 @@ import {
     Bot,
     CalendarClock,
     CreditCard,
+    IndianRupee,
     ListChecks,
     Mail,
     MessageSquareText,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
 import { fetchMasterOptions } from '../../services/commonService';
+import { clearDealPayment } from '../../services/dealPaymentClearanceService';
 
 const DEALS_PER_PAGE = 5;
 
@@ -273,6 +275,9 @@ const PaymentMilestones = () => {
     const [viewMode, setViewMode] = useState('list');
     const [scheduleFilter, setScheduleFilter] = useState('All');
     const [reminderChannels, setReminderChannels] = useState(fallbackReminderChannels);
+    const [clearanceModal, setClearanceModal] = useState(false);
+    const [clearanceForm, setClearanceForm] = useState({ amount: '', paymentMode: 'Bank Transfer', referenceNo: '', note: '' });
+    const [clearanceLoading, setClearanceLoading] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -366,14 +371,33 @@ const PaymentMilestones = () => {
         });
     };
 
-    const portfolio = enrichedDeals.reduce((summary, deal) => ({
-        deals: summary.deals + 1,
+    const handleClearPayment = async () => {
+        if (!selectedDeal?.id || !clearanceForm.amount) return;
+        setClearanceLoading(true);
+        try {
+            await clearDealPayment(selectedDeal.id, {
+                amount: Number(clearanceForm.amount),
+                paymentMode: clearanceForm.paymentMode,
+                referenceNo: clearanceForm.referenceNo || undefined,
+                note: clearanceForm.note || undefined,
+            });
+            setClearanceModal(false);
+            setClearanceForm({ amount: '', paymentMode: 'Bank Transfer', referenceNo: '', note: '' });
+        } catch (error) {
+            console.error('Payment clearance failed:', error);
+        } finally {
+            setClearanceLoading(false);
+        }
+    };
+
+    const portfolio = enrichedDeals.reduce((summary, deal) => ({        deals: summary.deals + 1,
         collected: summary.collected + deal.collected,
         pending: summary.pending + deal.pending,
         overdue: summary.overdue + deal.paymentSchedule.filter((item) => item.status === 'Overdue').length,
     }), { deals: 0, collected: 0, pending: 0, overdue: 0 });
 
     return (
+        <>
         <div className="flex h-full flex-1 flex-col bg-[#F5F6FA] text-[#15121F]">
             <Header title="Payment Milestones" />
 
@@ -566,6 +590,18 @@ const PaymentMilestones = () => {
                                         <div className="rounded-[8px] border border-amber-100 bg-amber-50 p-3">
                                             <p className="text-[9px] font-black uppercase tracking-[0.1em] text-amber-600">Balance Amount</p>
                                             <p className="mt-1 text-lg font-black text-amber-700">{formatCurrency(selectedDeal.pending)}</p>
+                                            {selectedDeal.pending > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setClearanceForm({ amount: String(selectedDeal.pending), paymentMode: 'Bank Transfer', referenceNo: '', note: '' });
+                                                        setClearanceModal(true);
+                                                    }}
+                                                    className="mt-2 inline-flex items-center gap-1 rounded-[6px] bg-amber-600 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-amber-700"
+                                                >
+                                                    <IndianRupee size={10} /> Clear Payment
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
 
@@ -684,6 +720,83 @@ const PaymentMilestones = () => {
                 </div>
             </main>
         </div>
+
+        {clearanceModal && (            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="w-full max-w-md rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-xl">
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm font-black uppercase tracking-[0.1em] text-[#171327]">Clear Payment</p>
+                        <button type="button" onClick={() => setClearanceModal(false)} className="rounded p-1 hover:bg-slate-100">
+                            <X size={16} />
+                        </button>
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-[#615C71]">
+                        {selectedDeal?.customer} — {selectedDeal?.project} / {selectedDeal?.unit}
+                    </p>
+                    <div className="mt-4 space-y-3">
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Amount (Rs)</span>
+                            <input
+                                type="number"
+                                value={clearanceForm.amount}
+                                onChange={(e) => setClearanceForm((f) => ({ ...f, amount: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder={`Max: ${formatCurrency(selectedDeal?.pending || 0)}`}
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Payment Mode</span>
+                            <select
+                                value={clearanceForm.paymentMode}
+                                onChange={(e) => setClearanceForm((f) => ({ ...f, paymentMode: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] bg-white px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            >
+                                {['Bank Transfer', 'UPI', 'RTGS', 'NEFT', 'Cheque', 'Cash', 'DD'].map((mode) => (
+                                    <option key={mode}>{mode}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Reference No (optional)</span>
+                            <input
+                                type="text"
+                                value={clearanceForm.referenceNo}
+                                onChange={(e) => setClearanceForm((f) => ({ ...f, referenceNo: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder="UTR / Txn ID"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Note (optional)</span>
+                            <input
+                                type="text"
+                                value={clearanceForm.note}
+                                onChange={(e) => setClearanceForm((f) => ({ ...f, note: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder="Internal note"
+                            />
+                        </label>
+                    </div>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setClearanceModal(false)}
+                            className="rounded-[7px] border border-[#D8D2EB] px-4 py-2 text-xs font-black text-[#514B63] hover:bg-slate-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClearPayment}
+                            disabled={!clearanceForm.amount || clearanceLoading}
+                            className="rounded-[7px] bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700 disabled:opacity-50"
+                        >
+                            {clearanceLoading ? 'Processing...' : 'Confirm Clearance'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 };
 

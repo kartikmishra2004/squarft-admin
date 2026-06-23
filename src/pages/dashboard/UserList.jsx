@@ -1,17 +1,19 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
     Search, Plus, Edit2, Trash2, Eye, CheckCircle2, XCircle,
-    Image as ImageIcon, Save, Shield, Smartphone, FileCheck, Upload, UserPlus
+    Image as ImageIcon, Save, Shield, Smartphone, FileCheck, Upload, UserPlus,
+    ChevronLeft, ChevronRight, Loader2
 } from 'lucide-react';
 import {
-    addUser,
     setSelectedUser,
-    deleteUser,
-    updateUser,
-    updateUserDocStatus,
+    loadAppUsers,
+    loadUserDetails,
+    saveUserVerification,
+    addAppUser,
+    removeAppUser,
     updateUserDocument,
-    removeUserDocument,
+    clearError,
 } from '../../store/usersSlice';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -22,76 +24,89 @@ import Modal from '../../components/ui/Modal';
 import { uploadCommonFile } from '../../services/commonService';
 
 const emptyUserForm = {
-    name: '',
-    type: 'Sales_officer',
-    phone: '',
-    docStatus: 'Pending',
-    status: 'Active',
+    full_name: '',
+    user_type: 'Sales Officer',
+    mobile_number: '',
+    document_status: 'Pending',
 };
 
 const documentFields = [
-    { key: 'aadhaarFront', title: 'Aadhaar Card (Front)' },
-    { key: 'aadhaarBack', title: 'Aadhaar Card (Back)' },
-    { key: 'panCard', title: 'PAN Card' },
-    { key: 'profilePhoto', title: 'Profile Photo / Selfie' },
+    { key: 'aadhaar_front', title: 'Aadhaar Card (Front)' },
+    { key: 'pan_card', title: 'PAN Card' },
+    { key: 'profile_photo', title: 'Profile Photo / Selfie' },
 ];
 
 const getDocBadgeVariant = (status) => {
-    if (status === 'Approved') return 'green';
-    if (status === 'Pending') return 'yellow';
+    if (!status) return 'yellow';
+    const s = status.toLowerCase();
+    if (s === 'approved') return 'green';
+    if (s === 'pending') return 'yellow';
     return 'red';
 };
 
-const normalizeType = (type) => type.toLowerCase().replace(/\s+/g, '_');
+// ─── Main List View ────────────────────────────────────────────────────────────
 
 const UserList = () => {
     const dispatch = useDispatch();
-    const { users, selectedUser } = useSelector((state) => state.users);
+    const { users, selectedUser, pagination, loading, error } = useSelector((s) => s.users);
+
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('All Users');
     const [filterDocStatus, setFilterDocStatus] = useState('All Status');
+    const [page, setPage] = useState(1);
     const [isAddUserOpen, setIsAddUserOpen] = useState(false);
     const [newUserForm, setNewUserForm] = useState(emptyUserForm);
     const [deleteTarget, setDeleteTarget] = useState(null);
+    const [formError, setFormError] = useState('');
+    const [saving, setSaving] = useState(false);
 
-    const filteredUsers = useMemo(() => users.filter((user) => {
-        const query = searchTerm.trim().toLowerCase();
-        const matchesSearch = !query ||
-            user.name.toLowerCase().includes(query) ||
-            user.phone.includes(query) ||
-            user.id.toLowerCase().includes(query);
-        const matchesType = filterType === 'All Users' || normalizeType(filterType) === user.type.toLowerCase();
-        const matchesDocStatus = filterDocStatus === 'All Status' || user.docStatus === filterDocStatus;
-        return matchesSearch && matchesType && matchesDocStatus;
-    }), [filterDocStatus, filterType, searchTerm, users]);
+    const fetchUsers = useCallback(() => {
+        const params = { page, limit: 10 };
+        if (searchTerm.trim()) params.search = searchTerm.trim();
+        if (filterType !== 'All Users') params.role = filterType;
+        if (filterDocStatus !== 'All Status') params.status = filterDocStatus;
+        dispatch(loadAppUsers(params));
+    }, [dispatch, page, searchTerm, filterType, filterDocStatus]);
 
-    const createUserId = () => {
-        const nextNumber = users.reduce((max, user) => {
-            const userNumber = Number(String(user.id).replace(/\D/g, '')) || 0;
-            return Math.max(max, userNumber);
-        }, 0) + 1;
-        return `U${String(nextNumber).padStart(3, '0')}`;
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
+
+    // reset to page 1 when filters change
+    useEffect(() => {
+        setPage(1);
+    }, [searchTerm, filterType, filterDocStatus]);
+
+    const handleCreateUser = async (e) => {
+        e.preventDefault();
+        setFormError('');
+        setSaving(true);
+        try {
+            await dispatch(addAppUser(newUserForm)).unwrap();
+            setNewUserForm(emptyUserForm);
+            setIsAddUserOpen(false);
+            fetchUsers();
+        } catch (err) {
+            setFormError(err || 'Failed to create user.');
+        } finally {
+            setSaving(false);
+        }
     };
 
-    const handleCreateUser = (event) => {
-        event.preventDefault();
-        dispatch(addUser({
-            id: createUserId(),
-            ...newUserForm,
-            name: newUserForm.name.trim(),
-            phone: newUserForm.phone.trim(),
-            documents: {},
-        }));
-        setNewUserForm(emptyUserForm);
-        setIsAddUserOpen(false);
+    const handleDelete = async () => {
+        if (!deleteTarget) return;
+        await dispatch(removeAppUser(deleteTarget.id));
+        setDeleteTarget(null);
+        fetchUsers();
     };
 
-    const handleBack = () => {
-        dispatch(setSelectedUser(null));
+    const handleOpenEdit = (row) => {
+        dispatch(setSelectedUser(row));
+        dispatch(loadUserDetails(row.id));
     };
 
     if (selectedUser) {
-        return <UserEditView key={selectedUser.id} user={selectedUser} onBack={handleBack} />;
+        return <UserEditView onBack={() => { dispatch(setSelectedUser(null)); fetchUsers(); }} />;
     }
 
     return (
@@ -110,16 +125,16 @@ const UserList = () => {
                                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="text"
-                                    placeholder="Search by name, id, or mobile..."
+                                    placeholder="Search by name or mobile..."
                                     className="pl-9 pr-4 py-2.5 w-full bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] transition-all shadow-sm"
                                     value={searchTerm}
-                                    onChange={(event) => setSearchTerm(event.target.value)}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
                             <select
                                 className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-black bg-white focus:ring-2 focus:ring-[#6F4BFF]/20 outline-none shadow-sm cursor-pointer"
                                 value={filterType}
-                                onChange={(event) => setFilterType(event.target.value)}
+                                onChange={(e) => setFilterType(e.target.value)}
                             >
                                 <option>All Users</option>
                                 <option>Sales Officer</option>
@@ -129,78 +144,92 @@ const UserList = () => {
                             <select
                                 className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-black bg-white focus:ring-2 focus:ring-[#6F4BFF]/20 outline-none shadow-sm cursor-pointer"
                                 value={filterDocStatus}
-                                onChange={(event) => setFilterDocStatus(event.target.value)}
+                                onChange={(e) => setFilterDocStatus(e.target.value)}
                             >
                                 <option>All Status</option>
                                 <option>Approved</option>
                                 <option>Pending</option>
                                 <option>Rejected</option>
                             </select>
-                            <Button icon={Plus} onClick={() => setIsAddUserOpen(true)} className="shadow-md shadow-[#6F4BFF]/20">Add User</Button>
+                            <Button icon={Plus} onClick={() => { setFormError(''); setIsAddUserOpen(true); }} className="shadow-md shadow-[#6F4BFF]/20">Add User</Button>
                         </div>
                     </div>
 
+                    {error && (
+                        <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm font-bold px-4 py-3 rounded-xl flex justify-between items-center">
+                            {error}
+                            <button onClick={() => dispatch(clearError())}><XCircle className="w-4 h-4" /></button>
+                        </div>
+                    )}
+
                     <Card noPadding className="overflow-hidden border-gray-100 shadow-xl shadow-gray-200/50">
-                        <Table
-                            headers={['NAME', 'USER TYPE', 'MOBILE', 'DOCUMENT STATUS', 'ACTION']}
-                            data={filteredUsers}
-                            renderRow={(row) => (
-                                <tr key={row.id} className="hover:bg-gray-50/80 transition-all border-b border-gray-100 last:border-0">
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-linear-to-br from-gray-100 to-gray-200 border border-gray-200 flex items-center justify-center shrink-0 shadow-inner">
-                                                <span className="font-black text-gray-400 text-sm uppercase">{row.name.charAt(0)}</span>
+                        {loading ? (
+                            <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                                <span className="font-bold text-sm">Loading users...</span>
+                            </div>
+                        ) : (
+                            <Table
+                                headers={['NAME', 'USER TYPE', 'MOBILE', 'DOCUMENT STATUS', 'ACTION']}
+                                data={users}
+                                renderRow={(row) => (
+                                    <tr key={row.id} className="hover:bg-gray-50/80 transition-all border-b border-gray-100 last:border-0">
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-linear-to-br from-gray-100 to-gray-200 border border-gray-200 flex items-center justify-center shrink-0 shadow-inner">
+                                                    <span className="font-black text-gray-400 text-sm uppercase">{(row.name || '?').charAt(0)}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="font-black text-gray-900 tracking-tight">{row.name}</span>
+                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{row.id}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <span className="font-black text-gray-900 tracking-tight">{row.name}</span>
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{row.id}</p>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-2">
+                                                <Shield className="w-3.5 h-3.5 text-[#6F4BFF]" />
+                                                <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest">{(row.role || '').replace('_', ' ')}</span>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-2">
-                                            <Shield className="w-3.5 h-3.5 text-[#6F4BFF]" />
-                                            <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest">{row.type.replace('_', ' ')}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-2">
-                                            <Smartphone className="w-3.5 h-3.5 text-gray-400" />
-                                            <span className="text-sm font-black text-gray-700">{row.phone}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 text-center">
-                                        <Badge variant={getDocBadgeVariant(row.docStatus)}>{row.docStatus}</Badge>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <button
-                                                onClick={() => dispatch(setSelectedUser(row))}
-                                                className="w-9 h-9 rounded-xl bg-[#6F4BFF] text-white flex items-center justify-center hover:bg-[#5D3FE0] transition-all shadow-lg shadow-[#6F4BFF]/20"
-                                                title="Edit & Verify"
-                                            >
-                                                <Edit2 className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => setDeleteTarget(row)}
-                                                className="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all border border-rose-100"
-                                                title="Delete User"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => dispatch(setSelectedUser(row))}
-                                                className="w-9 h-9 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-gray-900 transition-all border border-gray-100"
-                                                title="View Profile"
-                                            >
-                                                <Eye className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                        />
-                        {filteredUsers.length === 0 && (
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-2">
+                                                <Smartphone className="w-3.5 h-3.5 text-gray-400" />
+                                                <span className="text-sm font-black text-gray-700">{row.mobile}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5 text-center">
+                                            <Badge variant={getDocBadgeVariant(row.document_status)}>{row.document_status || 'Pending'}</Badge>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button
+                                                    onClick={() => handleOpenEdit(row)}
+                                                    className="w-9 h-9 rounded-xl bg-[#6F4BFF] text-white flex items-center justify-center hover:bg-[#5D3FE0] transition-all shadow-lg shadow-[#6F4BFF]/20"
+                                                    title="Edit & Verify"
+                                                >
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeleteTarget(row)}
+                                                    className="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all border border-rose-100"
+                                                    title="Delete User"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleOpenEdit(row)}
+                                                    className="w-9 h-9 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-gray-900 transition-all border border-gray-100"
+                                                    title="View Profile"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            />
+                        )}
+                        {!loading && users.length === 0 && (
                             <div className="px-6 py-16 text-center">
                                 <Search className="w-12 h-12 text-gray-200 mx-auto mb-3" />
                                 <p className="text-gray-500 font-bold text-lg">No users found</p>
@@ -208,26 +237,89 @@ const UserList = () => {
                             </div>
                         )}
                     </Card>
+
+                    {pagination && pagination.total_pages > 1 && (
+                        <div className="flex items-center justify-between px-1">
+                            <p className="text-sm text-gray-500 font-bold">
+                                Showing {((page - 1) * pagination.limit) + 1}–{Math.min(page * pagination.limit, pagination.total)} of {pagination.total} users
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    disabled={page === 1}
+                                    onClick={() => setPage((p) => p - 1)}
+                                    className="w-9 h-9 rounded-xl border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <span className="text-sm font-black text-gray-700 px-2">{page} / {pagination.total_pages}</span>
+                                <button
+                                    disabled={page === pagination.total_pages}
+                                    onClick={() => setPage((p) => p + 1)}
+                                    className="w-9 h-9 rounded-xl border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
 
+            {/* Add User Modal */}
             <Modal isOpen={isAddUserOpen} onClose={() => setIsAddUserOpen(false)} title="Add New User">
                 <form onSubmit={handleCreateUser} className="space-y-4">
-                    <UserFormFields formState={newUserForm} setFormState={setNewUserForm} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Full Name</label>
+                            <input type="text" required value={newUserForm.full_name}
+                                onChange={(e) => setNewUserForm({ ...newUserForm, full_name: e.target.value })}
+                                className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Mobile Number</label>
+                            <input type="tel" required value={newUserForm.mobile_number}
+                                onChange={(e) => setNewUserForm({ ...newUserForm, mobile_number: e.target.value })}
+                                className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">User Type</label>
+                            <select value={newUserForm.user_type}
+                                onChange={(e) => setNewUserForm({ ...newUserForm, user_type: e.target.value })}
+                                className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50">
+                                <option>Sales Officer</option>
+                                <option>Field Officer</option>
+                                <option>Broker</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Document Status</label>
+                            <select value={newUserForm.document_status}
+                                onChange={(e) => setNewUserForm({ ...newUserForm, document_status: e.target.value })}
+                                className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50">
+                                <option>Pending</option>
+                                <option>Approved</option>
+                                <option>Rejected</option>
+                            </select>
+                        </div>
+                    </div>
+                    {formError && <p className="text-rose-500 text-sm font-bold">{formError}</p>}
                     <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
-                        <Button variant="secondary" onClick={() => setIsAddUserOpen(false)}>Cancel</Button>
-                        <Button type="submit" icon={UserPlus}>Create User</Button>
+                        <Button variant="secondary" type="button" onClick={() => setIsAddUserOpen(false)}>Cancel</Button>
+                        <Button type="submit" icon={saving ? Loader2 : UserPlus} disabled={saving}>
+                            {saving ? 'Creating...' : 'Create User'}
+                        </Button>
                     </div>
                 </form>
             </Modal>
 
+            {/* Delete Confirm Modal */}
             <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete User">
                 {deleteTarget && (
                     <div className="space-y-5">
-                        <p className="text-sm font-bold text-gray-700">Delete {deleteTarget.name}? This removes the user from the current list.</p>
+                        <p className="text-sm font-bold text-gray-700">Delete <span className="text-gray-900">{deleteTarget.name}</span>? This action cannot be undone.</p>
                         <div className="flex justify-end gap-3">
                             <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-                            <Button variant="danger" icon={Trash2} onClick={() => { dispatch(deleteUser(deleteTarget.id)); setDeleteTarget(null); }}>Delete</Button>
+                            <Button variant="danger" icon={Trash2} onClick={handleDelete}>Delete</Button>
                         </div>
                     </div>
                 )}
@@ -236,92 +328,110 @@ const UserList = () => {
     );
 };
 
-const UserEditView = ({ user, onBack }) => {
-    const dispatch = useDispatch();
-    const fileInputRefs = useRef({});
-    const [formState, setFormState] = useState({ ...emptyUserForm, ...user });
-    const [previewDoc, setPreviewDoc] = useState(null);
-    const [uploadingDocKey, setUploadingDocKey] = useState(null);
+// ─── Edit / Verify View ───────────────────────────────────────────────────────
 
-    const handleUpdateStatus = (status) => {
-        dispatch(updateUserDocStatus({ id: user.id, status }));
-        setFormState((current) => ({ ...current, docStatus: status }));
+const UserEditView = ({ onBack }) => {
+    const dispatch = useDispatch();
+    const { selectedUserDetails, detailLoading, saving } = useSelector((s) => s.users);
+    const fileInputRefs = useRef({});
+    const [uploadingDocKey, setUploadingDocKey] = useState(null);
+    const [uploadError, setUploadError] = useState('');
+    const [previewDoc, setPreviewDoc] = useState(null);
+    const [saveError, setSaveError] = useState('');
+
+    const profile = selectedUserDetails?.profile || {};
+    const documents = selectedUserDetails?.documents || {};
+
+    const [formState, setFormState] = useState(null);
+
+    useEffect(() => {
+        if (selectedUserDetails) {
+            setFormState({
+                first_name: profile.first_name || '',
+                last_name: profile.last_name || '',
+                phone: profile.phone || '',
+                role: profile.role || '',
+                document_status: profile.document_status || 'pending',
+                account_status: profile.account_status || 'active',
+            });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedUserDetails]);
+
+    const handleSave = async () => {
+        if (!formState) return;
+        setSaveError('');
+        try {
+            await dispatch(saveUserVerification({
+                userId: profile.id,
+                body: { ...formState, documents: [] },
+            })).unwrap();
+            onBack();
+        } catch (err) {
+            setSaveError(err || 'Failed to save.');
+        }
     };
 
-    const handleSave = () => {
-        dispatch(updateUser(formState));
-        onBack();
+    const handleStatusUpdate = (status) => {
+        setFormState((prev) => ({ ...prev, document_status: status.toLowerCase() }));
     };
 
     const handleDocumentUpload = async (docKey, file) => {
         if (!file) return;
-
         setUploadingDocKey(docKey);
-
+        setUploadError('');
         try {
-            const upload = await uploadCommonFile({
+            // Step 1: upload file to storage
+            const uploadRes = await uploadCommonFile({
                 file,
                 module: 'users',
-                metadata: {
-                    userId: user.id,
-                    documentType: docKey,
-                },
+                metadata: { userId: profile.id, documentType: docKey },
             });
 
-            dispatch(updateUserDocument({
-                id: user.id,
-                docKey,
-                document: {
-                    fileName: upload.file?.originalName || file.name,
-                    fileType: upload.file?.fileType || file.type || 'File',
-                    size: upload.file?.sizeBytes || file.size,
-                    uploadedAt: new Date().toLocaleString('en-IN'),
-                    status: 'Uploaded',
-                    fileUrl: upload.file?.url || '',
-                    filePath: upload.file?.path || '',
-                    bucket: upload.file?.bucket || null,
-                },
-            }));
-        } catch (error) {
-            dispatch(updateUserDocument({
-                id: user.id,
-                docKey,
-                document: {
-                    fileName: file.name,
-                    fileType: file.type || 'File',
-                    size: file.size,
-                    uploadedAt: new Date().toLocaleString('en-IN'),
-                    status: 'Upload Failed',
-                    error: error.message || 'Upload failed',
-                },
-            }));
+            // Step 2: extract URL — handle multiple response shapes
+            const fileUrl =
+                uploadRes?.url ||
+                uploadRes?.file_url ||
+                uploadRes?.file?.url ||
+                uploadRes?.data?.url ||
+                uploadRes?.data?.file_url ||
+                '';
+
+            if (!fileUrl) {
+                setUploadError(`Upload succeeded but no URL returned. Check backend response.`);
+                return;
+            }
+
+            // Step 3: save doc URL to backend
+            await dispatch(saveUserVerification({
+                userId: profile.id,
+                body: { documents: [{ type: docKey, url: fileUrl }] },
+            })).unwrap();
+
+            // Step 4: update Redux state so image shows immediately
+            dispatch(updateUserDocument({ docKey, url: fileUrl }));
+        } catch (err) {
+            const msg = err?.message || err || 'Upload failed. Please try again.';
+            setUploadError(msg);
         } finally {
             setUploadingDocKey(null);
-            if (fileInputRefs.current[docKey]) {
-                fileInputRefs.current[docKey].value = '';
-            }
+            if (fileInputRefs.current[docKey]) fileInputRefs.current[docKey].value = '';
         }
     };
 
-    const handleApproveDocument = (docKey) => {
-        const document = documents[docKey];
-        if (!document) return;
-        dispatch(updateUserDocument({
-            id: user.id,
-            docKey,
-            document: {
-                ...document,
-                status: 'Approved',
-                approvedAt: new Date().toLocaleString('en-IN'),
-            },
-        }));
-    };
+    if (detailLoading || !formState) {
+        return (
+            <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA]">
+                <Header title="User Verification" showBack onBack={onBack} />
+                <div className="flex-1 flex items-center justify-center gap-3 text-gray-400">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <span className="font-bold text-sm">Loading user details...</span>
+                </div>
+            </div>
+        );
+    }
 
-    const handleRemoveDocument = (docKey) => {
-        dispatch(removeUserDocument({ id: user.id, docKey }));
-    };
-
-    const documents = user.documents || {};
+    const docStatus = formState.document_status?.toLowerCase();
 
     return (
         <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
@@ -332,24 +442,24 @@ const UserEditView = ({ user, onBack }) => {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
                         <div className="flex items-center gap-5">
                             <div className="w-16 h-16 rounded-2xl bg-[#6F4BFF] text-white flex items-center justify-center text-2xl font-black shadow-xl shadow-[#6F4BFF]/20">
-                                {formState.name.charAt(0)}
+                                {(profile.full_name || '?').charAt(0)}
                             </div>
                             <div>
-                                <h2 className="text-3xl font-black text-gray-900 tracking-tight uppercase">{formState.name}</h2>
+                                <h2 className="text-3xl font-black text-gray-900 tracking-tight uppercase">{profile.full_name}</h2>
                                 <p className="text-sm text-gray-500 mt-1 font-bold flex items-center gap-2 uppercase tracking-widest">
-                                    <Smartphone className="w-4 h-4 text-[#6F4BFF]" /> {formState.phone} <span className="text-gray-300">|</span> <span className="text-gray-900">{formState.type.replace('_', ' ')}</span>
+                                    <Smartphone className="w-4 h-4 text-[#6F4BFF]" /> {profile.phone} <span className="text-gray-300">|</span> <span className="text-gray-900">{(profile.role || '').replace('_', ' ')}</span>
                                 </p>
                             </div>
                         </div>
 
                         <div className="flex flex-wrap gap-3 bg-white p-2 rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100">
-                            {formState.docStatus !== 'Approved' && (
-                                <Button variant="success" icon={CheckCircle2} onClick={() => handleUpdateStatus('Approved')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6">Approve Account</Button>
+                            {docStatus !== 'approved' && (
+                                <Button variant="success" icon={CheckCircle2} onClick={() => handleStatusUpdate('approved')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6">Approve Account</Button>
                             )}
-                            {formState.docStatus !== 'Rejected' && (
-                                <Button variant="danger" icon={XCircle} onClick={() => handleUpdateStatus('Rejected')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6 bg-rose-500 hover:bg-rose-600 text-white">Reject Details</Button>
+                            {docStatus !== 'rejected' && (
+                                <Button variant="danger" icon={XCircle} onClick={() => handleStatusUpdate('rejected')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6 bg-rose-500 hover:bg-rose-600 text-white">Reject Details</Button>
                             )}
-                            {formState.docStatus === 'Approved' && (
+                            {docStatus === 'approved' && (
                                 <div className="flex items-center gap-2 px-6 py-2 bg-emerald-50 text-emerald-700 font-black text-[10px] uppercase tracking-widest rounded-xl border border-emerald-200">
                                     <CheckCircle2 className="w-4 h-4" /> Verified & Active
                                 </div>
@@ -358,68 +468,97 @@ const UserEditView = ({ user, onBack }) => {
                     </div>
 
                     <Card className="p-8 border-gray-100 shadow-xl shadow-gray-200/50">
-                        <UserFormFields formState={formState} setFormState={setFormState} includeStatus />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">First Name</label>
+                                <input type="text" value={formState.first_name}
+                                    onChange={(e) => setFormState({ ...formState, first_name: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Last Name</label>
+                                <input type="text" value={formState.last_name}
+                                    onChange={(e) => setFormState({ ...formState, last_name: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Mobile Number</label>
+                                <input type="tel" value={formState.phone}
+                                    onChange={(e) => setFormState({ ...formState, phone: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">User Type</label>
+                                <select value={formState.role}
+                                    onChange={(e) => setFormState({ ...formState, role: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50">
+                                    <option value="sales_officer">Sales Officer</option>
+                                    <option value="field_officer">Field Officer</option>
+                                    <option value="broker">Broker</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Document Status</label>
+                                <select value={formState.document_status}
+                                    onChange={(e) => setFormState({ ...formState, document_status: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50">
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Account Status</label>
+                                <select value={formState.account_status}
+                                    onChange={(e) => setFormState({ ...formState, account_status: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50">
+                                    <option value="active">Active</option>
+                                    <option value="suspended">Suspended</option>
+                                </select>
+                            </div>
+                        </div>
 
                         <div className="border-t border-gray-100 pt-10 mt-10">
                             <h3 className="text-lg font-black text-gray-800 mb-8 uppercase tracking-tight flex items-center gap-3">
                                 <FileCheck className="w-5 h-5 text-[#6F4BFF]" /> KYC Documents & Verification
                             </h3>
-
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {documentFields.map((doc) => {
-                                    const document = documents[doc.key];
+                                    const fileUrl = documents[doc.key];
                                     return (
                                         <div key={doc.key} className="border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-xl shadow-gray-200/20 flex flex-col group">
                                             <div className="flex justify-between items-center p-4 border-b border-gray-50 bg-gray-50/30">
                                                 <h4 className="font-black text-gray-800 text-[10px] uppercase tracking-widest">{doc.title}</h4>
-                                                {document && (
-                                                    <button onClick={() => handleRemoveDocument(doc.key)} className="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center hover:bg-rose-600 transition-colors shadow-sm shadow-rose-500/20">
-                                                        <XCircle className="w-3 h-3" />
+                                            </div>
+                                            <div className="aspect-[4/3] bg-gray-50 relative flex items-center justify-center overflow-hidden">
+                                                {fileUrl ? (
+                                                    <img src={fileUrl} alt={doc.title} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="text-center px-5 z-10">
+                                                        <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                                        <p className="text-xs font-black text-gray-400">No document uploaded</p>
+                                                    </div>
+                                                )}
+                                                {fileUrl && (
+                                                    <button
+                                                        onClick={() => setPreviewDoc({ title: doc.title, url: fileUrl })}
+                                                        className="absolute inset-0 bg-gray-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 cursor-pointer backdrop-blur-[2px]"
+                                                    >
+                                                        <span className="text-white font-black text-[10px] uppercase tracking-widest flex items-center gap-2 bg-gray-900/60 px-4 py-2 rounded-xl"><Eye className="w-4 h-4" /> Preview</span>
                                                     </button>
                                                 )}
                                             </div>
-
-                                            <div className="aspect-[4/3] bg-gray-50 relative group flex items-center justify-center overflow-hidden">
-                                                <div className="absolute inset-0 bg-linear-to-br from-gray-100 to-gray-200 opacity-50"></div>
-                                                <div className="z-10 text-center px-5">
-                                                    <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-3 transition-transform group-hover:scale-110 duration-500" />
-                                                    <p className="text-xs font-black text-gray-700 break-words">{document?.fileName || 'No document uploaded'}</p>
-                                                    {document && <p className="text-[10px] font-bold text-gray-400 mt-1">{document.uploadedAt}</p>}
-                                                    {document && (
-                                                        <Badge variant={document.status === 'Approved' ? 'green' : 'yellow'} className="mt-3 inline-flex">
-                                                            {document.status}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                {document && (
-                                                    <button onClick={() => setPreviewDoc({ ...doc, ...document })} className="absolute inset-0 bg-gray-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 cursor-pointer backdrop-blur-[2px]">
-                                                        <span className="text-white font-black text-[10px] uppercase tracking-widest flex items-center gap-2 bg-gray-900/60 px-4 py-2 rounded-xl"><Eye className="w-4 h-4" /> Preview Details</span>
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            <div className="p-4 border-t border-gray-50 flex items-center gap-3">
-                                                <input
-                                                    ref={(node) => { fileInputRefs.current[doc.key] = node; }}
-                                                    type="file"
-                                                    className="hidden"
-                                                    onChange={(event) => handleDocumentUpload(doc.key, event.target.files?.[0])}
-                                                />
-                                                {document && document.status !== 'Approved' && (
-                                                    <button onClick={() => handleApproveDocument(doc.key)} className="py-2.5 px-3 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-100 uppercase tracking-widest flex items-center justify-center gap-2">
-                                                        <CheckCircle2 className="w-3.5 h-3.5" /> Approve
-                                                    </button>
-                                                )}
+                                            <div className="p-4 border-t border-gray-50">
+                                                <input ref={(n) => { fileInputRefs.current[doc.key] = n; }} type="file" className="hidden"
+                                                    onChange={(e) => handleDocumentUpload(doc.key, e.target.files?.[0])} />
                                                 <button
                                                     onClick={() => fileInputRefs.current[doc.key]?.click()}
                                                     disabled={uploadingDocKey === doc.key}
-                                                    className="flex-1 py-2.5 bg-white text-gray-700 text-[10px] font-black rounded-xl hover:bg-gray-50 transition-colors border border-gray-200 uppercase tracking-widest flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                                                    className="w-full py-2.5 bg-white text-gray-700 text-[10px] font-black rounded-xl hover:bg-gray-50 transition-colors border border-gray-200 uppercase tracking-widest flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
                                                 >
-                                                    <Upload className="w-3.5 h-3.5" /> {uploadingDocKey === doc.key ? 'Uploading' : document ? 'Replace' : 'Upload'}
+                                                    <Upload className="w-3.5 h-3.5" />
+                                                    {uploadingDocKey === doc.key ? 'Uploading...' : fileUrl ? 'Replace' : 'Upload'}
                                                 </button>
-                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${document ? 'bg-emerald-50 text-emerald-500 border-emerald-100' : 'bg-gray-50 text-gray-300 border-gray-100'}`}>
-                                                    <CheckCircle2 className="w-4 h-4" />
-                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -427,93 +566,34 @@ const UserEditView = ({ user, onBack }) => {
                             </div>
                         </div>
 
+                        {saveError && <p className="mt-4 text-rose-500 text-sm font-bold">{saveError}</p>}
+                        {uploadError && (
+                            <div className="mt-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm font-bold px-4 py-3 rounded-xl flex justify-between items-center">
+                                <span>Document upload failed: {uploadError}</span>
+                                <button onClick={() => setUploadError('')}><XCircle className="w-4 h-4" /></button>
+                            </div>
+                        )}
+
                         <div className="mt-12 pt-8 border-t border-gray-100 flex justify-end gap-3">
                             <Button variant="secondary" onClick={onBack} className="font-black uppercase tracking-widest text-[10px] px-8 h-12">Discard</Button>
-                            <Button icon={Save} onClick={handleSave} className="px-10 h-12 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-[#6F4BFF]/20">Save Profile Updates</Button>
+                            <Button icon={saving ? Loader2 : Save} onClick={handleSave} disabled={saving} className="px-10 h-12 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-[#6F4BFF]/20">
+                                {saving ? 'Saving...' : 'Save Profile Updates'}
+                            </Button>
                         </div>
                     </Card>
                 </div>
             </main>
 
-            <Modal isOpen={!!previewDoc} onClose={() => setPreviewDoc(null)} title="Document Details">
+            <Modal isOpen={!!previewDoc} onClose={() => setPreviewDoc(null)} title="Document Preview">
                 {previewDoc && (
                     <div className="space-y-4">
-                        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Document</p>
-                            <p className="text-lg font-black text-gray-900 mt-1">{previewDoc.title}</p>
-                        </div>
-                        <div className="rounded-xl border border-gray-100 bg-white p-4">
-                            <p className="font-black text-gray-900 break-words">{previewDoc.fileName}</p>
-                            <p className="text-sm font-bold text-gray-500 mt-2">{previewDoc.fileType} - {Math.ceil((previewDoc.size || 0) / 1024)} KB</p>
-                            <p className="text-xs font-bold text-gray-400 mt-2">Uploaded: {previewDoc.uploadedAt}</p>
-                        </div>
+                        <p className="text-sm font-black text-gray-700">{previewDoc.title}</p>
+                        <img src={previewDoc.url} alt={previewDoc.title} className="w-full rounded-xl border border-gray-100" />
                     </div>
                 )}
             </Modal>
         </div>
     );
 };
-
-const UserFormFields = ({ formState, setFormState, includeStatus = false }) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Full Name</label>
-            <input
-                type="text"
-                required
-                value={formState.name}
-                onChange={(event) => setFormState({ ...formState, name: event.target.value })}
-                className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50"
-            />
-        </div>
-        <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Mobile Number</label>
-            <input
-                type="tel"
-                required
-                value={formState.phone}
-                onChange={(event) => setFormState({ ...formState, phone: event.target.value })}
-                className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50"
-            />
-        </div>
-        <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">User Type</label>
-            <select
-                value={formState.type}
-                onChange={(event) => setFormState({ ...formState, type: event.target.value })}
-                className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50"
-            >
-                <option value="Sales_officer">Sales Officer</option>
-                <option value="Field_officer">Field Officer</option>
-                <option value="Broker">Broker</option>
-            </select>
-        </div>
-        <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Document Status</label>
-            <select
-                value={formState.docStatus}
-                onChange={(event) => setFormState({ ...formState, docStatus: event.target.value })}
-                className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50"
-            >
-                <option>Pending</option>
-                <option>Approved</option>
-                <option>Rejected</option>
-            </select>
-        </div>
-        {includeStatus && (
-            <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Account Status</label>
-                <select
-                    value={formState.status}
-                    onChange={(event) => setFormState({ ...formState, status: event.target.value })}
-                    className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50"
-                >
-                    <option>Active</option>
-                    <option>Suspended</option>
-                </select>
-            </div>
-        )}
-    </div>
-);
 
 export default UserList;
