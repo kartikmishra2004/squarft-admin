@@ -8,11 +8,7 @@ import {
     Clock3,
     CreditCard,
     FileText,
-    Home,
-    Landmark,
-    ListFilter,
     MapPin,
-    Phone,
     Search,
     UserRound,
 } from 'lucide-react';
@@ -215,6 +211,7 @@ const BrokerCommission = () => {
     const [brokerDirectoryView, setBrokerDirectoryView] = useState('list');
     const [brokerDirectoryTab, setBrokerDirectoryTab] = useState('properties');
     const [selectedPropertyDetails, setSelectedPropertyDetails] = useState(null);
+    const [selectedTransactionId, setSelectedTransactionId] = useState(null);
 
     const filteredBrokers = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -230,32 +227,38 @@ const BrokerCommission = () => {
 
     const selectedBroker = brokerCommissionData.find((broker) => broker.id === selectedBrokerId) || filteredBrokers[0] || brokerCommissionData[0];
     const selectedProperties = selectedBroker.uploadedProperties.filter((property) => propertyFilter === 'All' || property.status === propertyFilter);
-    const selectedWithdrawals = selectedBroker.withdrawals;
-    const getWithdrawalStatus = (withdrawal) => withdrawalActions[withdrawal.id]?.status || withdrawal.status;
+    const selectedTransaction = selectedBroker.transactions.find((transaction) => transaction.id === selectedTransactionId) || selectedBroker.transactions[0];
+    const getTransactionStatus = (transaction) => withdrawalActions[transaction.id]?.status || transaction.status;
+    const getTransactionUtr = (transaction) => withdrawalActions[transaction.id]?.utr || transaction.utr || 'Not assigned';
+    const getTransactionLabel = (transaction) => {
+        if (!transaction) return 'Wallet transaction';
+        if (transaction.type === 'debit') return 'Wallet withdrawal';
+        return 'Wallet credit';
+    };
 
     const totals = brokerCommissionData.reduce((summary, broker) => ({
         brokers: summary.brokers + 1,
-        properties: summary.properties + broker.stats.total_properties,
         balance: summary.balance + broker.wallet.balance,
         pendingPayout: summary.pendingPayout + broker.wallet.withdrawalPending,
-    }), { brokers: 0, properties: 0, balance: 0, pendingPayout: 0 });
+    }), { brokers: 0, balance: 0, pendingPayout: 0 });
 
-    const markPaymentSent = (withdrawalId) => {
+    const approveTransaction = (transactionId) => {
         setWithdrawalActions((current) => ({
             ...current,
-            [withdrawalId]: {
-                status: 'Payment sent',
-                utr: `UTR-${withdrawalId.replace(/\D/g, '') || '0000'}-ADMIN`,
+            [transactionId]: {
+                ...(current[transactionId] || {}),
+                status: 'Approved',
+                utr: current[transactionId]?.utr || `UTR-${transactionId.replace(/\D/g, '') || '0000'}-ADMIN`,
             },
         }));
     };
 
-    const confirmPayment = (withdrawalId) => {
+    const confirmTransaction = (transactionId) => {
         setWithdrawalActions((current) => ({
             ...current,
-            [withdrawalId]: {
-                ...(current[withdrawalId] || {}),
-                status: 'Payment confirmed',
+            [transactionId]: {
+                ...(current[transactionId] || {}),
+                status: 'Confirmed',
             },
         }));
     };
@@ -266,12 +269,12 @@ const BrokerCommission = () => {
         <div className="flex h-full flex-1 flex-col bg-[#F5F6FA] text-[#15121F]">
             <Header title="Broker" />
 
-            <main className="flex-1 overflow-y-auto p-4">
-                <div className="mx-auto max-w-[1600px] space-y-4">
+            <main className="flex-1 overflow-y-auto overflow-x-hidden p-4">
+                <div className="mx-auto max-w-[1600px] min-w-0 space-y-4">
                     <div className="flex flex-wrap gap-2 rounded-[8px] border border-[#D8D2EB] bg-white p-2 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
                         {[
                             { id: 'broker', label: 'Broker' },
-                            { id: 'brokerCommission', label: 'Broker commission' },
+                            { id: 'brokerCommission', label: 'Wallet withdraw' },
                         ].map((tab) => (
                             <button
                                 key={tab.id}
@@ -520,216 +523,201 @@ const BrokerCommission = () => {
                         </section>
                     ) : (
                         <>
-                    <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
-                        <div className="flex flex-col gap-3.5 xl:flex-row xl:items-center xl:justify-between">
-                            <div>
-                                <div className="flex flex-wrap items-center gap-2.5">
-                                    <span className="rounded-full bg-[#E8E4FF] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-[#2717D7]">Broker app aligned</span>
-                                    <span className="rounded-full bg-[#E9F8EF] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-[#04622E]">Withdraw + commission control</span>
-                                </div>
-                                <h2 className="mt-2 text-lg font-black text-[#171327]">Broker commission and withdrawal supervision</h2>
-                                <p className="mt-0.5 max-w-3xl text-xs font-medium leading-normal text-[#615C71]">
-                                    Review broker details, uploaded properties, property-wise commissions, bank transfer targets, transactions, and withdrawal requests in one admin view.
-                                </p>
-                            </div>
-                            <div className="grid w-full gap-2 sm:grid-cols-2 xl:w-auto xl:grid-cols-4">
-                                <MetricTile icon={UserRound} label="Brokers" value={totals.brokers} />
-                                <MetricTile icon={Home} label="Properties" value={totals.properties} />
-                                <MetricTile icon={Banknote} label="Available" value={formatCurrency(totals.balance)} />
-                                <MetricTile icon={Clock3} label="Pending payout" value={formatCurrency(totals.pendingPayout)} />
-                            </div>
-                        </div>
-                    </section>
-
-                    <div className="grid gap-4 xl:grid-cols-[290px_1fr]">
-                        <aside className="space-y-5">
-                            <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
-                                <div className="flex items-center gap-2 rounded-[6px] border border-[#D8D2EB] bg-[#FCFBFF] px-2.5">
-                                    <Search size={14} className="text-[#7B7486]" />
-                                    <input
-                                        value={search}
-                                        onChange={(event) => setSearch(event.target.value)}
-                                        placeholder="Search broker, agency, city"
-                                        className="h-9 min-w-0 flex-1 bg-transparent text-xs font-medium outline-none"
-                                    />
-                                </div>
-
-                                <div className="mt-3 space-y-2">
-                                    {filteredBrokers.map((broker) => {
-                                        const selected = broker.id === selectedBroker.id;
-                                        return (
-                                            <button
-                                                key={broker.id}
-                                                type="button"
-                                                onClick={() => setSelectedBrokerId(broker.id)}
-                                                className={`w-full rounded-[8px] border p-2.5 text-left transition-all ${selected ? 'border-[#2717D7] bg-[#F4F1FF]' : 'border-[#E1DDF0] bg-white hover:border-[#2717D7]'}`}
-                                            >
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div className="min-w-0">
-                                                        <p className="truncate text-xs font-black text-[#171327]">{broker.name}</p>
-                                                        <p className="mt-0.5 truncate text-[10px] font-bold text-[#615C71]">{broker.agency}</p>
-                                                    </div>
-                                                    <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider ${getStatusClass(broker.brokerStatus)}`}>
-                                                        {broker.brokerStatus}
-                                                    </span>
-                                                </div>
-                                                <div className="mt-2 grid grid-cols-3 gap-1.5">
-                                                    <MiniStat label="Total" value={broker.stats.total_properties} />
-                                                    <MiniStat label="Sales" value={broker.stats.sales} />
-                                                    <MiniStat label="Wallet" value={formatCurrency(broker.wallet.balance)} />
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
+                            <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
+                                <div className="flex flex-col gap-3.5 xl:flex-row xl:items-center xl:justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#2717D7]">Wallet withdraw panel</p>
+                                        <h2 className="mt-1 text-lg font-black text-[#171327]">Broker wallet balance and transactions</h2>
+                                        <p className="mt-0.5 max-w-2xl text-xs font-medium leading-normal text-[#615C71]">
+                                            Select a broker, review wallet movement, then approve and confirm transaction payouts.
+                                        </p>
+                                    </div>
+                                    <div className="grid w-full gap-2 sm:grid-cols-3 xl:w-auto">
+                                        <MetricTile icon={UserRound} label="Brokers" value={totals.brokers} />
+                                        <MetricTile icon={Banknote} label="Total balance" value={formatCurrency(totals.balance)} />
+                                        <MetricTile icon={Clock3} label="Pending withdraw" value={formatCurrency(totals.pendingPayout)} />
+                                    </div>
                                 </div>
                             </section>
-                        </aside>
 
-                        <section className="space-y-4">
-                            {/* Consolidated Broker Profile & Wallet Header */}
-                            <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-4">
-                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                    {/* Left Side: Profile & Details */}
-                                    <div className="flex-1 space-y-3">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F0EDFF] text-[#2717D7]">
-                                                <UserRound size={20} />
-                                            </div>
-                                            <div>
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <h3 className="text-sm font-black text-[#171327]">{selectedBroker.name}</h3>
-                                                    <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider ${getStatusClass(selectedBroker.kycStatus)}`}>
-                                                        KYC: {selectedBroker.kycStatus}
-                                                    </span>
-                                                    <span className="rounded-full bg-[#F4F1FF] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#2717D7]">
-                                                        ID: {selectedBroker.id}
-                                                    </span>
-                                                </div>
-                                                <p className="text-xs font-bold text-[#615C71]">{selectedBroker.agency} &bull; Joined {selectedBroker.joinedOn}</p>
-                                            </div>
+                            <div className="grid min-w-0 gap-4 xl:grid-cols-[170px_minmax(0,1fr)]">
+                                <aside className="min-w-0 space-y-4">
+                                    <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
+                                        <div className="flex items-center gap-2 rounded-[6px] border border-[#D8D2EB] bg-[#FCFBFF] px-2">
+                                            <Search size={14} className="text-[#7B7486]" />
+                                            <input
+                                                value={search}
+                                                onChange={(event) => setSearch(event.target.value)}
+                                                placeholder="Search"
+                                                className="h-9 min-w-0 flex-1 bg-transparent text-xs font-medium outline-none"
+                                            />
                                         </div>
-                                        
-                                        <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 text-xs text-[#514B63]">
-                                            <div className="flex items-center gap-2 font-medium">
-                                                <Phone size={13} className="text-[#7B7486]" />
-                                                <span>{selectedBroker.mobile} &bull; {selectedBroker.email}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 font-medium">
-                                                <MapPin size={13} className="text-[#7B7486]" />
-                                                <span>{selectedBroker.area}, {selectedBroker.city}</span>
-                                            </div>
-                                        </div>
-                                    </div>
 
-                                    {/* Middle Side: Wallet Stats */}
-                                    <div className="flex flex-wrap gap-2 sm:flex-nowrap lg:w-auto">
-                                        <div className="min-w-[110px] flex-1 sm:flex-none rounded-[6px] bg-[#FCFBFF] p-2 border border-[#E1DDF0]">
-                                            <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Wallet Balance</p>
-                                            <p className="mt-1 text-sm font-black text-[#2717D7]">{formatCurrency(selectedBroker.wallet.balance)}</p>
-                                            <p className="mt-0.5 text-[9px] font-bold text-[#615C71]">Available payout</p>
-                                        </div>
-                                        <div className="min-w-[110px] flex-1 sm:flex-none rounded-[6px] bg-[#FCFBFF] p-2 border border-[#E1DDF0]">
-                                            <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Total Earned</p>
-                                            <p className="mt-1 text-sm font-black text-[#0C6B39]">{formatCurrency(selectedBroker.wallet.totalEarned)}</p>
-                                            <p className="mt-0.5 text-[9px] font-bold text-[#615C71]">Paid: {formatCurrency(selectedBroker.wallet.totalWithdrawn)}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Active Withdrawal Request Banner inside Header */}
-                                {selectedWithdrawals.length > 0 && (
-                                    <div className="mt-4 border-t border-[#E1DDF0] pt-4">
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-[#5E5A71] mb-2 flex items-center gap-1">
-                                            <Landmark size={12} className="text-[#2717D7]" /> Active Payout Request
-                                        </p>
-                                        <div className="space-y-2">
-                                            {selectedWithdrawals.map((withdrawal) => {
-                                                const status = getWithdrawalStatus(withdrawal);
-                                                const canSendPayment = status.toLowerCase().includes('pending');
-                                                const canConfirm = status === 'Payment sent';
+                                        <div className="mt-3 space-y-2">
+                                            {filteredBrokers.map((broker) => {
+                                                const selected = broker.id === selectedBroker.id;
                                                 return (
-                                                    <div key={withdrawal.id} className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-2.5">
-                                                        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 flex-1 text-xs">
-                                                            <div>
-                                                                <p className="text-[8px] font-black uppercase text-[#8B8498]">Amount & Status</p>
-                                                                <div className="flex items-center gap-1.5 mt-0.5">
-                                                                    <span className="text-xs font-black text-[#171327]">{formatCurrency(withdrawal.requestedAmount)}</span>
-                                                                    <StatusPill status={status} />
-                                                                </div>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[8px] font-black uppercase text-[#8B8498]">Bank Target</p>
-                                                                <p className="mt-0.5 text-[10px] font-bold text-[#171327]">{withdrawal.bankName} - {withdrawal.accountNumberMasked}</p>
-                                                                <p className="text-[9px] text-[#615C71]">IFSC: {withdrawal.ifsc}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[8px] font-black uppercase text-[#8B8498]">Request & UTR</p>
-                                                                <p className="mt-0.5 text-[10px] font-bold text-[#171327]">{withdrawal.id} ({withdrawal.requestedAt})</p>
-                                                                <p className="text-[9px] text-[#615C71]">UTR: {withdrawalActions[withdrawal.id]?.utr || withdrawal.utr}</p>
-                                                            </div>
+                                                    <button
+                                                        key={broker.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedBrokerId(broker.id);
+                                                            setSelectedTransactionId(null);
+                                                        }}
+                                                        className={`flex min-h-10 w-full items-center rounded-[8px] border px-2.5 text-left transition-all ${selected ? 'border-[#2717D7] bg-[#F4F1FF]' : 'border-[#E1DDF0] bg-white hover:border-[#2717D7]'}`}
+                                                    >
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-xs font-black text-[#171327]">{broker.name}</p>
                                                         </div>
-                                                        <div className="flex items-center gap-2 shrink-0">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => markPaymentSent(withdrawal.id)}
-                                                                disabled={!canSendPayment}
-                                                                className="min-h-8 rounded-[6px] bg-[#2717D7] px-3 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:bg-[#C5BEDD] disabled:text-white/80 transition-colors"
-                                                            >
-                                                                Approve payment
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => confirmPayment(withdrawal.id)}
-                                                                disabled={!canConfirm}
-                                                                className="min-h-8 inline-flex items-center gap-1 rounded-[6px] border border-[#B7E5C8] bg-[#E8F9EE] px-3 text-[10px] font-black text-[#0C6B39] disabled:cursor-not-allowed disabled:border-[#E1DDF0] disabled:bg-white disabled:text-[#A9A2B5] transition-colors"
-                                                            >
-                                                                <CheckCircle2 size={11} /> Confirm
-                                                            </button>
-                                                        </div>
-                                                    </div>
+                                                    </button>
                                                 );
                                             })}
                                         </div>
-                                    </div>
-                                )}
-                            </div>
+                                    </section>
+                                </aside>
 
-                            {/* Collapsible Wallet Transaction History Audit Log */}
-                            <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-4">
-                                <details className="group" open>
-                                    <summary className="flex cursor-pointer items-center justify-between font-black text-[#171327] outline-none select-none">
-                                        <div className="flex items-center gap-2">
-                                            <CreditCard size={14} className="text-[#2717D7]" />
-                                            <span className="text-[10px] font-black uppercase tracking-wider">Wallet Transaction & Payout Log</span>
-                                        </div>
-                                        <span className="text-[10px] font-bold text-[#7B7486] group-open:rotate-180 transition-transform">&#9662;</span>
-                                    </summary>
-                                    <div className="mt-3 border-t border-[#E1DDF0] pt-3">
-                                        <div className="space-y-1.5">
-                                            {selectedBroker.transactions.map((transaction) => (
-                                                <div key={transaction.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-2 text-xs">
-                                                    <div className="min-w-0">
-                                                        <p className="font-black text-[#171327] text-[11px]">{transaction.property_name || 'Commission adjustment'}</p>
-                                                        <p className="text-[9px] font-bold text-[#615C71]">ID: {transaction.id} &bull; {transaction.created_at}</p>
+                                <section className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_320px]">
+                                    <div className="min-w-0 space-y-4">
+                                        <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-4">
+                                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                                <div className="flex min-w-0 items-center gap-2.5">
+                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F0EDFF] text-[#2717D7]">
+                                                        <UserRound size={20} />
                                                     </div>
-                                                    <div className="flex items-center gap-3 justify-between sm:justify-end">
-                                                        <span className="text-[9px] font-bold text-[#615C71]">{transaction.bank_name}</span>
-                                                        <span className={transaction.type === 'credit' ? 'font-black text-[#0C6B39] text-[11px]' : 'font-black text-[#B42318] text-[11px]'}>
-                                                            {transaction.type === 'credit' ? '+' : '-'} {formatCurrency(transaction.amount)}
-                                                        </span>
-                                                        <StatusPill status={transaction.status} />
+                                                    <div className="min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <h3 className="truncate text-sm font-black text-[#171327]">{selectedBroker.name}</h3>
+                                                            <span className="rounded-full bg-[#F4F1FF] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#2717D7]">
+                                                                {selectedBroker.id}
+                                                            </span>
+                                                            <StatusPill status={selectedBroker.kycStatus} />
+                                                        </div>
+                                                        <p className="mt-0.5 truncate text-xs font-bold text-[#615C71]">{selectedBroker.mobile} &bull; {selectedBroker.email}</p>
                                                     </div>
                                                 </div>
-                                            ))}
-                                            {selectedBroker.transactions.length === 0 && (
-                                                <p className="text-center py-2 text-[10px] font-bold text-[#615C71]">No transactions logged.</p>
-                                            )}
+
+                                                <div className="grid min-w-0 gap-2 sm:grid-cols-3 lg:w-[480px]">
+                                                    <div className="rounded-[6px] border border-[#E1DDF0] bg-[#FCFBFF] p-2">
+                                                        <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Total balance</p>
+                                                        <p className="mt-1 text-sm font-black text-[#2717D7]">{formatCurrency(selectedBroker.wallet.balance)}</p>
+                                                    </div>
+                                                    <div className="rounded-[6px] border border-[#E1DDF0] bg-[#FCFBFF] p-2">
+                                                        <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Earned</p>
+                                                        <p className="mt-1 text-sm font-black text-[#0C6B39]">{formatCurrency(selectedBroker.wallet.totalEarned)}</p>
+                                                    </div>
+                                                    <div className="rounded-[6px] border border-[#E1DDF0] bg-[#FCFBFF] p-2">
+                                                        <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Withdrawn</p>
+                                                        <p className="mt-1 text-sm font-black text-[#B42318]">{formatCurrency(selectedBroker.wallet.totalWithdrawn)}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-4">
+                                            <div className="flex items-center justify-between border-b border-[#E1DDF0] pb-2.5">
+                                                <div className="flex items-center gap-2">
+                                                    <CreditCard size={14} className="text-[#2717D7]" />
+                                                    <p className="text-[10px] font-black uppercase tracking-wider text-[#171327]">Transactions</p>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-[#615C71]">{selectedBroker.transactions.length} records</span>
+                                            </div>
+
+                                            <div className="mt-3 divide-y divide-[#E1DDF0]">
+                                                {selectedBroker.transactions.map((transaction) => {
+                                                    const status = getTransactionStatus(transaction);
+                                                    const selected = selectedTransaction?.id === transaction.id;
+                                                    return (
+                                                        <button
+                                                            key={transaction.id}
+                                                            type="button"
+                                                            onClick={() => setSelectedTransactionId(transaction.id)}
+                                                            className={`grid min-w-0 w-full gap-3 px-2 py-3 text-left transition-colors md:grid-cols-[minmax(0,1fr)_120px_105px] md:items-center ${selected ? 'bg-[#F4F1FF]' : 'hover:bg-[#FCFBFF]'}`}
+                                                        >
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-black text-[#171327]">{getTransactionLabel(transaction)}</p>
+                                                                <p className="mt-0.5 text-[9px] font-bold text-[#615C71]">{transaction.id} &bull; {transaction.created_at}</p>
+                                                                <p className="mt-1 truncate text-[10px] font-bold text-[#514B63]">{transaction.bank_name}</p>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-2 md:justify-end">
+                                                                <span className={transaction.type === 'credit' ? 'truncate text-xs font-black text-[#0C6B39]' : 'truncate text-xs font-black text-[#B42318]'}>
+                                                                    {transaction.type === 'credit' ? '+' : '-'} {formatCurrency(transaction.amount)}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-start md:justify-end">
+                                                                <StatusPill status={status} />
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                                {selectedBroker.transactions.length === 0 && (
+                                                    <p className="py-6 text-center text-[10px] font-bold text-[#615C71]">No transactions found.</p>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </details>
+
+                                    <aside className="min-w-0 rounded-[8px] border border-[#D8D2EB] bg-white p-4 2xl:sticky 2xl:top-4 2xl:self-start">
+                                        {selectedTransaction ? (
+                                            <div className="space-y-4">
+                                                <div className="border-b border-[#E1DDF0] pb-3">
+                                                    <p className="text-[10px] font-black uppercase tracking-wider text-[#2717D7]">Selected transaction</p>
+                                                    <h3 className="mt-1 text-sm font-black text-[#171327]">{getTransactionLabel(selectedTransaction)}</h3>
+                                                    <p className="mt-0.5 text-[10px] font-bold text-[#615C71]">{selectedTransaction.id}</p>
+                                                </div>
+
+                                                <div className="rounded-[8px] bg-[#FCFBFF] p-3 text-center ring-1 ring-[#E1DDF0]">
+                                                    <p className={selectedTransaction.type === 'credit' ? 'text-xl font-black text-[#0C6B39]' : 'text-xl font-black text-[#B42318]'}>
+                                                        {selectedTransaction.type === 'credit' ? '+' : '-'} {formatCurrency(selectedTransaction.amount)}
+                                                    </p>
+                                                    <div className="mt-2 flex justify-center">
+                                                        <StatusPill status={getTransactionStatus(selectedTransaction)} />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-2 text-xs">
+                                                    <div className="rounded-[6px] border border-[#E1DDF0] p-2.5">
+                                                        <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Bank</p>
+                                                        <p className="mt-0.5 break-words font-bold text-[#171327]">{selectedTransaction.bank_name}</p>
+                                                    </div>
+                                                    <div className="rounded-[6px] border border-[#E1DDF0] p-2.5">
+                                                        <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">Date</p>
+                                                        <p className="mt-0.5 font-bold text-[#171327]">{selectedTransaction.created_at}</p>
+                                                    </div>
+                                                    <div className="rounded-[6px] border border-[#E1DDF0] p-2.5">
+                                                        <p className="text-[8px] font-black uppercase tracking-wider text-[#8B8498]">UTR</p>
+                                                        <p className="mt-0.5 break-all font-bold text-[#171327]">{getTransactionUtr(selectedTransaction)}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-col gap-2 border-t border-[#E1DDF0] pt-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => approveTransaction(selectedTransaction.id)}
+                                                        disabled={getTransactionStatus(selectedTransaction) === 'Approved' || getTransactionStatus(selectedTransaction) === 'Confirmed'}
+                                                        className="min-h-9 rounded-[6px] bg-[#2717D7] px-3 text-[10px] font-black uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#1f11ab] disabled:cursor-not-allowed disabled:bg-[#C5BEDD]"
+                                                    >
+                                                        Approve
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => confirmTransaction(selectedTransaction.id)}
+                                                        disabled={getTransactionStatus(selectedTransaction) !== 'Approved'}
+                                                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-[6px] border border-[#B7E5C8] bg-[#E8F9EE] px-3 text-[10px] font-black uppercase tracking-[0.1em] text-[#0C6B39] transition-colors hover:bg-[#DDF4E7] disabled:cursor-not-allowed disabled:border-[#E1DDF0] disabled:bg-white disabled:text-[#A9A2B5]"
+                                                    >
+                                                        <CheckCircle2 size={12} /> Confirm
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="py-8 text-center">
+                                                <CreditCard className="mx-auto h-6 w-6 text-[#A9A2B5]" />
+                                                <p className="mt-2 text-xs font-black text-[#171327]">No transaction selected</p>
+                                                <p className="mt-1 text-[10px] font-bold text-[#615C71]">Choose a transaction to review it.</p>
+                                            </div>
+                                        )}
+                                    </aside>
+                                </section>
                             </div>
-                        </section>
-                    </div>
                         </>
                     )}
                 </div>
