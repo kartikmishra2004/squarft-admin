@@ -5,6 +5,28 @@ const ADMIN_LEADS_BASE = '/api/admin/leads';
 
 const unwrapData = (response) => response?.data ?? response;
 
+let propertyProjectMapPromise = null;
+
+const fetchPropertyProjectMap = async () => {
+  if (!propertyProjectMapPromise) {
+    propertyProjectMapPromise = apiRequest('/api/v1/properties/list?limit=5000', { method: 'GET' })
+      .then((response) => {
+        const properties = unwrapData(response) || [];
+
+        return properties.reduce((map, property) => {
+          const projectId = property.project_id || property.projectId;
+          if (projectId && property.id && !map.has(projectId)) {
+            map.set(projectId, property.id);
+          }
+          return map;
+        }, new Map());
+      })
+      .catch(() => new Map());
+  }
+
+  return propertyProjectMapPromise;
+};
+
 const buildQueryString = (params = {}) => {
   const queryParams = new URLSearchParams();
 
@@ -195,6 +217,7 @@ const fetchClientsFromLeads = async (params = {}) => {
 const normalizePipelineItem = (item = {}) => ({
   id: item.pipeline_id || item.assignment_id,
   projectId: item.project_id,
+  propertyId: item.property_id || item.propertyId || null,
   projectName: item.project_name,
   status: toTitleCase(item.status || item.assignment_status || 'Shortlisted'),
   units: String(item.target_units || '')
@@ -350,6 +373,8 @@ export const normalizeProject = (project = {}, workspace = {}, details = {}) => 
 
   return {
     id: project.id,
+    projectId: project.id,
+    propertyId: project.property_id || project.propertyId || header.property_id || header.propertyId || null,
     name: header.name || project.name || workspace.project_name || 'Project',
     builder: header.builder || operations.builder || 'SquarFT Partner',
     location: header.location || project.location || workspace.location || 'Location pending',
@@ -419,7 +444,17 @@ export const fetchClientOverview = async (clientId) =>
 
 export const fetchClientAssignedProperties = async (clientId) => {
   const data = unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/clients/${clientId}/assigned-properties`, { method: 'GET' }));
-  return (data || []).map(normalizePipelineItem);
+  const assignments = (data || []).map(normalizePipelineItem);
+  const propertyMap = await fetchPropertyProjectMap();
+
+  return assignments.map((assignment) => {
+    if (assignment.propertyId || !assignment.projectId) return assignment;
+
+    return {
+      ...assignment,
+      propertyId: propertyMap.get(assignment.projectId) || null,
+    };
+  });
 };
 
 export const fetchClientRequirements = async (clientId, client) => {
@@ -445,15 +480,20 @@ export const fetchProjectDetails = async (projectId) =>
 
 export const fetchRecommendedProjects = async (clientId) => {
   const recommendations = unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/clients/${clientId}/recommended-properties`, { method: 'GET' }));
+  const propertyMap = await fetchPropertyProjectMap();
 
   const projects = await Promise.all((recommendations || []).map(async (project) => {
     const [workspaceResult, detailsResult] = await Promise.allSettled([
       fetchProjectWorkspace(project.id),
       fetchProjectDetails(project.id),
     ]);
+    const propertyId = project.property_id
+      || project.propertyId
+      || propertyMap.get(project.id)
+      || null;
 
     return normalizeProject(
-      project,
+      { ...project, property_id: propertyId },
       workspaceResult.status === 'fulfilled' ? workspaceResult.value : {},
       detailsResult.status === 'fulfilled' ? detailsResult.value : {}
     );

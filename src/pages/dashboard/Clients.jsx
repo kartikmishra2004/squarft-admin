@@ -150,6 +150,7 @@ const ClientProfileView = ({
     projects,
     visits,
     officers,
+    officerOptions = [],
     onBack,
     onUpdateClient,
     onAddNote,
@@ -183,6 +184,7 @@ const ClientProfileView = ({
     const [projectDetails, setProjectDetails] = useState(null);
     const [isScheduleVisitOpen, setIsScheduleVisitOpen] = useState(false);
     const [visitForm, setVisitForm] = useState({
+        officerId: '',
         officerName: '',
         officerPhone: '',
         customerName: '',
@@ -190,7 +192,10 @@ const ClientProfileView = ({
         purpose: 'BUY',
         date: '',
         time: '',
+        startTime: '',
+        endTime: '',
         status: 'Scheduled',
+        propertyId: '',
         propertyName: '',
         propertyType: 'APARTMENT/FLATS',
         propertyConfig: '',
@@ -206,6 +211,7 @@ const ClientProfileView = ({
     const selectedSiteVisit = clientVisits.find((visit) => visit.id === selectedSiteVisitId);
     const assignedSalesOfficer = client.officer?.trim();
     const selectedSalesOfficer = assignedSalesOfficer || assignedOfficer;
+    const schedulableProjects = projects.filter((project) => project.propertyId);
 
     const getProject = (id) => projects.find((project) => project.id === id);
 
@@ -1107,12 +1113,15 @@ const ClientProfileView = ({
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><MapPin className="w-5 h-5 text-rose-500" /> Property Site Visits</h3>
                                 <Button icon={Calendar} onClick={() => {
-                                        const firstProject = projects[0];
+                                        const firstProject = schedulableProjects[0];
+                                        const defaultOfficer = officerOptions.find((officer) => officer.name === client.officer) || officerOptions[0];
                                         setVisitForm((f) => ({
                                             ...f,
                                             customerName: client.name,
                                             customerPhone: client.phone,
-                                            officerName: client.officer || officers[0] || '',
+                                            officerId: defaultOfficer?.id || '',
+                                            officerName: defaultOfficer?.name || client.officer || officers[0] || '',
+                                            propertyId: firstProject?.propertyId || '',
                                             propertyName: firstProject?.name || f.propertyName,
                                             propertyType: firstProject?.specs || f.propertyType,
                                             propertyAddress: firstProject?.location || f.propertyAddress,
@@ -1611,14 +1620,16 @@ const ClientProfileView = ({
                     event.preventDefault();
                     try {
                         await onScheduleVisit({
+                            officerId: visitForm.officerId,
                             officerName: visitForm.officerName.trim(),
                             officerPhone: visitForm.officerPhone.trim(),
                             customerName: visitForm.customerName.trim(),
                             customerPhone: visitForm.customerPhone.trim(),
                             purpose: visitForm.purpose,
                             date: visitForm.date,
-                            time: visitForm.time,
+                            time: `${visitForm.startTime} - ${visitForm.endTime}`,
                             status: 'Scheduled',
+                            propertyId: visitForm.propertyId,
                             property: {
                                 name: visitForm.propertyName.trim(),
                                 type: visitForm.propertyType,
@@ -1644,10 +1655,17 @@ const ClientProfileView = ({
                         </div>
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Officer Name</label>
-                            <input required list="client-hub-visit-officers" value={visitForm.officerName} onChange={(e) => setVisitForm((f) => ({ ...f, officerName: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
-                            <datalist id="client-hub-visit-officers">
-                                {officers.map((officer) => <option key={officer} value={officer} />)}
-                            </datalist>
+                            <select required value={visitForm.officerId} onChange={(e) => {
+                                const officer = officerOptions.find((item) => item.id === e.target.value);
+                                setVisitForm((f) => ({
+                                    ...f,
+                                    officerId: officer?.id || '',
+                                    officerName: officer?.name || '',
+                                }));
+                            }} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
+                                <option value="">Select available officer</option>
+                                {officerOptions.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}
+                            </select>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Officer Phone</label>
@@ -1666,26 +1684,40 @@ const ClientProfileView = ({
                             <input required type="date" value={visitForm.date} onChange={(e) => setVisitForm((f) => ({ ...f, date: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Time Slot</label>
-                            <input required value={visitForm.time} onChange={(e) => setVisitForm((f) => ({ ...f, time: e.target.value }))} placeholder="10:00 - 11:00 AM" className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Start Time</label>
+                            <input required type="time" value={visitForm.startTime} onChange={(e) => setVisitForm((f) => ({ ...f, startTime: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">End Time</label>
+                            <input required type="time" value={visitForm.endTime} onChange={(e) => setVisitForm((f) => ({ ...f, endTime: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
                         </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property Name</label>
-                            <input required list="client-hub-visit-properties" value={visitForm.propertyName} onChange={(e) => setVisitForm((f) => {
-                                const project = projects.find((item) => normalizeLookup(item.name) === normalizeLookup(e.target.value));
+                            <select required value={visitForm.propertyId} onChange={(e) => setVisitForm((f) => {
+                                const project = projects.find((item) => item.propertyId === e.target.value);
                                 return {
                                     ...f,
-                                    propertyName: e.target.value,
+                                    propertyId: project?.propertyId || '',
+                                    propertyName: project?.name || '',
                                     propertyType: project?.specs || f.propertyType,
                                     propertyAddress: project?.location || f.propertyAddress,
                                     propertyPrice: project?.priceRange || f.propertyPrice,
                                 };
-                            })} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
-                            <datalist id="client-hub-visit-properties">
-                                {projects.map((project) => <option key={project.id} value={project.name} />)}
-                            </datalist>
+                            })} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
+                                <option value="">Select property</option>
+                                {schedulableProjects.map((project) => (
+                                    <option key={project.id} value={project.propertyId}>
+                                        {project.name}
+                                    </option>
+                                ))}
+                            </select>
+                            {projects.length > 0 && schedulableProjects.length === 0 && (
+                                <p className="mt-2 text-xs font-semibold text-rose-600">
+                                    No schedulable property records found for these projects.
+                                </p>
+                            )}
                         </div>
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property Type</label>
@@ -2104,19 +2136,22 @@ const Clients = () => {
     };
 
     const handleScheduleVisit = async (visit) => {
-        const officer = officerOptions.find((item) => normalizeLookup(item.name) === normalizeLookup(visit.officerName || selectedClient?.officer));
-        if (!officer) {
+        const officerId = visit.officerId
+            || officerOptions.find((item) => normalizeLookup(item.name) === normalizeLookup(visit.officerName || selectedClient?.officer))?.id;
+        if (!officerId) {
             const message = 'Select an available officer before scheduling the visit.';
             setPageError(message);
             throw new Error(message);
         }
 
         const project = selectedProjects.find((item) => (
-            normalizeLookup(item.name) === normalizeLookup(visit.property?.name)
+            item.propertyId === visit.propertyId
+            || item.property_id === visit.propertyId
+            || normalizeLookup(item.name) === normalizeLookup(visit.property?.name)
         ));
-        const propertyId = project?.propertyId || project?.property_id || project?.id;
+        const propertyId = visit.propertyId || project?.propertyId || project?.property_id;
         if (!propertyId) {
-            const message = 'Select a property already available in this Client Hub profile before scheduling the visit.';
+            const message = 'Select a property with a valid property record before scheduling the visit.';
             setPageError(message);
             throw new Error(message);
         }
@@ -2130,9 +2165,9 @@ const Clients = () => {
 
         await scheduleClientVisit(selectedClientId, {
             property_id: propertyId,
-            officer_id: officer.id,
+            officer_id: officerId,
             ...slot,
-            note: visit.notes || `Scheduled from Client Hub for ${visit.property?.name || 'property visit'}.`,
+            note: visit.notes || `Scheduled from Client Hub for ${project?.name || visit.property?.name || 'property visit'}.`,
         });
         await refreshSelectedClient();
         await fetchClientList();
@@ -2145,8 +2180,7 @@ const Clients = () => {
             || project?.propertyId
             || project?.property_id
             || visit?.propertyId
-            || visit?.property_id
-            || project?.id;
+            || visit?.property_id;
         const dealValue = pickDealValue(project?.priceRange, visit?.property?.price, selectedClient?.budget);
 
         if (!propertyId || !dealValue) {
@@ -2181,6 +2215,7 @@ const Clients = () => {
                         projects={selectedProjects}
                         visits={selectedVisits}
                         officers={officers}
+                        officerOptions={officerOptions}
                         onBack={() => setSelectedClientId(null)}
                         onUpdateClient={handleUpdateSelectedClient}
                         onAddNote={handleSaveClientNote}
