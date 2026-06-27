@@ -8,8 +8,19 @@ import {
     Phone, Coins, Image as ImageIcon, ShieldCheck, Dumbbell, Car, Trees, Droplets, Download,
     ArrowUpDown
 } from 'lucide-react';
-import { setSelectedProject, setSelectedBuilder, setSelectedBroker, setViewMode, setFilters } from '../../store/inventorySlice';
-import { mockProjects, projectOnboardingList } from '../../data/mockData';
+import { 
+    setSelectedProject, 
+    setSelectedBuilder, 
+    setSelectedBroker, 
+    setViewMode, 
+    setFilters,
+    getProjects,
+    getSourceProfiles,
+    getProjectById,
+    getConfigurationUnits
+} from '../../store/inventorySlice';
+import { projectOnboardingList } from '../../data/mockData';
+import * as inventoryService from '../../services/inventoryService';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -271,96 +282,54 @@ const ProjectInventoryCard = ({ project, onOpen }) => {
 
 const Inventory = () => {
     const dispatch = useDispatch();
-    const { filteredProjects, selectedProject, selectedBuilder, selectedBroker, viewMode, filters } = useSelector((state) => state.inventory);
+    const { 
+        projects, 
+        filteredProjects, 
+        sourceProfiles, 
+        selectedProject, 
+        selectedBuilder, 
+        selectedBroker, 
+        viewMode, 
+        filters,
+        loading 
+    } = useSelector((state) => state.inventory);
+    
     const [showPriceDropdown, setShowPriceDropdown] = useState(false);
     const [showLocationDropdown, setShowLocationDropdown] = useState(false);
 
+    // Fetch backend data based on source / search filters
+    useEffect(() => {
+        if (filters.propertySource === 'all') {
+            dispatch(getProjects());
+        } else {
+            dispatch(getSourceProfiles({ source: filters.propertySource, search: filters.search }));
+        }
+    }, [dispatch, filters.propertySource, filters.search]);
+
     // Get unique locations from projects
-    const uniqueLocations = [...new Set(mockProjects.map(p => p.location.split(',').pop().trim()))];
+    const uniqueLocations = useMemo(() => {
+        return [...new Set(projects.map(p => p.location ? p.location.split(',').pop().trim() : ''))].filter(Boolean);
+    }, [projects]);
 
-    // Get unique builders from projects that were added by builders
-    const uniqueBuilders = mockProjects
-        .filter(p => p.addedBy === 'builder' && p.builderProfile)
-        .reduce((acc, project) => {
-            const existing = acc.find(b => b.companyName === project.builder);
-            if (!existing) {
-                acc.push({
-                    ...project.builderProfile,
-                    projectCount: 1,
-                    projects: [project]
-                });
-            } else {
-                existing.projectCount++;
-                existing.projects.push(project);
-            }
-            return acc;
-        }, []);
-
-    console.log('🏗️ [INVENTORY] Unique Builders Generated:', uniqueBuilders);
-    console.log('🏗️ [INVENTORY] Builder Count:', uniqueBuilders.length);
-    uniqueBuilders.forEach((builder, idx) => {
-        console.log(`🏗️ [INVENTORY] Builder ${idx + 1}:`, builder.companyName, 'Projects:', builder.projects?.length);
-    });
-
-    const filteredBuilders = uniqueBuilders
-        .map((builder) => {
-            const builderMatchesSearch = !filters.search ||
-                builder.companyName.toLowerCase().includes(filters.search.toLowerCase()) ||
-                builder.fullName.toLowerCase().includes(filters.search.toLowerCase()) ||
-                builder.location.toLowerCase().includes(filters.search.toLowerCase());
+    const filteredBuilders = useMemo(() => {
+        if (filters.propertySource !== 'builder') return [];
+        return sourceProfiles.map((builder) => {
             const visibleProjects = (builder.projects || []).filter((project) =>
-                matchesProjectFilters(project, filters) || builderMatchesSearch
+                matchesProjectFilters(project, filters)
             );
-
             return { ...builder, visibleProjects };
-        })
-        .filter((builder) => builder.visibleProjects.length > 0);
+        }).filter((builder) => builder.visibleProjects.length > 0);
+    }, [filters.propertySource, sourceProfiles, filters]);
 
-    const uniqueBrokers = mockProjects
-        .filter(p => p.addedBy === 'broker')
-        .reduce((acc, project) => {
-            const fallbackProfile = {
-                fullName: project.officer || 'Broker Partner',
-                phone: 'Contact pending',
-                location: project.location.split(',').pop().trim(),
-                agencyName: `${project.officer || project.builder} Realty`,
-                brokerType: 'Broker Partner',
-                reraNumber: 'RERA pending',
-                coverage: project.location.split(',').pop().trim(),
-                verifiedAt: project.updated,
-                about: `Broker-added inventory for ${project.builder} in ${project.location}.`,
-            };
-            const profile = project.brokerProfile || fallbackProfile;
-            const existing = acc.find(b => b.agencyName === profile.agencyName);
-
-            if (!existing) {
-                acc.push({
-                    ...profile,
-                    inventoryCount: 1,
-                    projects: [project],
-                });
-            } else {
-                existing.inventoryCount++;
-                existing.projects.push(project);
-            }
-
-            return acc;
-        }, []);
-
-    const filteredBrokers = uniqueBrokers
-        .map((broker) => {
-            const brokerMatchesSearch = !filters.search ||
-                broker.agencyName.toLowerCase().includes(filters.search.toLowerCase()) ||
-                broker.fullName.toLowerCase().includes(filters.search.toLowerCase()) ||
-                broker.location.toLowerCase().includes(filters.search.toLowerCase()) ||
-                broker.coverage.toLowerCase().includes(filters.search.toLowerCase());
+    const filteredBrokers = useMemo(() => {
+        if (filters.propertySource !== 'broker') return [];
+        return sourceProfiles.map((broker) => {
             const visibleProjects = (broker.projects || []).filter((project) =>
-                matchesProjectFilters(project, filters) || brokerMatchesSearch
+                matchesProjectFilters(project, filters)
             );
-
             return { ...broker, visibleProjects };
-        })
-        .filter((broker) => broker.visibleProjects.length > 0);
+        }).filter((broker) => broker.visibleProjects.length > 0);
+    }, [filters.propertySource, sourceProfiles, filters]);
 
     const handleSearch = (e) => {
         dispatch(setFilters({ search: e.target.value }));
@@ -384,21 +353,12 @@ const Inventory = () => {
     };
 
     const handleProjectClick = (project) => {
-        dispatch(setSelectedProject(project));
+        dispatch(getProjectById(project.id));
     };
 
     const handleBuilderClick = (builder) => {
-        console.log('🏗️ [INVENTORY] Builder Card Clicked');
-        console.log('📊 Builder Object:', builder);
-        console.log('📊 Builder Company Name:', builder.companyName);
-        console.log('📊 Builder Project Count:', builder.projectCount);
-        console.log('📊 Builder Projects Array:', builder.projects);
-        console.log('📊 Projects Length:', builder.projects?.length);
-        
         dispatch(setSelectedBuilder(builder));
         dispatch(setViewMode('builderProjects'));
-        
-        console.log('✅ Dispatched setSelectedBuilder and setViewMode("builderProjects")');
     };
 
     const handleBrokerClick = (broker) => {
@@ -1216,6 +1176,7 @@ const getDocumentNumberForFile = (docName, project) => {
 };
 
 const ProjectDetailView = ({ project, onBack }) => {
+    const dispatch = useDispatch();
     const [activeTab, setActiveTab] = useState('inventory');
     const [detailsActiveStep, setDetailsActiveStep] = useState(1);
     const [expandedConfigIndex, setExpandedConfigIndex] = useState(null);
@@ -1223,51 +1184,78 @@ const ProjectDetailView = ({ project, onBack }) => {
     const [localProjectData, setLocalProjectData] = useState(null);
     const [floorPlanModal, setFloorPlanModal] = useState(null);
 
+    const [documents, setDocuments] = useState([]);
+    const [docsLoading, setDocsLoading] = useState(false);
+
     const projectForm = useMemo(() => {
         if (!localProjectData) return null;
         return getOnboardingForm(localProjectData);
     }, [localProjectData]);
 
     useEffect(() => {
-        const cloned = JSON.parse(JSON.stringify(project));
-        cloned.inventory.forEach(config => {
-            const units = [];
-            const displayUnits = Math.min(config.totalUnits, 24);
-            for (let i = 1; i <= displayUnits; i++) {
-                const floor = Math.ceil(i / 4);
-                const num = `${floor}${i % 4 === 0 ? '04' : `0${i % 4}`}`;
-                const isAvailable = i <= Math.ceil((config.availableUnits / config.totalUnits) * displayUnits);
-                const soldByUs = !isAvailable && i % 3 === 0;
-                units.push({
-                    id: `U${num}`,
-                    number: num,
-                    floor: floor,
-                    status: isAvailable ? 'Available' : 'Sold',
-                    facing: i % 2 === 0 ? 'East Facing' : 'West Facing',
-                    price: config.basePrice,
-                    notes: '',
-                    paymentPlan: 'Standard (Construction Linked)',
-                    soldBy: isAvailable ? null : soldByUs ? 'us' : 'project',
-                    soldByLabel: isAvailable ? null : soldByUs ? 'Sold by us' : 'Sold by project',
-                    soldDate: isAvailable ? null : soldByUs ? '14 Jun 2026' : '08 Jun 2026',
-                    soldValue: isAvailable ? null : config.basePrice,
-                    soldByUser: isAvailable ? null : soldByUs ? 'SquarFT Sales Desk' : project.builder,
-                    customer: soldByUs ? {
-                        name: 'Amit Sharma',
-                        phone: '+91 98765 22310',
-                        email: 'amit.sharma@example.com',
-                        leadSource: 'SquarFT App',
-                        bookingId: `SQ-${project.id}-${num}`,
-                    } : null,
-                });
-            }
-            config.unitsList = units;
-        });
-        setLocalProjectData(cloned);
+        setLocalProjectData(project);
         setExpandedConfigIndex(null);
         setEditingUnit(null);
         setFloorPlanModal(null);
     }, [project]);
+
+    const loadDocuments = async () => {
+        try {
+            setDocsLoading(true);
+            const result = await inventoryService.fetchProjectDocuments(project.id);
+            setDocuments(result.documents || []);
+        } catch (err) {
+            console.error("Failed to load project documents:", err);
+        } finally {
+            setDocsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'documents' && project?.id) {
+            loadDocuments();
+        }
+    }, [activeTab, project?.id]);
+
+    const handleUploadDocument = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            setDocsLoading(true);
+            await inventoryService.uploadProjectDocument(project.id, {
+                file,
+                label: file.name,
+                mediaType: 'document'
+            });
+            await loadDocuments();
+        } catch (err) {
+            alert("File upload failed: " + (err.message || err));
+        } finally {
+            setDocsLoading(false);
+        }
+    };
+
+    const handleDownloadDocument = async (doc) => {
+        try {
+            const result = await inventoryService.fetchProjectDocumentDownloadUrl(project.id, doc.id);
+            if (result.downloadUrl) {
+                window.open(result.downloadUrl, '_blank');
+            }
+        } catch (err) {
+            alert("Failed to download document: " + (err.message || err));
+        }
+    };
+
+    const handleDownloadBrochure = async () => {
+        try {
+            const result = await inventoryService.fetchProjectBrochureDownloadUrl(project.id);
+            if (result.downloadUrl) {
+                window.open(result.downloadUrl, '_blank');
+            }
+        } catch (err) {
+            alert("Brochure download error: " + (err.message || err));
+        }
+    };
 
     if (!localProjectData) return null;
 
@@ -1277,20 +1265,81 @@ const ProjectDetailView = ({ project, onBack }) => {
         ? Math.round((inventoryCounts.sold / inventoryCounts.total) * 100)
         : 0;
 
-    const handleUnitClick = (unit) => {
-        setEditingUnit({ ...unit });
+    const generateMockUnits = (proj, config) => {
+        const units = [];
+        const displayUnits = Math.min(config.totalUnits || 24, 24);
+        for (let i = 1; i <= displayUnits; i++) {
+            const floor = Math.ceil(i / 4);
+            const num = `${floor}${i % 4 === 0 ? '04' : `0${i % 4}`}`;
+            const isAvailable = i <= Math.ceil(((config.availableUnits || 0) / (config.totalUnits || 1)) * displayUnits);
+            const soldByUs = !isAvailable && i % 3 === 0;
+            units.push({
+                id: `U${num}`,
+                number: num,
+                floor: floor,
+                status: isAvailable ? 'Available' : 'Sold',
+                facing: i % 2 === 0 ? 'East Facing' : 'West Facing',
+                price: config.basePrice || config.price || 'Price on request',
+                notes: '',
+                paymentPlan: 'Standard (Construction Linked)',
+                soldBy: isAvailable ? null : soldByUs ? 'us' : 'project',
+                soldByLabel: isAvailable ? null : soldByUs ? 'Sold by us' : 'Sold by project',
+                soldDate: isAvailable ? null : soldByUs ? '14 Jun 2026' : '08 Jun 2026',
+                soldValue: isAvailable ? null : config.basePrice || config.price,
+                soldByUser: isAvailable ? null : soldByUs ? 'SquarFT Sales Desk' : proj.builder,
+                customer: soldByUs ? {
+                    name: 'Amit Sharma',
+                    phone: '+91 98765 22310',
+                    email: 'amit.sharma@example.com',
+                    leadSource: 'SquarFT App',
+                    bookingId: `SQ-${proj.id}-${num}`,
+                } : null,
+            });
+        }
+        return units;
     };
 
-    const handleUpdateUnit = () => {
-        if (!editingUnit || expandedConfigIndex === null) return;
-        const updatedProject = { ...localProjectData };
-        const config = updatedProject.inventory[expandedConfigIndex];
-        const unitIndex = config.unitsList.findIndex(u => u.id === editingUnit.id);
-        if (unitIndex !== -1) {
-            config.unitsList[unitIndex] = editingUnit;
-            setLocalProjectData(updatedProject);
+    const handleToggleConfig = (index, config) => {
+        const isExpanded = expandedConfigIndex === index;
+        setExpandedConfigIndex(isExpanded ? null : index);
+        if (!isExpanded && (!config.unitsList || config.unitsList.length === 0)) {
+            dispatch(getConfigurationUnits({ projectId: project.id, configurationId: config.id }));
         }
-        setEditingUnit(null);
+    };
+
+    const configUnits = expandedConfigIndex !== null && localProjectData?.inventory?.[expandedConfigIndex]
+        ? (() => {
+            const config = localProjectData.inventory[expandedConfigIndex];
+            if (config.unitsList && config.unitsList.length > 0) {
+                return config.unitsList.map(u => ({
+                    id: u.id,
+                    number: u.unitCode,
+                    floor: u.floorName || 'Ground',
+                    status: u.status === 'available' ? 'Available' : u.status === 'sold' ? 'Sold' : 'Booked',
+                    facing: u.facing || 'East Facing',
+                    price: u.price ? `₹${u.price.toLocaleString('en-IN')}` : config.basePrice,
+                    notes: '',
+                    paymentPlan: 'Standard (Construction Linked)',
+                    soldBy: u.status === 'sold' ? 'us' : null,
+                    soldByLabel: u.status === 'sold' ? 'Sold' : null,
+                    soldDate: u.updatedAt ? new Date(u.updatedAt).toLocaleDateString('en-IN') : null,
+                    soldValue: u.price ? `₹${u.price.toLocaleString('en-IN')}` : null,
+                    soldByUser: 'Agent Partner',
+                    customer: u.status === 'booked' ? {
+                        name: 'Booking In Process',
+                        phone: '-',
+                        email: '-',
+                        leadSource: 'Admin Onboarded',
+                        bookingId: u.unitCode
+                    } : null
+                }));
+            }
+            return generateMockUnits(localProjectData, config);
+        })()
+        : [];
+
+    const handleUnitClick = (unit) => {
+        setEditingUnit({ ...unit });
     };
 
     return (
@@ -1315,14 +1364,13 @@ const ProjectDetailView = ({ project, onBack }) => {
                                 </p>
                             </div>
                         </div>
-                        <a
-                            href="/documents/dummy-brochure.pdf"
-                            download={`${localProjectData.name.replace(/\s+/g, '-').toLowerCase()}-brochure.pdf`}
+                        <button
+                            onClick={handleDownloadBrochure}
                             className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 focus:ring-gray-200 shadow-sm font-black uppercase tracking-widest text-xs"
                         >
                             <FileText className="w-4 h-4" />
                             Brochure
-                        </a>
+                        </button>
                     </div>
 
                     <div className="flex gap-2 border-b border-gray-200">
@@ -1423,8 +1471,9 @@ const ProjectDetailView = ({ project, onBack }) => {
                                 <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {localProjectData.inventory.map((row, i) => {
                                         const hierarchy = inferInventoryHierarchy(localProjectData, row);
-                                        const availableCount = row.unitsList.filter(u => u.status === 'Available').length;
-                                        const percentAvailable = row.unitsList.length ? (availableCount / row.unitsList.length) * 100 : 0;
+                                        const totalCount = row.unitsList ? row.unitsList.length : (row.totalUnits || 0);
+                                        const availableCount = row.unitsList ? row.unitsList.filter(u => u.status === 'Available').length : (row.availableUnits || 0);
+                                        const percentAvailable = totalCount ? (availableCount / totalCount) * 100 : 0;
                                         const statusColor = percentAvailable > 50 ? 'bg-emerald-500' : percentAvailable > 20 ? 'bg-amber-500' : 'bg-rose-500';
                                         const isExpanded = expandedConfigIndex === i;
 
@@ -1475,7 +1524,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                         </div>
                                                         <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
                                                             <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Total</p>
-                                                            <p className="text-lg font-black text-gray-900">{row.unitsList.length}</p>
+                                                            <p className="text-lg font-black text-gray-900">{totalCount}</p>
                                                         </div>
                                                         <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2 col-span-2 sm:col-span-1">
                                                             <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Availability</p>
@@ -1486,7 +1535,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                     <div className="mt-4">
                                                         <div className="flex justify-between text-[10px] font-black mb-1.5 uppercase tracking-widest">
                                                             <span className={percentAvailable <= 20 ? 'text-rose-600' : 'text-gray-500'}>{availableCount} units open</span>
-                                                            <span className="text-gray-400">{row.unitsList.length - availableCount} sold</span>
+                                                            <span className="text-gray-400">{totalCount - availableCount} sold</span>
                                                         </div>
                                                         <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden border border-gray-100">
                                                             <div className={`h-full ${statusColor} rounded-full`} style={{ width: `${percentAvailable}%` }}></div>
@@ -1498,7 +1547,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                             variant={isExpanded ? 'primary' : 'secondary'}
                                                             className="text-[10px] py-1.5 px-4 font-black uppercase tracking-widest h-9"
                                                             icon={isExpanded ? X : Maximize}
-                                                            onClick={() => setExpandedConfigIndex(isExpanded ? null : i)}
+                                                            onClick={() => handleToggleConfig(i, row)}
                                                         >
                                                             {isExpanded ? 'Hide Floor Plan' : 'Floor Plan'}
                                                         </Button>
@@ -1539,7 +1588,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                                     <Layers className="w-4 h-4 text-[#6F4BFF]" /> Unit Availability
                                                                 </h4>
                                                             <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
-                                                                {row.unitsList.map((unit) => (
+                                                                {configUnits.map((unit) => (
                                                                     <button
                                                                         key={unit.id}
                                                                         onClick={() => handleUnitClick(unit)}
@@ -1636,20 +1685,8 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                                             </div>
                                                                         )}
                                                                         <div>
-                                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Unit Price (Base)</p>
-                                                                            <div className="relative">
-                                                                                <IndianRupee className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                                                                <input 
-                                                                                    type="text" 
-                                                                                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-black focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF]" 
-                                                                                    value={editingUnit.price}
-                                                                                    onChange={(e) => setEditingUnit({...editingUnit, price: e.target.value})}
-                                                                                />
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="pt-4 flex gap-2">
-                                                                            <Button className="flex-1 text-[10px] font-black uppercase tracking-widest" icon={Save} onClick={handleUpdateUnit}>Update Unit</Button>
-                                                                            <Button variant="secondary" className="text-[10px] font-black uppercase tracking-widest" icon={Zap}>Hold Unit</Button>
+                                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Unit Price (Base)</p>
+                                                                            <p className="font-black text-gray-900 text-lg flex items-center gap-1"><IndianRupee className="w-4 h-4 text-[#6F4BFF]" /> {editingUnit.price || 'Price on request'}</p>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -1761,40 +1798,47 @@ const ProjectDetailView = ({ project, onBack }) => {
                                     <h3 className="text-lg font-black text-gray-800 tracking-tight">Project Collaterals & Legal Vault</h3>
                                     <p className="text-xs text-gray-500 mt-1 font-bold">Secure access to brochures, floor plans, and RERA certifications.</p>
                                 </div>
-                                <a
-                                    href="/documents/dummy-brochure.pdf"
-                                    download="uploaded-project-document.pdf"
-                                    className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 focus:ring-gray-200 shadow-sm font-black uppercase tracking-widest text-xs"
+                                <label
+                                    className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 focus:ring-gray-200 shadow-sm font-black uppercase tracking-widest text-xs cursor-pointer ${docsLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <Plus className="w-4 h-4" />
-                                    Upload Document
-                                </a>
+                                    {docsLoading ? 'Uploading...' : 'Upload Document'}
+                                    <input type="file" className="hidden" onChange={handleUploadDocument} disabled={docsLoading} />
+                                </label>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                {['RERA_Certificate.pdf', 'Master_Brochure_2026.pdf', 'Site_Plan_Layout.dwg', 'Builder_ID_Proof.jpg', 'Pricing_Sheet_Q2.xlsx', 'NOC_Fire_Safety.pdf'].map((doc, i) => (
-                                    <a
-                                        key={i}
-                                        href="/documents/dummy-brochure.pdf"
-                                        download={`${doc.replace(/\.[^.]+$/, '')}.pdf`}
-                                        className="flex items-center p-5 border border-gray-100 rounded-2xl hover:bg-[#6F4BFF]/5 hover:border-[#6F4BFF]/30 cursor-pointer transition-all group relative overflow-hidden text-left"
+                                {documents.map((doc, i) => (
+                                    <button
+                                        key={doc.id || i}
+                                        onClick={() => handleDownloadDocument(doc)}
+                                        className="flex items-center p-5 border border-gray-100 rounded-2xl hover:bg-[#6F4BFF]/5 hover:border-[#6F4BFF]/30 cursor-pointer transition-all group relative overflow-hidden text-left w-full"
                                     >
                                         <div className="absolute top-0 right-0 w-16 h-16 bg-[#6F4BFF]/5 rounded-full -mr-8 -mt-8 group-hover:bg-[#6F4BFF]/10 transition-all"></div>
                                         <div className="bg-purple-50 p-3 rounded-xl mr-5 group-hover:bg-[#6F4BFF] transition-colors shadow-sm shrink-0">
                                             <FileIcon className="w-6 h-6 text-[#6F4BFF] group-hover:text-white transition-colors" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-black text-gray-900 truncate tracking-tight">{doc}</p>
+                                            <p className="text-sm font-black text-gray-900 truncate tracking-tight">{doc.name}</p>
                                             <p className="my-1.5 break-all rounded border border-[#E1DDF0] bg-white px-2 py-0.5 font-mono text-[9px] font-black text-[#171327] w-fit">
-                                                {getDocumentNumberForFile(doc, localProjectData)}
+                                                {doc.id}
                                             </p>
                                             <p className="text-[10px] text-gray-400 mt-1 font-black uppercase tracking-widest flex items-center gap-2">
-                                                {doc.split('.').pop().toUpperCase()} • 2.4 MB 
-                                                <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                                                {localProjectData.updated}
+                                                {doc.fileType || 'PDF'}
+                                                {doc.uploadedAt && (
+                                                    <>
+                                                        <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                                        {new Date(doc.uploadedAt).toLocaleDateString('en-IN')}
+                                                    </>
+                                                )}
                                             </p>
                                         </div>
-                                    </a>
+                                    </button>
                                 ))}
+                                {documents.length === 0 && (
+                                    <div className="col-span-full py-12 text-center text-gray-400 font-bold">
+                                        No documents found in vault. Upload one to get started!
+                                    </div>
+                                )}
                             </div>
                         </Card>
                     )}

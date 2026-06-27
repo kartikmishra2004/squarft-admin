@@ -1,239 +1,49 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
     BadgeCheck,
     BellRing,
-    Bot,
     CalendarClock,
     CreditCard,
+    FileText,
+    IndianRupee,
     ListChecks,
-    Mail,
-    MessageSquareText,
+    Pencil,
+    Plus,
+    RefreshCw,
     Search,
-    Send,
     ShieldAlert,
-    Smartphone,
     X,
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
-import { fetchMasterOptions } from '../../services/commonService';
+import { clearDealPayment, fetchDealReceipt } from '../../services/dealPaymentClearanceService';
+import {
+    collectMilestonePayment,
+    createMilestone,
+    fetchAllInventoryDeals,
+    fetchPaymentSchedule,
+    updateMilestone,
+} from '../../services/paymentMilestoneService';
 
 const DEALS_PER_PAGE = 5;
 
-const paymentDeals = [
-    {
-        id: 'INV-DEAL-1007',
-        dealCode: 'D0007',
-        project: 'Skyline Residency',
-        builder: 'Apex Buildcon',
-        unit: 'Tower A / Flat 402',
-        propertyType: 'Apartment',
-        customer: 'Geheve Sharma',
-        customerPhone: '+91 91659 93939',
-        customerEmail: 'geheve@example.com',
-        salesOfficer: 'Sales Officer',
-        broker: 'Anil Nahar',
-        status: 'Payment Schedule',
-        createdOn: '07 Mar 2026',
-        dealValue: 5250000,
-        collected: 1515000,
-        paymentSchedule: [
-            { id: 'MIL-001', title: 'Token', milestone_title: 'Token', total_amount: 100000, collected_amount: 100000, due_date: '2026-03-08', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1007-01', collected_on: '2026-03-08' },
-            { id: 'MIL-002', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 650000, collected_amount: 650000, due_date: '2026-03-15', mode: 'Bank Transfer', status: 'Paid', receipt_no: 'RCT-2026-1007-02', collected_on: '2026-03-15' },
-            { id: 'MIL-003', title: 'Agreement', milestone_title: 'Agreement', total_amount: 765000, collected_amount: 765000, due_date: '2026-04-10', mode: 'Cheque', status: 'Paid', receipt_no: 'RCT-2026-1007-03', collected_on: '2026-04-11' },
-            { id: 'MIL-004', title: 'Plinth Completion', milestone_title: 'Plinth Completion', total_amount: 1250000, collected_amount: 0, due_date: '2026-06-10', mode: 'Pending', status: 'Overdue', receipt_no: '', collected_on: '' },
-            { id: 'MIL-005', title: 'Registry', milestone_title: 'Registry', total_amount: 2485000, collected_amount: 0, due_date: '2026-08-20', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
-        ],
-        transactions: [
-            { id: 'TXN-77101', milestone: 'Token', amount: 100000, mode: 'UPI', collectedOn: '08 Mar 2026', receipt: 'RCT-2026-1007-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Project panel' },
-            { id: 'TXN-77102', milestone: 'Booking Amount', amount: 650000, mode: 'Bank Transfer', collectedOn: '15 Mar 2026', receipt: 'RCT-2026-1007-02', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Project panel' },
-            { id: 'TXN-77103', milestone: 'Agreement', amount: 765000, mode: 'Cheque', collectedOn: '11 Apr 2026', receipt: 'RCT-2026-1007-03', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Admin desk' },
-        ],
-        reminders: [
-            { id: 'REM-001', channel: 'WhatsApp', sentAt: '09 Jun 2026, 11:20 AM', message: 'Plinth Completion payment due tomorrow.', status: 'Delivered' },
-            { id: 'REM-002', channel: 'Push', sentAt: '10 Jun 2026, 09:00 AM', message: 'Payment milestone is due today.', status: 'Opened' },
-        ],
-    },
-    {
-        id: 'INV-DEAL-1003',
-        dealCode: 'D0003',
-        project: 'Green Valley Phase 2',
-        builder: 'EcoHomes Channel',
-        unit: 'Villa Plot / B-17',
-        propertyType: 'Villa Plot',
-        customer: 'Anil Nahar',
-        customerPhone: '+91 98765 43210',
-        customerEmail: 'anil@example.com',
-        salesOfficer: 'Sales Officer',
-        broker: 'Anil',
-        status: 'Deal In Process',
-        createdOn: '09 Feb 2026',
-        dealValue: 2400000,
-        collected: 250000,
-        paymentSchedule: [
-            { id: 'MIL-011', title: 'Token', milestone_title: 'Token', total_amount: 50000, collected_amount: 50000, due_date: '2026-02-10', mode: 'Cash', status: 'Paid', receipt_no: 'RCT-2026-1003-01', collected_on: '2026-02-10' },
-            { id: 'MIL-012', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 200000, collected_amount: 200000, due_date: '2026-03-15', mode: 'Bank Transfer', status: 'Paid', receipt_no: 'RCT-2026-1003-02', collected_on: '2026-03-01' },
-            { id: 'MIL-013', title: 'Agreement', milestone_title: 'Agreement', total_amount: 350000, collected_amount: 0, due_date: '2026-04-05', mode: 'Pending', status: 'Overdue', receipt_no: '', collected_on: '' },
-            { id: 'MIL-014', title: 'Registry', milestone_title: 'Registry', total_amount: 1800000, collected_amount: 0, due_date: '2026-07-25', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
-        ],
-        transactions: [
-            { id: 'TXN-66101', milestone: 'Token', amount: 50000, mode: 'Cash', collectedOn: '10 Feb 2026', receipt: 'RCT-2026-1003-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sales Officer' },
-            { id: 'TXN-66102', milestone: 'Booking Amount', amount: 200000, mode: 'Bank Transfer', collectedOn: '01 Mar 2026', receipt: 'RCT-2026-1003-02', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Admin desk' },
-        ],
-        reminders: [
-            { id: 'REM-011', channel: 'SMS', sentAt: '04 Apr 2026, 05:00 PM', message: 'Agreement amount due tomorrow.', status: 'Sent' },
-        ],
-    },
-    {
-        id: 'INV-DEAL-1001',
-        dealCode: 'D0001',
-        project: 'Metro Heights',
-        builder: 'Cityscape Developers',
-        unit: 'Tower B / Unit 1102',
-        propertyType: 'Apartment',
-        customer: 'Meera Kapoor',
-        customerPhone: '+91 99000 99000',
-        customerEmail: 'meera@example.com',
-        salesOfficer: 'Sneha P.',
-        broker: 'EcoHomes Channel',
-        status: 'Deal Completed',
-        createdOn: '01 Feb 2026',
-        dealValue: 14850000,
-        collected: 14850000,
-        paymentSchedule: [
-            { id: 'MIL-021', title: 'Token', milestone_title: 'Token', total_amount: 250000, collected_amount: 250000, due_date: '2026-02-02', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1001-01', collected_on: '2026-02-02' },
-            { id: 'MIL-022', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1250000, collected_amount: 1250000, due_date: '2026-02-05', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1001-02', collected_on: '2026-02-05' },
-            { id: 'MIL-023', title: 'Agreement', milestone_title: 'Agreement', total_amount: 3350000, collected_amount: 3350000, due_date: '2026-02-20', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1001-03', collected_on: '2026-02-20' },
-            { id: 'MIL-024', title: 'Registry', milestone_title: 'Registry', total_amount: 10000000, collected_amount: 10000000, due_date: '2026-03-18', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1001-04', collected_on: '2026-03-18' },
-        ],
-        transactions: [
-            { id: 'TXN-44101', milestone: 'Full Settlement', amount: 14850000, mode: 'RTGS', collectedOn: '18 Mar 2026', receipt: 'RCT-2026-1001-04', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Project panel' },
-        ],
-        reminders: [],
-    },
-    {
-        id: 'INV-DEAL-1002',
-        dealCode: 'D0002',
-        project: 'Grand Orchards',
-        builder: 'Signature Group',
-        unit: 'Tower C / Flat 1205',
-        propertyType: 'Apartment',
-        customer: 'Vikram Aditya',
-        customerPhone: '+91 98765 00112',
-        customerEmail: 'vikram@example.com',
-        salesOfficer: 'Sneha P.',
-        broker: 'Nitin Shah',
-        status: 'Payment Schedule',
-        createdOn: '15 Jan 2026',
-        dealValue: 8500000,
-        collected: 8500000,
-        paymentSchedule: [
-            { id: 'MIL-031', title: 'Token', milestone_title: 'Token', total_amount: 500000, collected_amount: 500000, due_date: '2026-01-16', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1002-01', collected_on: '2026-01-16' },
-            { id: 'MIL-032', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1500000, collected_amount: 1500000, due_date: '2026-02-01', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1002-02', collected_on: '2026-01-30' },
-            { id: 'MIL-033', title: 'Registry', milestone_title: 'Registry', total_amount: 6500000, collected_amount: 6500000, due_date: '2026-03-01', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1002-03', collected_on: '2026-03-01' },
-        ],
-        transactions: [
-            { id: 'TXN-55101', milestone: 'Token', amount: 500000, mode: 'UPI', collectedOn: '16 Jan 2026', receipt: 'RCT-2026-1002-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sneha P.' },
-            { id: 'TXN-55102', milestone: 'Booking Amount', amount: 1500000, mode: 'RTGS', collectedOn: '30 Jan 2026', receipt: 'RCT-2026-1002-02', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sneha P.' },
-            { id: 'TXN-55103', milestone: 'Registry', amount: 6500000, mode: 'RTGS', collectedOn: '01 Mar 2026', receipt: 'RCT-2026-1002-03', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Admin desk' },
-        ],
-        reminders: [],
-    },
-    {
-        id: 'INV-DEAL-1004',
-        dealCode: 'D0004',
-        project: 'Serene Meadows',
-        builder: 'Green Field Estates',
-        unit: 'Plot No. 42',
-        propertyType: 'Villa Plot',
-        customer: 'Rohan Deshmukh',
-        customerPhone: '+91 99887 76655',
-        customerEmail: 'rohan.d@example.com',
-        salesOfficer: 'Project Panel',
-        broker: 'Self',
-        status: 'Deal In Process',
-        createdOn: '12 Apr 2026',
-        dealValue: 4000000,
-        collected: 1000000,
-        paymentSchedule: [
-            { id: 'MIL-041', title: 'Token', milestone_title: 'Token', total_amount: 200000, collected_amount: 200000, due_date: '2026-04-15', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1004-01', collected_on: '2026-04-15' },
-            { id: 'MIL-042', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 800000, collected_amount: 800000, due_date: '2026-05-01', mode: 'RTGS', status: 'Paid', receipt_no: 'RCT-2026-1004-02', collected_on: '2026-04-28' },
-            { id: 'MIL-043', title: 'Agreement', milestone_title: 'Agreement', total_amount: 1000000, collected_amount: 0, due_date: '2026-07-15', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
-            { id: 'MIL-044', title: 'Registry', milestone_title: 'Registry', total_amount: 2000000, collected_amount: 0, due_date: '2026-12-10', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
-        ],
-        transactions: [
-            { id: 'TXN-88101', milestone: 'Token', amount: 200000, mode: 'UPI', collectedOn: '15 Apr 2026', receipt: 'RCT-2026-1004-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Project Panel' },
-            { id: 'TXN-88102', milestone: 'Booking Amount', amount: 800000, mode: 'RTGS', collectedOn: '28 Apr 2026', receipt: 'RCT-2026-1004-02', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Project Panel' },
-        ],
-        reminders: [
-            { id: 'REM-041', channel: 'WhatsApp', sentAt: '15 May 2026, 10:00 AM', message: 'Upcoming payment schedule initialized.', status: 'Delivered' },
-        ],
-    },
-    {
-        id: 'INV-DEAL-1005',
-        dealCode: 'D0005',
-        project: 'Skyline Residency',
-        builder: 'Apex Buildcon',
-        unit: 'Tower B / Flat 1008',
-        propertyType: 'Apartment',
-        customer: 'Priya Nair',
-        customerPhone: '+91 91234 56789',
-        customerEmail: 'priya.nair@example.com',
-        salesOfficer: 'Sales Officer',
-        broker: 'Anil Nahar',
-        status: 'Payment Schedule',
-        createdOn: '01 May 2026',
-        dealValue: 6500000,
-        collected: 500000,
-        paymentSchedule: [
-            { id: 'MIL-051', title: 'Token', milestone_title: 'Token', total_amount: 500000, collected_amount: 500000, due_date: '2026-05-05', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1005-01', collected_on: '2026-05-05' },
-            { id: 'MIL-052', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1500000, collected_amount: 0, due_date: '2026-06-05', mode: 'Pending', status: 'Overdue', receipt_no: '', collected_on: '' },
-            { id: 'MIL-053', title: 'Registry', milestone_title: 'Registry', total_amount: 4500000, collected_amount: 0, due_date: '2026-08-05', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
-        ],
-        transactions: [
-            { id: 'TXN-99101', milestone: 'Token', amount: 500000, mode: 'UPI', collectedOn: '05 May 2026', receipt: 'RCT-2026-1005-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sales Officer' },
-        ],
-        reminders: [
-            { id: 'REM-051', channel: 'SMS', sentAt: '06 Jun 2026, 11:00 AM', message: 'Booking amount is overdue by 1 day.', status: 'Sent' },
-        ],
-    },
-    {
-        id: 'INV-DEAL-1006',
-        dealCode: 'D0006',
-        project: 'Metro Heights',
-        builder: 'Cityscape Developers',
-        unit: 'Tower A / Unit 503',
-        propertyType: 'Apartment',
-        customer: 'Amit Verma',
-        customerPhone: '+91 98989 89898',
-        customerEmail: 'amit.verma@example.com',
-        salesOfficer: 'Sneha P.',
-        broker: 'EcoHomes Channel',
-        status: 'Deal In Process',
-        createdOn: '10 May 2026',
-        dealValue: 5000000,
-        collected: 500000,
-        paymentSchedule: [
-            { id: 'MIL-061', title: 'Token', milestone_title: 'Token', total_amount: 500000, collected_amount: 500000, due_date: '2026-05-12', mode: 'UPI', status: 'Paid', receipt_no: 'RCT-2026-1006-01', collected_on: '2026-05-12' },
-            { id: 'MIL-062', title: 'Booking Amount', milestone_title: 'Booking Amount', total_amount: 1500000, collected_amount: 0, due_date: '2026-07-01', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
-            { id: 'MIL-063', title: 'Registry', milestone_title: 'Registry', total_amount: 3000000, collected_amount: 0, due_date: '2026-09-01', mode: 'Pending', status: 'Upcoming', receipt_no: '', collected_on: '' },
-        ],
-        transactions: [
-            { id: 'TXN-33101', milestone: 'Token', amount: 500000, mode: 'UPI', collectedOn: '12 May 2026', receipt: 'RCT-2026-1006-01', receiptPdfUrl: '/documents/sample-payment-receipt.pdf', collector: 'Sneha P.' },
-        ],
-        reminders: [],
-    },
-];
-
-const fallbackReminderChannels = ['WhatsApp', 'SMS', 'Push', 'Email'];
 const filterOptions = ['All', 'Overdue', 'Upcoming', 'Paid'];
+const manualMilestoneStatuses = ['upcoming', 'overdue', 'cancelled'];
 
 const formatCurrency = (amount) => `Rs ${Number(amount || 0).toLocaleString('en-IN')}`;
 
 const getMilestoneAmount = (milestone) => Number(milestone.total_amount || milestone.totalAmount || milestone.amount || milestone.milestone_amount || 0);
 const getCollectedAmount = (milestone) => Number(milestone.collected_amount || milestone.collectedAmount || milestone.paid_amount || milestone.received_amount || 0);
 const getRemainingAmount = (milestone) => Math.max(getMilestoneAmount(milestone) - getCollectedAmount(milestone), 0);
+
+const getMilestoneStatusOptions = (milestone) => {
+    const currentStatus = String(milestone?.status || '').toLowerCase();
+    if (['partial', 'paid'].includes(currentStatus)) {
+        return [currentStatus, ...manualMilestoneStatuses];
+    }
+    return manualMilestoneStatuses;
+};
 
 const getStatusClass = (status) => {
     const normalized = String(status).toLowerCase();
@@ -263,50 +73,123 @@ const parseDealDate = (dateStr) => {
 
 const PaymentMilestones = () => {
     const navigate = useNavigate();
-    const [selectedDealId, setSelectedDealId] = useState(paymentDeals[0].id);
+
+    // deal list state (fetched from backend)
+    const [deals, setDeals] = useState([]);
+    const [dealsLoading, setDealsLoading] = useState(true);
+
+    // per-deal schedule state { [dealId]: { milestones, transactions, loading, error } }
+    const [scheduleMap, setScheduleMap] = useState({});
+
+    const [selectedDealId, setSelectedDealId] = useState(null);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [dateFilter, setDateFilter] = useState('');
-    const [channel, setChannel] = useState('WhatsApp');
-    const [tone, setTone] = useState('Firm');
     const [page, setPage] = useState(1);
     const [viewMode, setViewMode] = useState('list');
     const [scheduleFilter, setScheduleFilter] = useState('All');
-    const [reminderChannels, setReminderChannels] = useState(fallbackReminderChannels);
+    const [pageError, setPageError] = useState('');
+    const [clearanceModal, setClearanceModal] = useState(false);
+    const [clearanceForm, setClearanceForm] = useState({ amount: '', paymentMode: 'Bank Transfer', referenceNo: '', note: '' });
+    const [clearanceLoading, setClearanceLoading] = useState(false);
+    const [clearanceError, setClearanceError] = useState('');
+    const [milestoneModal, setMilestoneModal] = useState(false);
+    const [editingMilestone, setEditingMilestone] = useState(null);
+    const [milestoneForm, setMilestoneForm] = useState({ title: '', amount: '', dueDate: '', status: 'upcoming' });
+    const [milestoneSaving, setMilestoneSaving] = useState(false);
+    const [milestoneError, setMilestoneError] = useState('');
+    const [receiptModal, setReceiptModal] = useState(false);
+    const [receiptData, setReceiptData] = useState(null);
+    const [receiptLoading, setReceiptLoading] = useState(false);
+    const [receiptError, setReceiptError] = useState('');
 
+    // collect payment modal state
+    const [collectModal, setCollectModal] = useState(false);
+    const [collectTarget, setCollectTarget] = useState(null); // milestone object
+    const [collectForm, setCollectForm] = useState({ amount: '', paymentMode: 'Bank Transfer', referenceNo: '', receiptNo: '' });
+    const [collectLoading, setCollectLoading] = useState(false);
+    const [collectError, setCollectError] = useState('');
+
+    // load all deals from backend on mount
     useEffect(() => {
         let isMounted = true;
+        setDealsLoading(true);
 
-        const loadReminderChannels = async () => {
+        const load = async () => {
             try {
-                const options = await fetchMasterOptions(['reminder_channels']);
-                const channels = (options?.reminderChannels || []).map((option) => option.label || option.value).filter(Boolean);
-                if (isMounted && channels.length) {
-                    setReminderChannels(channels);
-                    setChannel((current) => (channels.includes(current) ? current : channels[0]));
+                setPageError('');
+                const items = await fetchAllInventoryDeals();
+                if (isMounted) {
+                    setDeals(items || []);
+                    if (items?.length) setSelectedDealId(items[0].id);
                 }
-            } catch {
-                if (isMounted) setReminderChannels(fallbackReminderChannels);
+            } catch (error) {
+                console.error('Failed to load deals for payment milestones:', error);
+                if (isMounted) {
+                    setDeals([]);
+                    setSelectedDealId(null);
+                    setPageError(error?.message || 'Failed to load payment deals from backend.');
+                }
+            } finally {
+                if (isMounted) setDealsLoading(false);
             }
         };
 
-        loadReminderChannels();
-
-        return () => {
-            isMounted = false;
-        };
+        load();
+        return () => { isMounted = false; };
     }, []);
 
-    const enrichedDeals = useMemo(() => paymentDeals.map((deal) => {
-        const total = deal.paymentSchedule.reduce((sum, item) => sum + getMilestoneAmount(item), 0) || deal.dealValue;
-        const collected = deal.paymentSchedule.reduce((sum, item) => sum + getCollectedAmount(item), 0);
-        const pending = Math.max(total - collected, 0);
-        const nextMilestone = deal.paymentSchedule.find((item) => getRemainingAmount(item) > 0);
-        const progress = total > 0 ? Math.round((collected / total) * 100) : 0;
-        const dealStatus = nextMilestone ? nextMilestone.status : 'Paid';
+    // load payment schedule for a deal whenever selectedDealId changes
+    const loadSchedule = useCallback(async (dealId) => {
+        if (!dealId) return;
 
-        return { ...deal, total, collected, pending, nextMilestone, progress, dealStatus };
-    }), []);
+        setScheduleMap((prev) => ({ ...prev, [dealId]: { ...(prev[dealId] || {}), loading: true, error: null } }));
+        try {
+            const { milestones, transactions } = await fetchPaymentSchedule(dealId);
+            setScheduleMap((prev) => ({ ...prev, [dealId]: { milestones, transactions, loading: false, error: null } }));
+        } catch (error) {
+            console.error('Failed to load payment schedule:', error);
+            setScheduleMap((prev) => ({
+                ...prev,
+                [dealId]: { milestones: [], transactions: [], loading: false, error: error?.message || 'Failed to load schedule' },
+            }));
+        }
+    }, []);
+
+    useEffect(() => {
+        if (selectedDealId) loadSchedule(selectedDealId);
+    }, [selectedDealId, loadSchedule]);
+
+    const enrichedDeals = useMemo(() => deals.map((deal) => {
+        const schedule = scheduleMap[deal.id];
+        const paymentSchedule = schedule?.milestones || [];
+        const transactions = schedule?.transactions || [];
+
+        const total = paymentSchedule.reduce((sum, item) => sum + getMilestoneAmount(item), 0) || Number(deal.negotiationPrice || deal.dealValue || 0);
+        const collected = paymentSchedule.reduce((sum, item) => sum + getCollectedAmount(item), 0);
+        const pending = Math.max(total - collected, 0);
+        const nextMilestone = paymentSchedule.find((item) => getRemainingAmount(item) > 0);
+        const progress = total > 0 ? Math.round((collected / total) * 100) : 0;
+        const dealStatus = nextMilestone ? (nextMilestone.status || 'Upcoming') : 'Paid';
+
+        return {
+            ...deal,
+            dealCode: deal.dealCode || deal.id,
+            customer: deal.customer || deal.bookedByName || '-',
+            customerPhone: deal.customerPhone || deal.bookedByMobile || '-',
+            project: deal.property || deal.project || '-',
+            unit: deal.unit || deal.unitId || '-',
+            paymentSchedule,
+            transactions,
+            dealValue: total,
+            total,
+            collected,
+            pending,
+            nextMilestone,
+            progress,
+            dealStatus,
+        };
+    }), [deals, scheduleMap]);
 
     const filteredDeals = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -326,16 +209,18 @@ const PaymentMilestones = () => {
     }, [enrichedDeals, search, statusFilter, dateFilter]);
 
     const selectedDeal = enrichedDeals.find((deal) => deal.id === selectedDealId) || filteredDeals[0] || enrichedDeals[0];
+    const selectedScheduleState = selectedDeal ? scheduleMap[selectedDeal.id] : null;
+    const scheduleLoading = selectedScheduleState?.loading ?? false;
+
     const totalPages = Math.max(1, Math.ceil(filteredDeals.length / DEALS_PER_PAGE));
     const currentPage = Math.min(page, totalPages);
     const paginatedDeals = filteredDeals.slice((currentPage - 1) * DEALS_PER_PAGE, currentPage * DEALS_PER_PAGE);
-    const visibleSchedule = selectedDeal.paymentSchedule.filter((item) => {
+    const visibleSchedule = (selectedDeal?.paymentSchedule || []).filter((item) => {
         if (scheduleFilter === 'Pending') return getRemainingAmount(item) > 0;
         if (scheduleFilter === 'Complete') return getRemainingAmount(item) === 0;
         return true;
     });
-    const reminderTarget = selectedDeal.nextMilestone || selectedDeal.paymentSchedule[selectedDeal.paymentSchedule.length - 1];
-    const reminderMessage = `${tone} reminder: Dear ${selectedDeal.customer}, ${reminderTarget?.title || 'payment'} for ${selectedDeal.project} ${selectedDeal.unit} has ${reminderTarget?.status === 'Overdue' ? 'crossed the due date' : 'an upcoming due date'} of ${reminderTarget?.due_date || 'the scheduled date'}. Pending amount is ${formatCurrency(getRemainingAmount(reminderTarget || {}))}. Please complete payment or contact SquarFT support.`;
+    const reminderTarget = selectedDeal?.nextMilestone || (selectedDeal?.paymentSchedule || []).slice(-1)[0];
 
     const openPaymentReminderCall = () => {
         if (!selectedDeal?.customerPhone) return;
@@ -360,23 +245,174 @@ const PaymentMilestones = () => {
                     pendingAmount: formatCurrency(getRemainingAmount(reminderTarget || {})),
                     salesOfficer: selectedDeal.salesOfficer,
                     broker: selectedDeal.broker,
-                    tone,
+                    tone: 'Firm',
                 },
             },
         });
+    };
+
+    const handleClearPayment = async () => {
+        if (!selectedDeal?.id || !clearanceForm.amount) return;
+        setClearanceLoading(true);
+        setClearanceError('');
+        try {
+            await clearDealPayment(selectedDeal.id, {
+                amount: Number(clearanceForm.amount),
+                paymentMode: clearanceForm.paymentMode,
+                referenceNo: clearanceForm.referenceNo || undefined,
+                note: clearanceForm.note || undefined,
+            });
+            setClearanceModal(false);
+            setClearanceForm({ amount: '', paymentMode: 'Bank Transfer', referenceNo: '', note: '' });
+            // refresh schedule after clearance
+            loadSchedule(selectedDeal.id);
+        } catch (error) {
+            console.error('Payment clearance failed:', error);
+            setClearanceError(error?.message || 'Failed to clear payment.');
+        } finally {
+            setClearanceLoading(false);
+        }
+    };
+
+    const openCollectModal = (milestone) => {
+        setCollectTarget(milestone);
+        setCollectForm({
+            amount: String(getRemainingAmount(milestone)),
+            paymentMode: 'Bank Transfer',
+            referenceNo: '',
+            receiptNo: '',
+        });
+        setCollectError('');
+        setCollectModal(true);
+    };
+
+    const openCreateMilestoneModal = () => {
+        setEditingMilestone(null);
+        setMilestoneForm({ title: '', amount: '', dueDate: '', status: 'upcoming' });
+        setMilestoneError('');
+        setMilestoneModal(true);
+    };
+
+    const openEditMilestoneModal = (milestone) => {
+        setEditingMilestone(milestone);
+        setMilestoneForm({
+            title: milestone.milestone_title || milestone.title || '',
+            amount: String(getMilestoneAmount(milestone) || ''),
+            dueDate: milestone.due_date || '',
+            status: milestone.status || 'upcoming',
+        });
+        setMilestoneError('');
+        setMilestoneModal(true);
+    };
+
+    const handleSaveMilestone = async () => {
+        if (!selectedDeal?.id || !milestoneForm.title || !milestoneForm.amount || !milestoneForm.dueDate) return;
+        const amount = Number(milestoneForm.amount);
+        const collectedAmount = editingMilestone ? getCollectedAmount(editingMilestone) : 0;
+
+        if (milestoneForm.status === 'partial' && collectedAmount <= 0) {
+            setMilestoneError('Use Collect payment first. Partial status requires a collected amount.');
+            return;
+        }
+
+        if (milestoneForm.status === 'paid' && collectedAmount < amount) {
+            setMilestoneError('Use Collect payment first. Paid status requires full collection.');
+            return;
+        }
+
+        setMilestoneSaving(true);
+        setMilestoneError('');
+
+        try {
+            const payload = {
+                title: milestoneForm.title.trim(),
+                amount,
+                due_date: milestoneForm.dueDate,
+                status: milestoneForm.status,
+            };
+
+            if (editingMilestone?.id) {
+                await updateMilestone(editingMilestone.id, payload);
+            } else {
+                await createMilestone(selectedDeal.id, payload);
+            }
+
+            setMilestoneModal(false);
+            setEditingMilestone(null);
+            setMilestoneForm({ title: '', amount: '', dueDate: '', status: 'upcoming' });
+            await loadSchedule(selectedDeal.id);
+        } catch (error) {
+            console.error('Save milestone failed:', error);
+            setMilestoneError(error?.message || 'Failed to save milestone.');
+        } finally {
+            setMilestoneSaving(false);
+        }
+    };
+
+    const handleViewReceipt = async (transaction) => {
+        if (!selectedDeal?.id) return;
+        setReceiptModal(true);
+        setReceiptLoading(true);
+        setReceiptData(null);
+        setReceiptError('');
+
+        try {
+            const data = await fetchDealReceipt(selectedDeal.id, {
+                paymentId: transaction.id,
+                receiptNo: transaction.receipt,
+            });
+            setReceiptData(data);
+        } catch (error) {
+            console.error('Fetch receipt failed:', error);
+            setReceiptError(error?.message || 'Failed to fetch receipt.');
+        } finally {
+            setReceiptLoading(false);
+        }
+    };
+
+    const handleCollectPayment = async () => {
+        if (!collectTarget?.id || !collectForm.amount) return;
+        setCollectLoading(true);
+        setCollectError('');
+        try {
+            await collectMilestonePayment(collectTarget.id, {
+                amount: Number(collectForm.amount),
+                paymentMode: collectForm.paymentMode,
+                referenceNo: collectForm.referenceNo || undefined,
+                receiptNo: collectForm.receiptNo || undefined,
+            });
+            setCollectModal(false);
+            setCollectTarget(null);
+            // refresh schedule to show updated collected amounts
+            if (selectedDeal?.id) loadSchedule(selectedDeal.id);
+        } catch (error) {
+            console.error('Collect payment failed:', error);
+            setCollectError(error?.message || 'Failed to collect payment. Please try again.');
+        } finally {
+            setCollectLoading(false);
+        }
     };
 
     const portfolio = enrichedDeals.reduce((summary, deal) => ({
         deals: summary.deals + 1,
         collected: summary.collected + deal.collected,
         pending: summary.pending + deal.pending,
-        overdue: summary.overdue + deal.paymentSchedule.filter((item) => item.status === 'Overdue').length,
+        overdue: summary.overdue + (deal.paymentSchedule || []).filter((item) => String(item.status || '').toLowerCase() === 'overdue').length,
     }), { deals: 0, collected: 0, pending: 0, overdue: 0 });
 
     return (
+        <>
         <div className="flex h-full flex-1 flex-col bg-[#F5F6FA] text-[#15121F]">
             <Header title="Payment Milestones" />
 
+            {dealsLoading && (
+                <div className="flex flex-1 items-center justify-center">
+                    <RefreshCw className="h-6 w-6 animate-spin text-[#2717D7]" />
+                    <span className="ml-2 text-sm font-bold text-[#615C71]">Loading deals…</span>
+                </div>
+            )}
+
+            {!dealsLoading && (
             <main className="flex-1 overflow-y-auto p-3 md:p-4">
                 <div className="mx-auto max-w-[1600px] space-y-3">
                     <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-3 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
@@ -384,11 +420,11 @@ const PaymentMilestones = () => {
                             <div>
                                 <div className="flex flex-wrap items-center gap-1.5">
                                     <span className="rounded-full bg-[#E8E4FF] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-[#2717D7]">Project panel aligned</span>
-                                    <span className="rounded-full bg-[#E9F8EF] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-[#04622E]">Collection + reminder control</span>
+                                    <span className="rounded-full bg-[#E9F8EF] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-[#04622E]">Live backend data</span>
                                 </div>
                                 <h2 className="mt-2 text-lg font-black text-[#171327]">Payment schedule and milestone collection</h2>
                                 <p className="mt-1 max-w-3xl text-xs font-medium leading-5 text-[#615C71]">
-                                    Track deal-wise payment schedules, milestone due dates, collection progress, receipts, transactions, and AI-assisted payment reminders.
+                                    Track deal-wise payment schedules, milestone due dates, collection progress, receipts, and transactions from the backend.
                                 </p>
                             </div>
                             <div className="flex flex-col gap-2 xl:items-end">
@@ -410,6 +446,12 @@ const PaymentMilestones = () => {
                             </div>
                         </div>
                     </section>
+
+                    {pageError && (
+                        <div className="rounded-[8px] border border-[#F5C2C2] bg-[#FFF4F4] px-3 py-2 text-xs font-bold text-[#B42318]">
+                            {pageError}
+                        </div>
+                    )}
 
                     {viewMode === 'list' && (
                         <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
@@ -542,7 +584,7 @@ const PaymentMilestones = () => {
                         </section>
                     )}
 
-                    {viewMode === 'detail' && (
+                    {viewMode === 'detail' && selectedDeal && (
                         <section className="space-y-3">
                             <button
                                 type="button"
@@ -553,7 +595,7 @@ const PaymentMilestones = () => {
                             </button>
                             <div className="grid gap-3 lg:grid-cols-[1fr_360px]">
                                 <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
-                                    <SectionHeader icon={CreditCard} title="Payment Milestone Manager" helper="Deal-manager style schedule view without add or edit controls." />
+                                    <SectionHeader icon={CreditCard} title="Payment Milestone Manager" helper="Create, update, and collect deal milestones using backend APIs." />
                                     <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
                                         <div className="rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-3">
                                             <p className="text-[9px] font-black uppercase tracking-[0.1em] text-[#8B8498]">Final Price Amount</p>
@@ -566,6 +608,18 @@ const PaymentMilestones = () => {
                                         <div className="rounded-[8px] border border-amber-100 bg-amber-50 p-3">
                                             <p className="text-[9px] font-black uppercase tracking-[0.1em] text-amber-600">Balance Amount</p>
                                             <p className="mt-1 text-lg font-black text-amber-700">{formatCurrency(selectedDeal.pending)}</p>
+                                            {selectedDeal.pending > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setClearanceForm({ amount: String(selectedDeal.pending), paymentMode: 'Bank Transfer', referenceNo: '', note: '' });
+                                                        setClearanceModal(true);
+                                                    }}
+                                                    className="mt-2 inline-flex items-center gap-1 rounded-[6px] bg-amber-600 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-amber-700"
+                                                >
+                                                    <IndianRupee size={10} /> Clear Payment
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
 
@@ -574,6 +628,13 @@ const PaymentMilestones = () => {
                                             <ListChecks className="h-3.5 w-3.5 text-emerald-500" /> Payment Schedule Details
                                         </h3>
                                         <div className="flex flex-wrap items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={openCreateMilestoneModal}
+                                                className="inline-flex items-center gap-1 rounded-[7px] bg-[#2717D7] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-[#1f12a8]"
+                                            >
+                                                <Plus size={11} /> Add milestone
+                                            </button>
                                             {['All', 'Pending', 'Complete'].map((option) => {
                                                 const count = selectedDeal.paymentSchedule.filter((item) => {
                                                     if (option === 'Pending') return getRemainingAmount(item) > 0;
@@ -604,28 +665,64 @@ const PaymentMilestones = () => {
 
                                     <div className="mt-3 overflow-hidden rounded-[8px] border border-[#E1DDF0]">
                                         <div className="overflow-x-auto">
-                                            <table className="w-full min-w-[680px] text-left">
+                                            <table className="w-full min-w-[780px] text-left">
                                                 <thead className="bg-[#F8F9FF] text-[9px] font-black uppercase tracking-[0.1em] text-[#7B7486]">
                                                     <tr>
                                                         <th className="px-3 py-2">#</th>
                                                         <th className="px-3 py-2">Milestone</th>
-                                                        <th className="px-3 py-2">Amount</th>
+                                                        <th className="px-3 py-2">Total</th>
+                                                        <th className="px-3 py-2">Collected</th>
+                                                        <th className="px-3 py-2">Remaining</th>
                                                         <th className="px-3 py-2">Due Date</th>
-                                                        <th className="px-3 py-2">Mode</th>
                                                         <th className="px-3 py-2">Status</th>
+                                                        <th className="px-3 py-2">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-[#EFEAF8] bg-white">
-                                                    {visibleSchedule.map((milestone, index) => (
-                                                        <tr key={milestone.id} className="hover:bg-[#FCFBFF]">
-                                                            <td className="px-3 py-3 text-[10px] font-black text-[#8B8498]">{index + 1}</td>
-                                                            <td className="px-3 py-3 text-xs font-black uppercase tracking-tight text-[#171327]">{milestone.milestone_title || milestone.title}</td>
-                                                            <td className="px-3 py-3 text-xs font-black text-[#171327]">{formatCurrency(getMilestoneAmount(milestone))}</td>
-                                                            <td className="px-3 py-3 text-[10px] font-bold text-[#615C71]">{milestone.due_date}</td>
-                                                            <td className="px-3 py-3 text-[9px] font-black uppercase tracking-wider text-[#8B8498]">{milestone.mode}</td>
-                                                            <td className="px-3 py-3"><StatusPill status={milestone.status} /></td>
+                                                    {scheduleLoading ? (
+                                                        <tr>
+                                                            <td colSpan={8} className="px-3 py-6 text-center">
+                                                                <RefreshCw className="mx-auto h-5 w-5 animate-spin text-[#2717D7]" />
+                                                            </td>
                                                         </tr>
-                                                    ))}
+                                                    ) : visibleSchedule.map((milestone, index) => {
+                                                        const remaining = getRemainingAmount(milestone);
+                                                        const isPaid = remaining === 0;
+                                                        return (
+                                                            <tr key={milestone.id} className="hover:bg-[#FCFBFF]">
+                                                                <td className="px-3 py-3 text-[10px] font-black text-[#8B8498]">{index + 1}</td>
+                                                                <td className="px-3 py-3 text-xs font-black uppercase tracking-tight text-[#171327]">{milestone.milestone_title || milestone.title}</td>
+                                                                <td className="px-3 py-3 text-xs font-black text-[#171327]">{formatCurrency(getMilestoneAmount(milestone))}</td>
+                                                                <td className="px-3 py-3 text-xs font-bold text-emerald-700">{formatCurrency(getCollectedAmount(milestone))}</td>
+                                                                <td className="px-3 py-3 text-xs font-bold text-amber-700">{formatCurrency(remaining)}</td>
+                                                                <td className="px-3 py-3 text-[10px] font-bold text-[#615C71]">{milestone.due_date}</td>
+                                                                <td className="px-3 py-3"><StatusPill status={milestone.status} /></td>
+                                                                <td className="px-3 py-3">
+                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => openEditMilestoneModal(milestone)}
+                                                                            className="inline-flex items-center gap-1 rounded-[6px] border border-[#D8D2EB] bg-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#514B63] hover:border-[#2717D7] hover:text-[#2717D7]"
+                                                                        >
+                                                                            <Pencil size={10} /> Edit
+                                                                        </button>
+                                                                    {!isPaid && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => openCollectModal(milestone)}
+                                                                            className="inline-flex items-center gap-1 rounded-[6px] bg-[#2717D7] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-[#1f12a8]"
+                                                                        >
+                                                                            <IndianRupee size={10} /> Collect
+                                                                        </button>
+                                                                    )}
+                                                                    {isPaid && (
+                                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">Cleared</span>
+                                                                    )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -641,49 +738,335 @@ const PaymentMilestones = () => {
                                 </div>
 
                                 <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
-                                    <SectionHeader icon={Bot} title="AI payment reminder" helper="Draft reminder copy for overdue or upcoming milestones." />
-                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                                        <SelectField label="Channel" value={channel} onChange={setChannel} options={reminderChannels} />
-                                        <SelectField label="Tone" value={tone} onChange={setTone} options={['Firm', 'Friendly', 'Final notice']} />
-                                    </div>
-                                    <div className="mt-3 rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-3">
-                                        <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.1em] text-[#2717D7]">
-                                            {channel === 'WhatsApp' && <MessageSquareText size={13} />}
-                                            {channel === 'SMS' && <Smartphone size={13} />}
-                                            {channel === 'Push' && <BellRing size={13} />}
-                                            {channel === 'Email' && <Mail size={13} />}
-                                            {channel} preview
+                                    <SectionHeader icon={FileText} title="Backend Actions" helper="Actions here call live backend routes for this inventory deal." />
+                                    <div className="mt-3 grid gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={openCreateMilestoneModal}
+                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-[7px] bg-[#2717D7] px-3 text-[10px] font-black uppercase tracking-[0.1em] text-white"
+                                        >
+                                            <Plus size={14} /> Add milestone
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={!selectedDeal?.customerPhone}
+                                            onClick={openPaymentReminderCall}
+                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-[7px] border border-[#B7E5C8] bg-[#E8F9EE] px-3 text-[10px] font-black uppercase tracking-[0.1em] text-[#0C6B39] disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            <BellRing size={14} /> Reminder call
+                                        </button>
+                                        <div className="rounded-[7px] border border-[#E1DDF0] bg-[#FCFBFF] p-2.5">
+                                            <p className="text-[8px] font-black uppercase tracking-[0.1em] text-[#8B8498]">Inventory deal ID</p>
+                                            <p className="mt-1 break-all text-[10px] font-bold text-[#514B63]">{selectedDeal.id}</p>
                                         </div>
-                                        <p className="mt-2 text-xs font-bold leading-5 text-[#2A2535]">{reminderMessage}</p>
                                     </div>
-                                    <button
-                                        type="button"
-                                        className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[7px] bg-[#2717D7] px-3 text-[10px] font-black uppercase tracking-[0.1em] text-white"
-                                    >
-                                        <Send size={14} /> Queue reminder
-                                    </button>
                                 </div>
                             </div>
 
                             <div className="grid gap-3">
                                 <DataTable
-                                    icon={BellRing}
-                                    title="Reminder history"
-                                    helper="Customer reminder attempts for due payment milestones."
-                                    columns={['Channel', 'Message', 'Sent at', 'Status']}
-                                    rows={(selectedDeal.reminders.length ? selectedDeal.reminders : [{ id: 'NO-REM', channel: 'None', message: 'No reminders sent for this deal yet.', sentAt: '-', status: 'Clear' }]).map((reminder) => [
-                                        reminder.channel,
-                                        reminder.message,
-                                        reminder.sentAt,
-                                        <StatusPill key="status" status={reminder.status} />,
-                                    ])}
+                                    icon={CreditCard}
+                                    title="Transaction history"
+                                    helper="All payment collections recorded for this deal."
+                                    columns={['Milestone', 'Amount', 'Mode', 'Reference', 'Collected On', 'Collected By', 'Receipt']}
+                                    emptyMessage="No transactions recorded for this deal yet."
+                                    rows={(selectedDeal.transactions || []).map((txn) => [
+                                            txn.milestone,
+                                            txn.amount ? formatCurrency(txn.amount) : '-',
+                                            txn.mode || '-',
+                                            txn.referenceNo || txn.receipt || '-',
+                                            txn.collectedOn || '-',
+                                            txn.collectedBy || '-',
+                                            (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleViewReceipt(txn)}
+                                                    className="rounded-[6px] border border-[#D8D2EB] bg-white px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#2717D7] hover:bg-[#F4F1FF]"
+                                                >
+                                                    View
+                                                </button>
+                                            ),
+                                        ])
+                                    }
                                 />
                             </div>
                         </section>
                     )}
                 </div>
             </main>
+            )}
         </div>
+
+        {clearanceModal && (            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="w-full max-w-md rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-xl">
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm font-black uppercase tracking-[0.1em] text-[#171327]">Clear Payment</p>
+                        <button type="button" onClick={() => setClearanceModal(false)} className="rounded p-1 hover:bg-slate-100">
+                            <X size={16} />
+                        </button>
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-[#615C71]">
+                        {selectedDeal?.customer} — {selectedDeal?.project} / {selectedDeal?.unit}
+                    </p>
+                    {clearanceError && (
+                        <p className="mt-2 rounded-[6px] bg-[#FDECEC] px-3 py-2 text-[11px] font-bold text-[#B42318]">{clearanceError}</p>
+                    )}
+                    <div className="mt-4 space-y-3">
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Amount (Rs)</span>
+                            <input
+                                type="number"
+                                value={clearanceForm.amount}
+                                onChange={(e) => setClearanceForm((f) => ({ ...f, amount: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder={`Max: ${formatCurrency(selectedDeal?.pending || 0)}`}
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Payment Mode</span>
+                            <select
+                                value={clearanceForm.paymentMode}
+                                onChange={(e) => setClearanceForm((f) => ({ ...f, paymentMode: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] bg-white px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            >
+                                {['Bank Transfer', 'UPI', 'RTGS', 'NEFT', 'Cheque', 'Cash', 'DD'].map((mode) => (
+                                    <option key={mode}>{mode}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Reference No (optional)</span>
+                            <input
+                                type="text"
+                                value={clearanceForm.referenceNo}
+                                onChange={(e) => setClearanceForm((f) => ({ ...f, referenceNo: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder="UTR / Txn ID"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Note (optional)</span>
+                            <input
+                                type="text"
+                                value={clearanceForm.note}
+                                onChange={(e) => setClearanceForm((f) => ({ ...f, note: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder="Internal note"
+                            />
+                        </label>
+                    </div>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setClearanceModal(false)}
+                            className="rounded-[7px] border border-[#D8D2EB] px-4 py-2 text-xs font-black text-[#514B63] hover:bg-slate-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClearPayment}
+                            disabled={!clearanceForm.amount || clearanceLoading}
+                            className="rounded-[7px] bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700 disabled:opacity-50"
+                        >
+                            {clearanceLoading ? 'Processing...' : 'Confirm Clearance'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {collectModal && collectTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="w-full max-w-md rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-xl">
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm font-black uppercase tracking-[0.1em] text-[#171327]">Collect Payment</p>
+                        <button type="button" onClick={() => setCollectModal(false)} className="rounded p-1 hover:bg-slate-100">
+                            <X size={16} />
+                        </button>
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-[#615C71]">
+                        {collectTarget.milestone_title || collectTarget.title} — Max: {formatCurrency(getRemainingAmount(collectTarget))}
+                    </p>
+                    {collectError && (
+                        <p className="mt-2 rounded-[6px] bg-[#FDECEC] px-3 py-2 text-[11px] font-bold text-[#B42318]">{collectError}</p>
+                    )}
+                    <div className="mt-4 space-y-3">
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Amount (Rs)</span>
+                            <input
+                                type="number"
+                                value={collectForm.amount}
+                                onChange={(e) => setCollectForm((f) => ({ ...f, amount: e.target.value }))}
+                                max={getRemainingAmount(collectTarget)}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Payment Mode</span>
+                            <select
+                                value={collectForm.paymentMode}
+                                onChange={(e) => setCollectForm((f) => ({ ...f, paymentMode: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] bg-white px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            >
+                                {['Bank Transfer', 'UPI', 'RTGS', 'NEFT', 'Cheque', 'Cash', 'DD'].map((mode) => (
+                                    <option key={mode}>{mode}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Reference No (optional)</span>
+                            <input
+                                type="text"
+                                value={collectForm.referenceNo}
+                                onChange={(e) => setCollectForm((f) => ({ ...f, referenceNo: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder="UTR / Txn ID"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Receipt No (optional)</span>
+                            <input
+                                type="text"
+                                value={collectForm.receiptNo}
+                                onChange={(e) => setCollectForm((f) => ({ ...f, receiptNo: e.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                                placeholder="RCT-XXXX"
+                            />
+                        </label>
+                    </div>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setCollectModal(false)}
+                            className="rounded-[7px] border border-[#D8D2EB] px-4 py-2 text-xs font-black text-[#514B63] hover:bg-slate-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleCollectPayment}
+                            disabled={!collectForm.amount || collectLoading}
+                            className="rounded-[7px] bg-[#2717D7] px-4 py-2 text-xs font-black text-white hover:bg-[#1f12a8] disabled:opacity-50"
+                        >
+                            {collectLoading ? 'Processing…' : 'Confirm Collection'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {milestoneModal && selectedDeal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="w-full max-w-md rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-xl">
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm font-black uppercase tracking-[0.1em] text-[#171327]">
+                            {editingMilestone ? 'Edit Milestone' : 'Add Milestone'}
+                        </p>
+                        <button type="button" onClick={() => setMilestoneModal(false)} className="rounded p-1 hover:bg-slate-100">
+                            <X size={16} />
+                        </button>
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-[#615C71]">
+                        {selectedDeal.customer} / {selectedDeal.project}
+                    </p>
+                    {milestoneError && (
+                        <p className="mt-2 rounded-[6px] bg-[#FDECEC] px-3 py-2 text-[11px] font-bold text-[#B42318]">{milestoneError}</p>
+                    )}
+                    <div className="mt-4 space-y-3">
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Milestone title</span>
+                            <input
+                                type="text"
+                                value={milestoneForm.title}
+                                onChange={(event) => setMilestoneForm((form) => ({ ...form, title: event.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Amount (Rs)</span>
+                            <input
+                                type="number"
+                                value={milestoneForm.amount}
+                                onChange={(event) => setMilestoneForm((form) => ({ ...form, amount: event.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Due date</span>
+                            <input
+                                type="date"
+                                value={milestoneForm.dueDate}
+                                onChange={(event) => setMilestoneForm((form) => ({ ...form, dueDate: event.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">Status</span>
+                            <select
+                                value={milestoneForm.status}
+                                onChange={(event) => setMilestoneForm((form) => ({ ...form, status: event.target.value }))}
+                                className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] bg-white px-3 text-sm font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
+                            >
+                                {getMilestoneStatusOptions(editingMilestone).map((status) => (
+                                    <option key={status} value={status}>{status}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setMilestoneModal(false)}
+                            className="rounded-[7px] border border-[#D8D2EB] px-4 py-2 text-xs font-black text-[#514B63] hover:bg-slate-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSaveMilestone}
+                            disabled={!milestoneForm.title || !milestoneForm.amount || !milestoneForm.dueDate || milestoneSaving}
+                            className="rounded-[7px] bg-[#2717D7] px-4 py-2 text-xs font-black text-white hover:bg-[#1f12a8] disabled:opacity-50"
+                        >
+                            {milestoneSaving ? 'Saving...' : 'Save Milestone'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {receiptModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="w-full max-w-lg rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-xl">
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm font-black uppercase tracking-[0.1em] text-[#171327]">Payment Receipt</p>
+                        <button type="button" onClick={() => setReceiptModal(false)} className="rounded p-1 hover:bg-slate-100">
+                            <X size={16} />
+                        </button>
+                    </div>
+                    {receiptLoading ? (
+                        <div className="py-8 text-center">
+                            <RefreshCw className="mx-auto h-5 w-5 animate-spin text-[#2717D7]" />
+                            <p className="mt-2 text-xs font-bold text-[#615C71]">Loading receipt...</p>
+                        </div>
+                    ) : receiptError ? (
+                        <p className="mt-4 rounded-[6px] bg-[#FDECEC] px-3 py-2 text-[11px] font-bold text-[#B42318]">{receiptError}</p>
+                    ) : receiptData ? (
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                            <ReceiptField label="Receipt no" value={receiptData.receiptNo} />
+                            <ReceiptField label="Amount" value={formatCurrency(receiptData.payment?.amount)} />
+                            <ReceiptField label="Mode" value={receiptData.payment?.paymentMode} />
+                            <ReceiptField label="Reference" value={receiptData.payment?.referenceNo || '-'} />
+                            <ReceiptField label="Collected on" value={receiptData.payment?.paymentDate} />
+                            <ReceiptField label="Collected by" value={receiptData.payment?.collectedByName || receiptData.payment?.collectedBy || '-'} />
+                            <ReceiptField label="Milestone" value={receiptData.milestone?.title} />
+                            <ReceiptField label="Project" value={receiptData.project?.name} />
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+        )}
+        </>
     );
 };
 
@@ -720,26 +1103,18 @@ const StatusPill = ({ status }) => (
     </span>
 );
 
-const SelectField = ({ label, value, onChange, options }) => (
-    <label className="block">
-        <span className="text-[9px] font-black uppercase tracking-[0.1em] text-[#6B657A]">{label}</span>
-        <select
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            className="mt-1 h-9 w-full rounded-[7px] border border-[#D8D2EB] bg-[#FCFBFF] px-2.5 text-xs font-black outline-none focus:ring-2 focus:ring-[#2717D7]/20"
-        >
-            {options.map((option) => (
-                <option key={option} value={option}>{option}</option>
-            ))}
-        </select>
-    </label>
+const ReceiptField = ({ label, value }) => (
+    <div className="rounded-[7px] border border-[#E1DDF0] bg-[#FCFBFF] p-2.5">
+        <p className="text-[8px] font-black uppercase tracking-[0.1em] text-[#8B8498]">{label}</p>
+        <p className="mt-1 break-words text-xs font-bold text-[#171327]">{value || '-'}</p>
+    </div>
 );
 
-const DataTable = ({ icon: Icon, title, helper, columns, rows }) => (
+const DataTable = ({ icon: Icon, title, helper, columns, rows, emptyMessage = 'No records found.' }) => (
     <div className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
         <SectionHeader icon={Icon} title={title} helper={helper} />
         <div className="mt-3 grid gap-2">
-            {rows.map((row, rowIndex) => (
+            {rows.length ? rows.map((row, rowIndex) => (
                 <div key={rowIndex} className="grid gap-2 rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-2.5 sm:grid-cols-2">
                     {row.map((cell, cellIndex) => (
                         <div key={cellIndex} className="min-w-0">
@@ -748,9 +1123,14 @@ const DataTable = ({ icon: Icon, title, helper, columns, rows }) => (
                         </div>
                     ))}
                 </div>
-            ))}
+            )) : (
+                <div className="rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-4 text-center text-xs font-bold text-[#8B8498]">
+                    {emptyMessage}
+                </div>
+            )}
         </div>
     </div>
 );
 
 export default PaymentMilestones;
+
