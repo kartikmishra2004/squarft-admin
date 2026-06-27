@@ -40,7 +40,7 @@ export const normalizeTransaction = (txn = {}) => ({
   receipt: txn.receipt_no || '',
   referenceNo: txn.reference_no || txn.referenceNo || '',
   collectedBy: txn.collected_by || txn.collectedBy || '',
-  receiptPdfUrl: txn.receiptPdfUrl || '/documents/sample-payment-receipt.pdf',
+  receiptPdfUrl: txn.receiptPdfUrl || txn.receipt_pdf_url || null,
 });
 
 // GET /api/project-developer/inventory-deals/:dealId/payment-schedule

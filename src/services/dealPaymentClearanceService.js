@@ -62,3 +62,17 @@ export const clearDealPayment = async (dealId, payload = {}) => {
     payments: Array.isArray(data?.payments) ? data.payments.map(formatPayment) : [],
   };
 };
+
+// GET /api/admin/deals/:dealId/receipt
+export const fetchDealReceipt = async (dealId, params = {}) => {
+  if (!dealId) throw { status: 400, message: 'dealId is required', errors: [] };
+
+  const queryParams = new URLSearchParams();
+  if (params.paymentId) queryParams.append('paymentId', params.paymentId);
+  if (params.receiptNo) queryParams.append('receiptNo', params.receiptNo);
+
+  const queryString = queryParams.toString();
+  return unwrapData(await apiRequest(`${DEALS_BASE}/${dealId}/receipt${queryString ? `?${queryString}` : ''}`, {
+    method: 'GET',
+  }));
+};

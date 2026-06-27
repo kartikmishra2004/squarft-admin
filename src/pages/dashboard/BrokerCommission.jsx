@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Banknote,
     Building2,
@@ -16,6 +16,13 @@ import Header from '../../components/layout/Header';
 import { useNavigate } from 'react-router-dom';
 import Modal from '../../components/ui/Modal';
 import samplePropertyImage from '../../assets/login-bg.png';
+import {
+    approveBrokerTransaction,
+    confirmBrokerTransaction,
+    fetchBrokerDetail,
+    fetchBrokerList,
+    fetchBrokerSummary,
+} from '../../services/brokerCommissionService';
 
 const brokerCommissionData = [
     {
@@ -190,6 +197,14 @@ const propertyFilters = ['All', 'Approved', 'Pending', 'Rejected'];
 
 const formatCurrency = (amount) => `Rs ${Number(amount || 0).toLocaleString('en-IN')}`;
 
+const getStatusKey = (status) => String(status || '').trim().toLowerCase();
+
+const isApprovedStatus = (status) => ['approved'].includes(getStatusKey(status));
+
+const isConfirmedStatus = (status) => ['confirmed', 'completed', 'success'].includes(getStatusKey(status));
+
+const isPendingStatus = (status) => ['pending', 'processing', 'pending payout'].includes(getStatusKey(status));
+
 const getStatusClass = (status) => {
     const normalized = String(status).toLowerCase();
     if (normalized.includes('paid') || normalized.includes('approved') || normalized.includes('verified') || normalized.includes('success')) {
@@ -204,63 +219,173 @@ const getStatusClass = (status) => {
 const BrokerCommission = () => {
     const navigate = useNavigate();
     const [activePageTab, setActivePageTab] = useState('brokerCommission');
+    const [brokers, setBrokers] = useState(brokerCommissionData);
+    const [summary, setSummary] = useState(null);
     const [selectedBrokerId, setSelectedBrokerId] = useState(brokerCommissionData[0].id);
     const [search, setSearch] = useState('');
     const [propertyFilter, setPropertyFilter] = useState('All');
-    const [withdrawalActions, setWithdrawalActions] = useState({});
     const [brokerDirectoryView, setBrokerDirectoryView] = useState('list');
     const [brokerDirectoryTab, setBrokerDirectoryTab] = useState('properties');
     const [selectedPropertyDetails, setSelectedPropertyDetails] = useState(null);
     const [selectedTransactionId, setSelectedTransactionId] = useState(null);
+    const [pageLoading, setPageLoading] = useState(false);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [loadedBrokerDetails, setLoadedBrokerDetails] = useState({});
+    const [actionLoading, setActionLoading] = useState(null);
+    const [pageError, setPageError] = useState('');
+
+    const mergeBroker = useCallback((broker) => {
+        if (!broker?.id) return;
+        setBrokers((current) => current.map((item) => (item.id === broker.id ? { ...item, ...broker } : item)));
+    }, []);
+
+    const loadBrokerDetail = useCallback(async (brokerId) => {
+        if (!brokerId) return;
+        setDetailLoading(true);
+        setPageError('');
+
+        try {
+            const broker = await fetchBrokerDetail(brokerId);
+            mergeBroker(broker);
+            setLoadedBrokerDetails((current) => ({ ...current, [brokerId]: true }));
+        } catch (error) {
+            console.error('Failed to load broker detail:', error);
+            setPageError(error?.message || 'Failed to load broker detail. Showing available local data.');
+            setLoadedBrokerDetails((current) => ({ ...current, [brokerId]: true }));
+        } finally {
+            setDetailLoading(false);
+        }
+    }, [mergeBroker]);
+
+    useEffect(() => {
+        let active = true;
+
+        const loadBrokerWorkspace = async () => {
+            setPageLoading(true);
+            setPageError('');
+
+            try {
+                const [summaryData, brokerList] = await Promise.all([
+                    fetchBrokerSummary(),
+                    fetchBrokerList(),
+                ]);
+
+                if (!active) return;
+
+                setSummary(summaryData);
+                if (brokerList.items.length) {
+                    setBrokers(brokerList.items);
+                    setSelectedBrokerId((current) => brokerList.items.some((broker) => broker.id === current) ? current : brokerList.items[0].id);
+                }
+            } catch (error) {
+                console.error('Failed to load broker commission workspace:', error);
+                if (active) setPageError(error?.message || 'Failed to load broker data. Showing local fallback data.');
+            } finally {
+                if (active) setPageLoading(false);
+            }
+        };
+
+        loadBrokerWorkspace();
+
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        const selected = brokers.find((broker) => broker.id === selectedBrokerId);
+        if (!selectedBrokerId || selected?.transactions?.length || loadedBrokerDetails[selectedBrokerId] || detailLoading) return;
+        void Promise.resolve().then(() => loadBrokerDetail(selectedBrokerId));
+    }, [selectedBrokerId, brokers, loadedBrokerDetails, detailLoading, loadBrokerDetail]);
 
     const filteredBrokers = useMemo(() => {
         const query = search.trim().toLowerCase();
-        if (!query) return brokerCommissionData;
+        if (!query) return brokers;
 
-        return brokerCommissionData.filter((broker) => (
+        return brokers.filter((broker) => (
             broker.name.toLowerCase().includes(query)
             || broker.agency.toLowerCase().includes(query)
             || broker.mobile.toLowerCase().includes(query)
             || broker.city.toLowerCase().includes(query)
         ));
-    }, [search]);
+    }, [brokers, search]);
 
-    const selectedBroker = brokerCommissionData.find((broker) => broker.id === selectedBrokerId) || filteredBrokers[0] || brokerCommissionData[0];
+    const selectedBroker = brokers.find((broker) => broker.id === selectedBrokerId) || filteredBrokers[0] || brokers[0] || brokerCommissionData[0];
     const selectedProperties = selectedBroker.uploadedProperties.filter((property) => propertyFilter === 'All' || property.status === propertyFilter);
     const selectedTransaction = selectedBroker.transactions.find((transaction) => transaction.id === selectedTransactionId) || selectedBroker.transactions[0];
-    const getTransactionStatus = (transaction) => withdrawalActions[transaction.id]?.status || transaction.status;
-    const getTransactionUtr = (transaction) => withdrawalActions[transaction.id]?.utr || transaction.utr || 'Not assigned';
+    const getTransactionStatus = (transaction) => transaction?.status || 'Pending';
+    const getTransactionUtr = (transaction) => transaction?.utr || 'Not assigned';
     const getTransactionLabel = (transaction) => {
         if (!transaction) return 'Wallet transaction';
         if (transaction.type === 'debit') return 'Wallet withdrawal';
         return 'Wallet credit';
     };
 
-    const totals = brokerCommissionData.reduce((summary, broker) => ({
-        brokers: summary.brokers + 1,
-        balance: summary.balance + broker.wallet.balance,
-        pendingPayout: summary.pendingPayout + broker.wallet.withdrawalPending,
+    const computedTotals = brokers.reduce((accumulator, broker) => ({
+        brokers: accumulator.brokers + 1,
+        balance: accumulator.balance + broker.wallet.balance,
+        pendingPayout: accumulator.pendingPayout + broker.wallet.withdrawalPending,
     }), { brokers: 0, balance: 0, pendingPayout: 0 });
 
-    const approveTransaction = (transactionId) => {
-        setWithdrawalActions((current) => ({
-            ...current,
-            [transactionId]: {
-                ...(current[transactionId] || {}),
-                status: 'Approved',
-                utr: current[transactionId]?.utr || `UTR-${transactionId.replace(/\D/g, '') || '0000'}-ADMIN`,
-            },
+    const totals = {
+        brokers: summary?.totalBrokers ?? computedTotals.brokers,
+        balance: summary?.totalBalance ?? computedTotals.balance,
+        pendingPayout: summary?.totalPendingPayout ?? computedTotals.pendingPayout,
+    };
+
+    const applyTransactionUpdate = (transaction) => {
+        if (!transaction?.id) return;
+        setBrokers((current) => current.map((broker) => {
+            if (broker.id !== selectedBroker.id) return broker;
+
+            return {
+                ...broker,
+                transactions: broker.transactions.map((item) => (
+                    item.id === transaction.id ? { ...item, ...transaction } : item
+                )),
+            };
         }));
     };
 
-    const confirmTransaction = (transactionId) => {
-        setWithdrawalActions((current) => ({
-            ...current,
-            [transactionId]: {
-                ...(current[transactionId] || {}),
-                status: 'Confirmed',
-            },
-        }));
+    const approveTransaction = async (transactionId) => {
+        setActionLoading(`approve-${transactionId}`);
+        setPageError('');
+
+        try {
+            const transaction = await approveBrokerTransaction(selectedBroker.id, transactionId);
+            applyTransactionUpdate(transaction);
+            await loadBrokerDetail(selectedBroker.id);
+        } catch (error) {
+            console.error('Failed to approve broker transaction:', error);
+            setPageError(error?.message || 'Failed to approve transaction.');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const selectedTransactionStatus = getTransactionStatus(selectedTransaction);
+    const canApproveSelectedTransaction = selectedTransaction?.type === 'debit'
+        && isPendingStatus(selectedTransactionStatus)
+        && !actionLoading;
+    const canConfirmSelectedTransaction = selectedTransaction?.type === 'debit'
+        && isApprovedStatus(selectedTransactionStatus)
+        && !actionLoading;
+    const selectedTransactionIsFinal = isConfirmedStatus(selectedTransactionStatus);
+
+    const confirmTransaction = async (transactionId) => {
+        setActionLoading(`confirm-${transactionId}`);
+        setPageError('');
+
+        try {
+            const transaction = await confirmBrokerTransaction(selectedBroker.id, transactionId);
+            applyTransactionUpdate(transaction);
+            await loadBrokerDetail(selectedBroker.id);
+        } catch (error) {
+            console.error('Failed to confirm broker transaction:', error);
+            setPageError(error?.message || 'Failed to confirm transaction.');
+        } finally {
+            setActionLoading(null);
+        }
     };
 
 
@@ -291,6 +416,18 @@ const BrokerCommission = () => {
                         ))}
                     </div>
 
+                    {pageError && (
+                        <div className="rounded-[8px] border border-[#F5C2C2] bg-[#FFF4F4] px-3 py-2 text-xs font-bold text-[#B42318]">
+                            {pageError}
+                        </div>
+                    )}
+
+                    {pageLoading && (
+                        <div className="rounded-[8px] border border-[#D8D2EB] bg-white px-3 py-2 text-xs font-bold text-[#615C71]">
+                            Loading broker wallet data...
+                        </div>
+                    )}
+
                     {activePageTab === 'broker' ? (
                         <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_0_rgba(33,24,88,0.03)]">
                             {brokerDirectoryView === 'list' ? (
@@ -304,7 +441,7 @@ const BrokerCommission = () => {
                                     </div>
 
                                     <div className="mt-4 space-y-2">
-                                        {brokerCommissionData.map((broker) => {
+                                        {brokers.map((broker) => {
                                             const paidCommission = broker.commissions
                                                 .filter((commission) => commission.status === 'Paid')
                                                 .reduce((sum, commission) => sum + commission.amount, 0);
@@ -593,6 +730,9 @@ const BrokerCommission = () => {
                                                             <StatusPill status={selectedBroker.kycStatus} />
                                                         </div>
                                                         <p className="mt-0.5 truncate text-xs font-bold text-[#615C71]">{selectedBroker.mobile} &bull; {selectedBroker.email}</p>
+                                                        {detailLoading && (
+                                                            <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-[#2717D7]">Refreshing backend details...</p>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -693,19 +833,25 @@ const BrokerCommission = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => approveTransaction(selectedTransaction.id)}
-                                                        disabled={getTransactionStatus(selectedTransaction) === 'Approved' || getTransactionStatus(selectedTransaction) === 'Confirmed'}
+                                                        disabled={!canApproveSelectedTransaction}
                                                         className="min-h-9 rounded-[6px] bg-[#2717D7] px-3 text-[10px] font-black uppercase tracking-[0.1em] text-white transition-colors hover:bg-[#1f11ab] disabled:cursor-not-allowed disabled:bg-[#C5BEDD]"
                                                     >
-                                                        Approve
+                                                        {actionLoading === `approve-${selectedTransaction.id}` ? 'Approving...' : 'Approve'}
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => confirmTransaction(selectedTransaction.id)}
-                                                        disabled={getTransactionStatus(selectedTransaction) !== 'Approved'}
+                                                        disabled={!canConfirmSelectedTransaction}
                                                         className="inline-flex min-h-9 items-center justify-center gap-1 rounded-[6px] border border-[#B7E5C8] bg-[#E8F9EE] px-3 text-[10px] font-black uppercase tracking-[0.1em] text-[#0C6B39] transition-colors hover:bg-[#DDF4E7] disabled:cursor-not-allowed disabled:border-[#E1DDF0] disabled:bg-white disabled:text-[#A9A2B5]"
                                                     >
-                                                        <CheckCircle2 size={12} /> Confirm
+                                                        <CheckCircle2 size={12} /> {actionLoading === `confirm-${selectedTransaction.id}` ? 'Confirming...' : 'Confirm'}
                                                     </button>
+                                                    {selectedTransaction.type !== 'debit' && (
+                                                        <p className="text-[10px] font-bold text-[#615C71]">Credit transactions are commission records and cannot be approved from withdrawal review.</p>
+                                                    )}
+                                                    {selectedTransactionIsFinal && (
+                                                        <p className="text-[10px] font-bold text-[#0C6B39]">This payout is already settled.</p>
+                                                    )}
                                                 </div>
                                             </div>
                                         ) : (
