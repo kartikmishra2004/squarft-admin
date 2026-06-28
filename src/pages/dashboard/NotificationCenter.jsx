@@ -1,25 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    AlertTriangle,
     BellRing,
     CheckCircle2,
     Clock3,
     Copy,
+    Eye,
   Layers3,
   MessageSquareText,
     Radio,
     ReceiptText,
+    RefreshCw,
     Send,
     ShieldCheck,
     Smartphone,
     Users,
+    X,
+    Zap,
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
 import {
     createNotificationCampaign,
+    fetchNotificationCampaignDetail,
     fetchNotificationCampaigns,
     fetchNotificationTargets,
     fetchNotificationTemplates,
     previewNotificationPayload,
+    syncNotificationCampaignReceipts,
 } from '../../services/notificationService';
 
 const defaultCampaignTemplates = [
@@ -49,6 +56,7 @@ const defaultCampaignTemplates = [
 const initialForm = {
     title: defaultCampaignTemplates[0].title,
     body: defaultCampaignTemplates[0].body,
+    sendMode: 'QUEUE',
     priority: 'high',
     ttlHours: '24',
     sound: 'default',
@@ -58,6 +66,11 @@ const initialForm = {
     route: '/(tabs)/home',
     extraData: '{\n  "campaignId": "properties-live-001",\n  "source": "admin_custom_notification"\n}',
 };
+
+const sendModeOptions = [
+    { value: 'QUEUE', label: 'Queue', helper: 'Worker sends later' },
+    { value: 'SEND_NOW', label: 'Send now', helper: 'Backend sends immediately' },
+];
 
 const parseJsonObject = (value) => {
     try {
@@ -78,7 +91,18 @@ const formatErrorMessage = (error, fallback = 'Something went wrong') => {
 };
 
 const formatCampaignStatus = (status) =>
-    String(status || 'Queued').replaceAll('_', ' ').toLowerCase();
+    String(status || 'QUEUED')
+        .replaceAll('_', ' ')
+        .toLowerCase()
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const getStatusTone = (status) => {
+    const normalized = String(status || '').toUpperCase();
+    if (normalized.includes('FAILED')) return 'bg-[#FDECEC] text-[#B42318]';
+    if (normalized.includes('SENT') || normalized.includes('CHECKED')) return 'bg-[#E9F8EF] text-[#04622E]';
+    if (normalized.includes('SENDING')) return 'bg-[#EAF2FF] text-[#175CD3]';
+    return 'bg-[#FFF7E6] text-[#A15A00]';
+};
 
 const formatDateTime = (value) => {
     if (!value) return '-';
@@ -87,11 +111,17 @@ const formatDateTime = (value) => {
 };
 
 const mapCampaignToLog = (campaign) => ({
-    id: campaign.campaignCode || campaign.id,
+    id: campaign.id || campaign.campaignId || campaign.campaignCode,
+    campaignId: campaign.id || campaign.campaignId,
+    code: campaign.campaignCode || campaign.id || '-',
     title: campaign.title || 'Untitled campaign',
     apps: campaign.appsLabel || campaign.targetApps?.join(', ') || campaign.apps?.map((app) => app.appName || app.name || app.key).join(', ') || '-',
     tokens: Number(campaign.totalTokens || 0),
     batches: Number(campaign.batchCount || 0),
+    sent: Number(campaign.sentCount || 0),
+    failed: Number(campaign.failedCount || 0),
+    sendMode: campaign.sendMode || 'QUEUE',
+    rawStatus: campaign.status || 'QUEUED',
     status: formatCampaignStatus(campaign.status),
     createdAt: formatDateTime(campaign.createdAt),
 });
@@ -107,18 +137,24 @@ const NotificationCenter = () => {
     const [selectedApps, setSelectedApps] = useState([]);
     const [form, setForm] = useState(initialForm);
     const [sendLog, setSendLog] = useState([]);
+    const [campaignSummary, setCampaignSummary] = useState(null);
     const [payloadPreview, setPayloadPreview] = useState(null);
+    const [selectedCampaignDetail, setSelectedCampaignDetail] = useState(null);
     const [loading, setLoading] = useState({
         targets: true,
         templates: true,
         campaigns: true,
         preview: false,
         send: false,
+        detail: false,
     });
     const [loadError, setLoadError] = useState('');
     const [previewError, setPreviewError] = useState('');
     const [sendError, setSendError] = useState('');
     const [sendSuccess, setSendSuccess] = useState('');
+    const [detailError, setDetailError] = useState('');
+    const [syncingCampaignId, setSyncingCampaignId] = useState('');
+    const [syncMessage, setSyncMessage] = useState('');
 
     const selectedTargets = useMemo(
         () => appTargets.filter((app) => selectedApps.includes(app.key)),
@@ -142,6 +178,12 @@ const NotificationCenter = () => {
         extraData: extraDataResult.value,
     }), [extraDataResult.value, form, selectedApps]);
 
+    const campaignMetricTiles = useMemo(() => ([
+        { icon: Clock3, label: 'Queued', value: campaignSummary?.queued || 0 },
+        { icon: CheckCircle2, label: 'Sent', value: campaignSummary?.sent || 0 },
+        { icon: AlertTriangle, label: 'Failed', value: (campaignSummary?.failed || 0) + (campaignSummary?.partialFailed || 0) },
+    ]), [campaignSummary]);
+
     const activePreview = canRequestPreview ? payloadPreview : null;
     const totalActiveTokens = activePreview?.totalActiveTokens ?? selectedTargets.reduce((sum, app) => sum + (app.active || app.activeTokens || 0), 0);
     const batchCount = activePreview?.batchCount ?? (totalActiveTokens > 0 ? Math.ceil(totalActiveTokens / 100) : 0);
@@ -162,6 +204,13 @@ const NotificationCenter = () => {
         !canRequestPreview ||
         Boolean(previewError)
     );
+
+    const refreshCampaigns = useCallback(async () => {
+        const campaigns = await fetchNotificationCampaigns({ page: 1, limit: 20 });
+        setSendLog((campaigns.campaigns || []).map(mapCampaignToLog));
+        setCampaignSummary(campaigns.summary || null);
+        return campaigns;
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
@@ -203,6 +252,7 @@ const NotificationCenter = () => {
 
             if (campaignsResult.status === 'fulfilled') {
                 setSendLog((campaignsResult.value?.campaigns || []).map(mapCampaignToLog));
+                setCampaignSummary(campaignsResult.value?.summary || null);
             } else {
                 errors.push(formatErrorMessage(campaignsResult.reason, 'Failed to load notification campaigns'));
             }
@@ -270,11 +320,12 @@ const NotificationCenter = () => {
             ttlHours: String(template.ttlHours || current.ttlHours),
             sound: template.sound ?? current.sound,
             route: template.route || current.route,
+            sendMode: current.sendMode,
             extraData: stringifyTemplateData(template.extraData),
         }));
     };
 
-    const handleQueueNotification = async () => {
+    const handleSendNotification = async () => {
         if (isSendDisabled) return;
 
         setLoading((current) => ({ ...current, send: true }));
@@ -284,16 +335,53 @@ const NotificationCenter = () => {
         try {
             const campaign = await createNotificationCampaign({
                 ...notificationPayload,
-                sendMode: 'QUEUE',
+                sendMode: form.sendMode,
             });
-            const campaigns = await fetchNotificationCampaigns({ page: 1, limit: 20 });
+            await refreshCampaigns();
 
-            setSendLog((campaigns.campaigns || []).map(mapCampaignToLog));
-            setSendSuccess(`${campaign.campaignCode || 'Campaign'} queued successfully`);
+            setSendSuccess(`${campaign.campaignCode || 'Campaign'} ${form.sendMode === 'SEND_NOW' ? 'processed' : 'queued'} successfully`);
         } catch (error) {
-            setSendError(formatErrorMessage(error, 'Failed to queue notification campaign'));
+            setSendError(formatErrorMessage(error, 'Failed to create notification campaign'));
         } finally {
             setLoading((current) => ({ ...current, send: false }));
+        }
+    };
+
+    const handleOpenCampaignDetail = async (campaignId) => {
+        if (!campaignId) return;
+
+        setSelectedCampaignDetail(null);
+        setDetailError('');
+        setSyncMessage('');
+        setLoading((current) => ({ ...current, detail: true }));
+
+        try {
+            const detail = await fetchNotificationCampaignDetail(campaignId);
+            setSelectedCampaignDetail(detail);
+        } catch (error) {
+            setDetailError(formatErrorMessage(error, 'Failed to load notification campaign detail'));
+        } finally {
+            setLoading((current) => ({ ...current, detail: false }));
+        }
+    };
+
+    const handleSyncReceipts = async (campaignId, force = false) => {
+        if (!campaignId) return;
+
+        setSyncingCampaignId(campaignId);
+        setSyncMessage('');
+        setDetailError('');
+
+        try {
+            const result = await syncNotificationCampaignReceipts(campaignId, { force });
+            setSyncMessage(result?.campaignCode ? `Receipt sync completed for ${result.campaignCode}` : 'Receipt sync completed');
+            await refreshCampaigns();
+            const detail = await fetchNotificationCampaignDetail(campaignId);
+            setSelectedCampaignDetail(detail);
+        } catch (error) {
+            setDetailError(formatErrorMessage(error, 'Failed to sync notification receipts'));
+        } finally {
+            setSyncingCampaignId('');
         }
     };
 
@@ -393,6 +481,28 @@ const NotificationCenter = () => {
 
                             <div className="rounded-[10px] border border-[#D8D2EB] bg-white p-5">
                                 <SectionHeader icon={ShieldCheck} title="Expo delivery options" helper="These fields line up with Expo push message fields and should be sent server-side." />
+                                <div className="mt-4">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#6B657A]">Send mode</span>
+                                    <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                                        {sendModeOptions.map((option) => {
+                                            const selected = form.sendMode === option.value;
+                                            return (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => setForm({ ...form, sendMode: option.value })}
+                                                    className={`flex min-h-16 items-center justify-between gap-3 rounded-[8px] border px-3 py-2 text-left transition-all ${selected ? 'border-[#2717D7] bg-[#F4F1FF] text-[#2717D7]' : 'border-[#D8D2EB] bg-[#FCFBFF] text-[#514B63] hover:border-[#2717D7]'}`}
+                                                >
+                                                    <span>
+                                                        <span className="block text-xs font-black uppercase tracking-[0.12em]">{option.label}</span>
+                                                        <span className="mt-1 block text-[11px] font-semibold text-[#7B7486]">{option.helper}</span>
+                                                    </span>
+                                                    {option.value === 'SEND_NOW' ? <Zap size={17} /> : <Clock3 size={17} />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                                 <div className="mt-4 grid gap-4 md:grid-cols-3">
                                     <SelectField label="Priority" value={form.priority} onChange={(value) => setForm({ ...form, priority: value })} options={['default', 'normal', 'high']} />
                                     <SelectField label="Sound" value={form.sound} onChange={(value) => setForm({ ...form, sound: value })} options={['default', '']} />
@@ -444,11 +554,11 @@ const NotificationCenter = () => {
                                 {sendSuccess && <p className="mt-2 text-xs font-black text-[#04622E]">{sendSuccess}</p>}
                                 <button
                                     type="button"
-                                    onClick={handleQueueNotification}
+                                    onClick={handleSendNotification}
                                     disabled={isSendDisabled}
                                     className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#2717D7] px-4 text-xs font-black uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:bg-[#C8C2E8]"
                                 >
-                                    <Send size={16} /> {loading.send ? 'Queueing...' : 'Queue notification'}
+                                    <Send size={16} /> {loading.send ? 'Working...' : form.sendMode === 'SEND_NOW' ? 'Send now' : 'Queue notification'}
                                 </button>
                             </div>
                         </aside>
@@ -456,41 +566,71 @@ const NotificationCenter = () => {
 
                     <section className="rounded-[10px] border border-[#D8D2EB] bg-white p-5">
                         <SectionHeader icon={ReceiptText} title="Send log" helper="Tracks queued admin campaigns and the Expo receipt follow-up your backend should complete." />
+                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                            {campaignMetricTiles.map((tile) => (
+                                <MetricTile key={tile.label} icon={tile.icon} label={tile.label} value={tile.value.toLocaleString('en-IN')} />
+                            ))}
+                        </div>
                         <div className="mt-4 overflow-x-auto">
-                            <table className="w-full min-w-[760px] text-left">
+                            <table className="w-full min-w-[980px] text-left">
                                 <thead className="bg-[#F4F1FF] text-[10px] font-black uppercase tracking-[0.12em] text-[#2A2535]">
                                     <tr>
                                         <th className="px-4 py-3">Campaign</th>
                                         <th className="px-4 py-3">Apps</th>
                                         <th className="px-4 py-3">Tokens</th>
                                         <th className="px-4 py-3">Expo batches</th>
-                                        <th className="px-4 py-3">Receipt status</th>
+                                        <th className="px-4 py-3">Sent / Failed</th>
+                                        <th className="px-4 py-3">Mode</th>
+                                        <th className="px-4 py-3">Status</th>
+                                        <th className="px-4 py-3">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {loading.campaigns && (
                                         <tr className="border-t border-[#E1DDF0]">
-                                            <td colSpan={5} className="px-4 py-5 text-xs font-black text-[#615C71]">Loading campaigns...</td>
+                                            <td colSpan={8} className="px-4 py-5 text-xs font-black text-[#615C71]">Loading campaigns...</td>
                                         </tr>
                                     )}
                                     {!loading.campaigns && sendLog.length === 0 && (
                                         <tr className="border-t border-[#E1DDF0]">
-                                            <td colSpan={5} className="px-4 py-5 text-xs font-black text-[#615C71]">No notification campaigns found.</td>
+                                            <td colSpan={8} className="px-4 py-5 text-xs font-black text-[#615C71]">No notification campaigns found.</td>
                                         </tr>
                                     )}
                                     {!loading.campaigns && sendLog.map((item) => (
                                         <tr key={item.id} className="border-t border-[#E1DDF0]">
                                             <td className="px-4 py-4">
                                                 <p className="text-sm font-black text-[#171327]">{item.title}</p>
-                                                <p className="text-[10px] font-medium text-[#615C71]">{item.id} / {item.createdAt}</p>
+                                                <p className="text-[10px] font-medium text-[#615C71]">{item.code} / {item.createdAt}</p>
                                             </td>
                                             <td className="px-4 py-4 text-xs font-medium text-[#514B63]">{item.apps}</td>
                                             <td className="px-4 py-4 text-sm font-black text-[#171327]">{item.tokens.toLocaleString('en-IN')}</td>
                                             <td className="px-4 py-4 text-sm font-black text-[#2717D7]">{item.batches}</td>
+                                            <td className="px-4 py-4 text-xs font-black text-[#514B63]">{item.sent.toLocaleString('en-IN')} / {item.failed.toLocaleString('en-IN')}</td>
+                                            <td className="px-4 py-4 text-xs font-black text-[#514B63]">{item.sendMode.replace('_', ' ')}</td>
                                             <td className="px-4 py-4">
-                                                <span className="inline-flex items-center gap-2 rounded-full bg-[#FFF7E6] px-3 py-1.5 text-[10px] font-black uppercase text-[#A15A00]">
+                                                <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-black uppercase ${getStatusTone(item.rawStatus)}`}>
                                                     <Clock3 size={13} /> {item.status}
                                                 </span>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenCampaignDetail(item.campaignId)}
+                                                        disabled={!item.campaignId || loading.detail}
+                                                        className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#D8D2EB] bg-white px-3 text-[10px] font-black uppercase tracking-[0.1em] text-[#2717D7] disabled:cursor-not-allowed disabled:text-[#9A94AB]"
+                                                    >
+                                                        <Eye size={14} /> Detail
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSyncReceipts(item.campaignId)}
+                                                        disabled={!item.campaignId || syncingCampaignId === item.campaignId}
+                                                        className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#D8D2EB] bg-[#FCFBFF] px-3 text-[10px] font-black uppercase tracking-[0.1em] text-[#514B63] disabled:cursor-not-allowed disabled:text-[#9A94AB]"
+                                                    >
+                                                        <RefreshCw size={14} className={syncingCampaignId === item.campaignId ? 'animate-spin' : ''} /> Sync
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -498,6 +638,134 @@ const NotificationCenter = () => {
                             </table>
                         </div>
                     </section>
+
+                    {(loading.detail || detailError || selectedCampaignDetail) && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171327]/55 p-4">
+                            <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[10px] bg-white shadow-2xl">
+                                <div className="flex items-start justify-between gap-4 border-b border-[#E1DDF0] p-5">
+                                    <div>
+                                        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#5E5A71]">Campaign detail</p>
+                                        <h3 className="mt-1 text-xl font-black text-[#171327]">
+                                            {selectedCampaignDetail?.campaign?.campaignCode || (loading.detail ? 'Loading campaign...' : 'Notification campaign')}
+                                        </h3>
+                                        {selectedCampaignDetail?.campaign && (
+                                            <p className="mt-1 text-xs font-semibold text-[#615C71]">
+                                                {selectedCampaignDetail.campaign.title} / {formatDateTime(selectedCampaignDetail.campaign.createdAt)}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedCampaignDetail(null);
+                                            setDetailError('');
+                                            setSyncMessage('');
+                                        }}
+                                        className="grid h-9 w-9 place-items-center rounded-[8px] border border-[#D8D2EB] text-[#514B63]"
+                                    >
+                                        <X size={17} />
+                                    </button>
+                                </div>
+
+                                <div className="max-h-[calc(90vh-92px)] overflow-y-auto p-5">
+                                    {loading.detail && <p className="text-xs font-black text-[#615C71]">Loading campaign detail...</p>}
+                                    {detailError && <p className="rounded-[8px] bg-[#FDECEC] px-3 py-2 text-xs font-black text-[#B42318]">{detailError}</p>}
+                                    {syncMessage && <p className="mb-4 rounded-[8px] bg-[#E9F8EF] px-3 py-2 text-xs font-black text-[#04622E]">{syncMessage}</p>}
+
+                                    {selectedCampaignDetail?.campaign && (
+                                        <div className="space-y-5">
+                                            <div className="grid gap-3 md:grid-cols-5">
+                                                <MetricTile icon={Users} label="Tokens" value={selectedCampaignDetail.campaign.totalTokens.toLocaleString('en-IN')} />
+                                                <MetricTile icon={Layers3} label="Batches" value={selectedCampaignDetail.campaign.batchCount} />
+                                                <MetricTile icon={CheckCircle2} label="Sent" value={selectedCampaignDetail.campaign.sentCount.toLocaleString('en-IN')} />
+                                                <MetricTile icon={AlertTriangle} label="Failed" value={selectedCampaignDetail.campaign.failedCount.toLocaleString('en-IN')} />
+                                                <MetricTile icon={Clock3} label="TTL seconds" value={selectedCampaignDetail.campaign.ttlSeconds.toLocaleString('en-IN')} />
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF] p-4">
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#7B7486]">Backend status</p>
+                                                    <span className={`mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-black uppercase ${getStatusTone(selectedCampaignDetail.campaign.status)}`}>
+                                                        <Clock3 size={13} /> {formatCampaignStatus(selectedCampaignDetail.campaign.status)}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSyncReceipts(selectedCampaignDetail.campaign.id, true)}
+                                                    disabled={syncingCampaignId === selectedCampaignDetail.campaign.id}
+                                                    className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#2717D7] px-4 text-[10px] font-black uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:bg-[#C8C2E8]"
+                                                >
+                                                    <RefreshCw size={15} className={syncingCampaignId === selectedCampaignDetail.campaign.id ? 'animate-spin' : ''} />
+                                                    Force receipt sync
+                                                </button>
+                                            </div>
+
+                                            <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
+                                                <div className="rounded-[8px] border border-[#E1DDF0] p-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#5E5A71]">Target apps</p>
+                                                    <div className="mt-3 space-y-2">
+                                                        {selectedCampaignDetail.targets.map((target) => (
+                                                            <div key={target.appKey} className="flex items-center justify-between gap-3 rounded-[7px] bg-[#FCFBFF] px-3 py-2 text-xs">
+                                                                <span className="font-black text-[#171327]">{target.appName}</span>
+                                                                <span className="font-semibold text-[#615C71]">{target.activeTokens.toLocaleString('en-IN')} tokens / {target.channelId}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="rounded-[8px] border border-[#E1DDF0] p-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#5E5A71]">Timeline</p>
+                                                    <div className="mt-3 space-y-2">
+                                                        {selectedCampaignDetail.timeline.map((event, index) => (
+                                                            <div key={`${event.type}-${index}`} className="rounded-[7px] bg-[#FCFBFF] px-3 py-2">
+                                                                <p className="text-xs font-black text-[#171327]">{formatCampaignStatus(event.type)}</p>
+                                                                <p className="mt-1 text-xs font-medium text-[#615C71]">{event.message}</p>
+                                                                <p className="mt-1 text-[10px] font-semibold text-[#8B8498]">{formatDateTime(event.createdAt)}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="overflow-x-auto rounded-[8px] border border-[#E1DDF0]">
+                                                <table className="w-full min-w-[780px] text-left">
+                                                    <thead className="bg-[#F4F1FF] text-[10px] font-black uppercase tracking-[0.12em] text-[#2A2535]">
+                                                        <tr>
+                                                            <th className="px-4 py-3">Batch</th>
+                                                            <th className="px-4 py-3">App</th>
+                                                            <th className="px-4 py-3">Tokens</th>
+                                                            <th className="px-4 py-3">Send status</th>
+                                                            <th className="px-4 py-3">Receipt</th>
+                                                            <th className="px-4 py-3">Success / Failed</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {selectedCampaignDetail.batches.map((batch) => (
+                                                            <tr key={batch.id} className="border-t border-[#E1DDF0]">
+                                                                <td className="px-4 py-3 text-xs font-black text-[#171327]">#{batch.batchNo}</td>
+                                                                <td className="px-4 py-3 text-xs font-medium text-[#514B63]">{batch.appKey}</td>
+                                                                <td className="px-4 py-3 text-xs font-black text-[#171327]">{batch.tokenCount.toLocaleString('en-IN')}</td>
+                                                                <td className="px-4 py-3 text-xs font-black text-[#514B63]">{formatCampaignStatus(batch.status)}</td>
+                                                                <td className="px-4 py-3 text-xs font-black text-[#514B63]">{formatCampaignStatus(batch.receiptStatus)}</td>
+                                                                <td className="px-4 py-3 text-xs font-black text-[#514B63]">{batch.successCount.toLocaleString('en-IN')} / {batch.failedCount.toLocaleString('en-IN')}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <div className="rounded-[8px] border border-[#E1DDF0] p-4">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#5E5A71]">Sanitized sample payload</p>
+                                                <pre className="mt-3 max-h-[280px] overflow-auto rounded-[8px] bg-[#171327] p-4 text-[11px] leading-5 text-white">
+                                                    {JSON.stringify(selectedCampaignDetail.samplePayload || {}, null, 2)}
+                                                </pre>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
