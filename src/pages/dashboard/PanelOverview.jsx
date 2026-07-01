@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { 
     Calendar, 
     Phone, 
@@ -19,15 +19,29 @@ import {
     Check,
     Layers,
     Lock,
-    ShieldAlert
+    ShieldAlert,
+    Loader2
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
-import { 
-    panelOverviewByStatus, 
-    fieldOfficerWorkflowData,
-    projectOnboardingList,
-    fieldOfficerOnboardingList
-} from '../../data/mockData';
+import {
+    fetchPanelStats,
+    fetchBuilderKycList,
+    fetchBuilderKycDetails,
+    updateBuilderKycStatus,
+    fetchOnboardingProjects,
+    fetchProjectOnboardingDetails,
+    decideProjectOnboarding,
+    fetchLiveProjects,
+    fetchRejectedProjects,
+    fetchFieldOfficersDropdown,
+    fetchOfficerDetails,
+    fetchOfficerBuilderLeads,
+    fetchBuilderLeadDetails,
+    assignFieldTask,
+    fetchAllBranchFieldTasks,
+    completeFieldTask,
+    deleteFieldTask,
+} from '../../services/panelOverviewService';
 
 const formatNumber = (value) => {
     if (value < 1000) return String(value).padStart(2, '0');
@@ -54,127 +68,32 @@ const PanelMetricCard = ({ metric }) => (
     </section>
 );
 
-const builderAccounts = [
-    {
-        id: 'B-001',
-        firstName: 'Arjun',
-        lastName: 'Mehra',
-        companyName: 'Apex Buildcon',
-        companyType: 'Builder',
-        reraNumber: 'MHRERA-P51800044791',
-        mobile: '+91 98231 44001',
-        location: 'Mumbai, Maharashtra',
-        status: 'Active'
-    },
-    {
-        id: 'B-002',
-        firstName: 'Raghav',
-        lastName: 'Bansal',
-        companyName: 'CityScape',
-        companyType: 'Builder',
-        reraNumber: 'DLRERA2024P0058',
-        mobile: '+91 98111 55220',
-        location: 'Delhi NCR',
-        status: 'Active'
-    },
-    {
-        id: 'B-003',
-        firstName: 'Priya',
-        lastName: 'Nair',
-        companyName: 'GreenLeaf Developers',
-        companyType: 'Builder',
-        reraNumber: 'PRM/KA/RERA/1251/309/PR/230526/006890',
-        mobile: '+91 99801 33445',
-        location: 'Bangalore, Karnataka',
-        status: 'Active'
-    },
-    {
-        id: 'B-004',
-        firstName: 'Nisha',
-        lastName: 'Sethi',
-        companyName: 'Apex Smart Homes',
-        companyType: 'Builder',
-        reraNumber: 'MHRERA-P51800051342',
-        mobile: '+91 98109 88210',
-        location: 'Mumbai, Maharashtra',
-        status: 'Active',
-        kycStatus: 'approved'
-    },
-    {
-        id: 'B-005',
-        firstName: 'Karan',
-        lastName: 'Malhotra',
-        companyName: 'Aarambh Realty',
-        companyType: 'Marketing Company',
-        reraNumber: 'KA/RERA/AG/2024/01129',
-        mobile: '+91 98765 44012',
-        location: 'Bangalore, Karnataka',
-        status: 'Active',
-        kycStatus: 'approved'
-    },
-    {
-        id: 'B-006',
-        firstName: 'Meera',
-        lastName: 'Nair',
-        companyName: 'EcoHomes Ltd',
-        companyType: 'Builder',
-        reraNumber: 'PRM/KA/RERA/1251/310/PR/240526/006921',
-        mobile: '+91 99002 77118',
-        location: 'Bangalore, Karnataka',
-        status: 'Review',
-        kycStatus: 'rejected',
-        rejectionReason: 'PAN image is blurred and Aadhaar back side is not readable.'
-    },
-    {
-        id: 'B-007',
-        firstName: 'Sahil',
-        lastName: 'Verma',
-        companyName: 'MarketLane Realty',
-        companyType: 'Marketing Company',
-        reraNumber: 'IND/RERA/AG/2025/00431',
-        mobile: '+91 98770 11223',
-        location: 'Indore, Madhya Pradesh',
-        status: 'Pending',
-        kycStatus: 'pending'
-    }
-];
-
-const kycDocumentLabels = ['Aadhar Front', 'Aadhar Back', 'PAN Front', 'PAN Back', 'Selfie'];
-const dummyKycDocumentImages = [
-    '/inventory-images/project-main.png',
-    '/floor-plans/building-naksha.png',
-    '/inventory-images/project-main.png',
-    '/floor-plans/building-naksha.png',
-    '/inventory-images/project-main.png'
-];
-
-const createKycRecord = (builder) => ({
-    ...builder,
-    kycStatus: builder.kycStatus || 'pending',
-    rejectionReason: builder.rejectionReason || '',
-    kycDocuments: kycDocumentLabels.map((label, index) => ({
-        id: `${builder.id}-${index}`,
-        label,
-        image: dummyKycDocumentImages[index]
-    }))
+// Maps API builder KYC record to the shape expected by KYC UI
+const mapBuilderKyc = (b) => ({
+    id: b.id,
+    firstName: b.name?.split(' ')[0] || '',
+    lastName: b.name?.split(' ').slice(1).join(' ') || '',
+    companyName: b.company_name || 'N/A',
+    companyType: 'Builder',
+    reraNumber: b.rera_number || 'N/A',
+    mobile: b.phone || 'N/A',
+    location: b.location || 'N/A',
+    kycStatus: (b.document_status || 'PENDING').toLowerCase(),
+    rejectionReason: b.rejection_reason || '',
+    kycDocuments: [],
 });
 
-const seedOnboardingReviewStates = (items, fallbackReasons = {}) => items.map((item) => {
-    if (item.isRejected && !item.rejectionReason) {
-        return {
-            ...item,
-            rejectionReason: fallbackReasons[item.id] || 'Compliance documents need correction before this project can go live.',
-        };
-    }
-    return item;
-});
-
-const panelProjectOnboardingTestData = seedOnboardingReviewStates(projectOnboardingList, {
-    'onboard-proj-done-2': 'Layout approval number and uploaded approval PDF do not match. Please re-upload corrected compliance documents.',
-});
-
-const panelOfficerOnboardingTestData = seedOnboardingReviewStates(fieldOfficerOnboardingList, {
-    'onboard-fo-done-2': 'Site photos are incomplete and building permission proof is not readable.',
+// Maps API project onboarding record to the shape expected by onboarding UI
+const mapOnboardingProject = (p) => ({
+    id: p.id,
+    projectName: p.project_name || 'Unnamed Project',
+    builderName: p.builder_name || 'Unknown Builder',
+    currentStep: p.step || 1,
+    isCompleted: p.display_status === 'LIVE' || p.display_status === 'REJECTED' || (p.progress_percentage || 0) >= 100,
+    isLive: p.display_status === 'LIVE' || p.status === 'published',
+    isRejected: p.display_status === 'REJECTED' || p.status === 'rejected',
+    rejectionReason: p.rejection_reason || '',
+    form: {},
 });
 
 const DetailField = ({ label, value }) => {
@@ -740,150 +659,64 @@ const OnboardingDetailViewer = ({ data, activeStep, setActiveStep, onApprove, on
 };
 
 const PanelOverview = () => {
-    // Just display the draft status metrics directly as requested
-    const metrics = panelOverviewByStatus.draft.metrics;
+    // API-driven stats
+    const [stats, setStats] = useState({ pending_kyc: 0, active_panel_users: 0, in_onboarding: 0, field_meetings: 0 });
+    const [statsLoading, setStatsLoading] = useState(true);
+
+    const metrics = [
+        { key: 'pending_kyc', title: 'Pending KYC', value: stats.pending_kyc, color: '#F59E0B', progress: Math.min(stats.pending_kyc, 100), change: 'KYC' },
+        { key: 'active_panel_users', title: 'Active Panel Users', value: stats.active_panel_users, color: '#10B981', progress: Math.min(stats.active_panel_users, 100), change: 'APPROVED' },
+        { key: 'in_onboarding', title: 'In Onboarding', value: stats.in_onboarding, color: '#2717D7', progress: Math.min(stats.in_onboarding, 100), change: 'REVIEW' },
+        { key: 'field_meetings', title: "Today's Meetings", value: stats.field_meetings, color: '#8B5CF6', progress: Math.min(stats.field_meetings * 10, 100), change: 'TODAY' },
+    ];
 
     // Main layout tabs
     const [activeTab, setActiveTab] = useState('project'); // 'project' | 'fieldOfficer'
-    const [activeProjectSubTab, setActiveProjectSubTab] = useState('approveKyc'); // 'approveKyc' | 'onboardingProgress' | 'live'
-    const [activeOfficerSubTab, setActiveOfficerSubTab] = useState('newAquisition'); // 'newAquisition' | 'onboardingProgress' | 'live' | 'tasks'
+    const [activeProjectSubTab, setActiveProjectSubTab] = useState('approveKyc'); // 'approveKyc' | 'onboardingProgress' | 'live' | 'rejected'
+    const [activeOfficerSubTab, setActiveOfficerSubTab] = useState('newAquisition');
 
-    // Selected Builder state
-    const selectedBuilder = builderAccounts[0];
-    const [kycRecords, setKycRecords] = useState(() => builderAccounts.map(createKycRecord));
+    // Builder KYC state (API-driven)
+    const [kycRecords, setKycRecords] = useState([]);
+    const [kycLoading, setKycLoading] = useState(false);
     const [kycSubTab, setKycSubTab] = useState('pending');
-    const [selectedKycBuilderId, setSelectedKycBuilderId] = useState(builderAccounts[0]?.id || '');
-    const kycFilteredRecords = kycRecords.filter((builder) => builder.kycStatus === kycSubTab);
-    const selectedKycBuilder = kycFilteredRecords.find((builder) => builder.id === selectedKycBuilderId) || kycFilteredRecords[0] || null;
+    const [selectedKycBuilderId, setSelectedKycBuilderId] = useState('');
+    const [kycDetails, setKycDetails] = useState(null);
+    const [kycDetailsLoading, setKycDetailsLoading] = useState(false);
 
-    // New Acquisition specific state
-    const [selectedOfficerId, setSelectedOfficerId] = useState(fieldOfficerWorkflowData[0]?.id || '');
+    const kycFilteredRecords = kycRecords.filter(b => b.kycStatus === kycSubTab);
+    const selectedKycBuilder = kycFilteredRecords.find(b => b.id === selectedKycBuilderId) || kycFilteredRecords[0] || null;
 
-    const selectedOfficer = fieldOfficerWorkflowData.find(o => o.id === selectedOfficerId) || fieldOfficerWorkflowData[0];
-    
-    const [selectedLeadId, setSelectedLeadId] = useState(selectedOfficer?.projects?.[0]?.id || '');
-    const selectedLead = selectedOfficer?.projects?.find(p => p.id === selectedLeadId) || selectedOfficer?.projects?.[0];
+    // Field Officers state (API-driven)
+    const [fieldOfficers, setFieldOfficers] = useState([]);
+    const [selectedOfficerId, setSelectedOfficerId] = useState('');
+    const [officerDetails, setOfficerDetails] = useState(null);
+    const [officerLeads, setOfficerLeads] = useState([]);
+    const [selectedLeadId, setSelectedLeadId] = useState('');
+    const [selectedLeadDetails, setSelectedLeadDetails] = useState(null);
 
-    const [activeActivityTab, setActiveActivityTab] = useState('meetings'); // 'meetings' | 'followups'
+    const selectedOfficer = officerDetails;
+    const selectedLead = selectedLeadDetails;
 
-    useEffect(() => {
-        if (!kycFilteredRecords.length) {
-            setSelectedKycBuilderId('');
-            return;
-        }
+    const [activeActivityTab, setActiveActivityTab] = useState('meetings');
 
-        const selectedRecordInTab = kycFilteredRecords.some((builder) => builder.id === selectedKycBuilderId);
-        if (!selectedRecordInTab) {
-            setSelectedKycBuilderId(kycFilteredRecords[0].id);
-        }
-    }, [kycFilteredRecords, selectedKycBuilderId]);
-    
-    // Onboarding lists state
-    const [projectOnboarding, setProjectOnboarding] = useState(panelProjectOnboardingTestData);
-    const [fieldOfficerOnboarding, setFieldOfficerOnboarding] = useState(panelOfficerOnboardingTestData);
-
-    // Project Onboarding states
-    const [projectOnboardTab, setProjectOnboardTab] = useState('drafted'); // 'drafted' | 'done'
-    const [selectedProjectOnboardId, setSelectedProjectOnboardId] = useState(
-        panelProjectOnboardingTestData.filter(p => !p.isCompleted)[0]?.id || ''
-    );
+    // Onboarding projects state (API-driven)
+    const [projectOnboarding, setProjectOnboarding] = useState([]);
+    const [onboardingLoading, setOnboardingLoading] = useState(false);
+    const [projectOnboardTab, setProjectOnboardTab] = useState('drafted');
+    const [selectedProjectOnboardId, setSelectedProjectOnboardId] = useState('');
     const [projectActiveStep, setProjectActiveStep] = useState(1);
+    const [projectOnboardDetails, setProjectOnboardDetails] = useState(null);
+    const [projectOnboardDetailsLoading, setProjectOnboardDetailsLoading] = useState(false);
 
-    // Field Officer Onboarding states
-    const [officerOnboardTab, setOfficerOnboardTab] = useState('drafted'); // 'drafted' | 'done'
-    const [selectedOfficerOnboardId, setSelectedOfficerOnboardId] = useState(
-        panelOfficerOnboardingTestData.filter(o => !o.isCompleted)[0]?.id || ''
-    );
-    const [officerActiveStep, setOfficerActiveStep] = useState(1);
+    // Live / Rejected projects (API-driven)
+    const [liveProjects, setLiveProjects] = useState([]);
+    const [rejectedProjects, setRejectedProjects] = useState([]);
+    const [liveLoading, setLiveLoading] = useState(false);
+    const [rejectedLoading, setRejectedLoading] = useState(false);
 
-    // Task Management Sub-tab States
-    const [tasks, setTasks] = useState([
-        {
-            id: "T-005",
-            title: "Verify project boundary and entrance access",
-            projectName: "Green Valley Plots",
-            location: "Palasia, Indore",
-            due: "Today",
-            time: "10:30 AM",
-            status: "In Progress",
-            priority: "High",
-            officerId: "FO-002",
-            officerName: "Sneha Patel",
-            note: "Capture boundary photos and confirm entrance access before panel review.",
-            tracking: { latitude: 22.7196, longitude: 75.8577 }
-        },
-        {
-            id: "T-006",
-            title: "Capture site photos for onboarding approval",
-            projectName: "Sunrise Heights",
-            location: "Rau Road, Indore",
-            due: "Today",
-            time: "01:00 PM",
-            status: "Scheduled",
-            priority: "Medium",
-            officerId: "FO-003",
-            officerName: "Rahul Mehta",
-            note: "Upload front elevation, entry road, amenities, and construction progress photos.",
-            tracking: { latitude: 22.7528, longitude: 75.8937 }
-        },
-        {
-            id: "T-007",
-            title: "Meet builder for pending KYC originals",
-            projectName: "Royal Greens Township",
-            location: "Vijay Nagar, Indore",
-            due: "Tomorrow",
-            time: "11:15 AM",
-            status: "Pending",
-            priority: "High",
-            officerId: "FO-001",
-            officerName: "Amit Verma",
-            note: "Collect GST, RERA, PAN, and authorization letter originals for admin closure.",
-            tracking: { latitude: 22.6924, longitude: 75.8790 }
-        },
-        {
-            id: "T-008",
-            title: "Confirm sales office location pin",
-            projectName: "Apex Buildcon",
-            location: "Bypass Road, Indore",
-            due: "This week",
-            time: "04:00 PM",
-            status: "New",
-            priority: "Low",
-            officerId: "FO-002",
-            officerName: "Sneha Patel",
-            note: "Confirm the exact sales office map pin and note landmark visibility.",
-            tracking: { latitude: 22.7359, longitude: 75.9176 }
-        },
-        {
-            id: "T-009",
-            title: "Re-check rejected site media",
-            projectName: "Sunrise Heights",
-            location: "MR-9, Indore",
-            due: "Today",
-            time: "04:30 PM",
-            status: "Completed",
-            priority: "Medium",
-            officerId: "FO-003",
-            officerName: "Rahul Mehta",
-            note: "Retake entrance, tower elevation, parking, and approach-road photos for rejected onboarding.",
-            tracking: { latitude: 22.7408, longitude: 75.9022 }
-        },
-        {
-            id: "T-010",
-            title: "Validate commercial office approvals",
-            projectName: "Cyber Office Space",
-            location: "Super Corridor, Indore",
-            due: "Tomorrow",
-            time: "03:00 PM",
-            status: "Scheduled",
-            priority: "Low",
-            officerId: "FO-002",
-            officerName: "Sneha Patel",
-            note: "Verify office subtype documents, floor plans, and current development status.",
-            tracking: { latitude: 22.7859, longitude: 75.9006 }
-        }
-    ]);
-
+    // Tasks (API-driven)
+    const [tasks, setTasks] = useState([]);
+    const [tasksLoading, setTasksLoading] = useState(false);
     const [taskTitle, setTaskTitle] = useState('');
     const [taskProject, setTaskProject] = useState('');
     const [taskLocation, setTaskLocation] = useState('');
@@ -891,40 +724,270 @@ const PanelOverview = () => {
     const [taskDue, setTaskDue] = useState('Today');
     const [taskTime, setTaskTime] = useState('12:00 PM');
     const [taskNote, setTaskNote] = useState('');
-    const [taskOfficerId, setTaskOfficerId] = useState(fieldOfficerWorkflowData[0]?.id || '');
+    const [taskOfficerId, setTaskOfficerId] = useState('');
     const [taskActiveFilter, setTaskActiveFilter] = useState('all');
 
     // Live tracking map locations
-    const [officerLocations, setOfficerLocations] = useState({
-        'FO-001': { name: 'Amit Verma', lat: 22.7196, lng: 75.8577, status: 'Moving' },
-        'FO-002': { name: 'Sneha Patel', lat: 22.7528, lng: 75.8937, status: 'On Site' },
-        'FO-003': { name: 'Rahul Mehta', lat: 22.6924, lng: 75.8790, status: 'Idle' },
-    });
+    const [officerLocations, setOfficerLocations] = useState({});
 
-    const handleAssignTask = (e) => {
+    // --- API fetch helpers ---
+    const loadStats = useCallback(async () => {
+        try {
+            setStatsLoading(true);
+            const res = await fetchPanelStats();
+            if (res?.success) setStats(res.data);
+        } catch (e) {
+            console.error('Failed to load panel stats', e);
+        } finally {
+            setStatsLoading(false);
+        }
+    }, []);
+
+    const loadKycList = useCallback(async (status = kycSubTab) => {
+        try {
+            setKycLoading(true);
+            const res = await fetchBuilderKycList({ status });
+            if (res?.success) {
+                const mapped = (res.data || []).map(mapBuilderKyc);
+                setKycRecords(prev => {
+                    // Replace records for this status, keep others
+                    const others = prev.filter(r => r.kycStatus !== status);
+                    return [...others, ...mapped];
+                });
+                if (mapped.length > 0) setSelectedKycBuilderId(mapped[0].id);
+            }
+        } catch (e) {
+            console.error('Failed to load KYC list', e);
+        } finally {
+            setKycLoading(false);
+        }
+    }, [kycSubTab]);
+
+    const loadKycDetails = useCallback(async (id) => {
+        if (!id) return;
+        try {
+            setKycDetailsLoading(true);
+            const res = await fetchBuilderKycDetails(id);
+            if (res?.success && res.data) {
+                const { profile, documents } = res.data;
+                const docEntries = Object.entries(documents || {});
+                const kycDocuments = docEntries
+                    .filter(([, url]) => url)
+                    .map(([key, url], idx) => ({
+                        id: `${id}-${idx}`,
+                        label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                        image: url,
+                    }));
+                setKycDetails({ ...mapBuilderKyc({ ...profile, name: profile.name }), kycDocuments });
+            }
+        } catch (e) {
+            console.error('Failed to load KYC details', e);
+        } finally {
+            setKycDetailsLoading(false);
+        }
+    }, []);
+
+    const loadFieldOfficers = useCallback(async () => {
+        try {
+            const res = await fetchFieldOfficersDropdown();
+            if (res?.success) {
+                setFieldOfficers(res.data || []);
+                if (res.data?.length > 0) {
+                    setSelectedOfficerId(res.data[0].id);
+                    setTaskOfficerId(res.data[0].id);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load field officers', e);
+        }
+    }, []);
+
+    const loadOfficerDetails = useCallback(async (officerId) => {
+        if (!officerId) return;
+        try {
+            const res = await fetchOfficerDetails(officerId);
+            if (res?.success && res.data) {
+                setOfficerDetails(res.data);
+                setOfficerLocations(prev => ({
+                    ...prev,
+                    [officerId]: {
+                        name: res.data.full_name,
+                        lat: 22.7196 + Math.random() * 0.05,
+                        lng: 75.8577 + Math.random() * 0.05,
+                        status: res.data.active_duty ? 'Online' : 'Offline',
+                    },
+                }));
+            }
+        } catch (e) {
+            console.error('Failed to load officer details', e);
+        }
+    }, []);
+
+    const loadOfficerLeads = useCallback(async (officerId) => {
+        if (!officerId) return;
+        try {
+            const res = await fetchOfficerBuilderLeads(officerId);
+            if (res?.success) {
+                setOfficerLeads(res.data || []);
+                if (res.data?.length > 0) setSelectedLeadId(res.data[0].id);
+                else setSelectedLeadId('');
+            }
+        } catch (e) {
+            console.error('Failed to load officer leads', e);
+        }
+    }, []);
+
+    const loadLeadDetails = useCallback(async (leadId) => {
+        if (!leadId) return;
+        try {
+            const res = await fetchBuilderLeadDetails(leadId);
+            if (res?.success && res.data) setSelectedLeadDetails(res.data);
+        } catch (e) {
+            console.error('Failed to load lead details', e);
+        }
+    }, []);
+
+    const loadOnboardingProjects = useCallback(async (tab = projectOnboardTab) => {
+        try {
+            setOnboardingLoading(true);
+            const res = await fetchOnboardingProjects({ tab });
+            if (res?.success) {
+                const mapped = (res.data || []).map(mapOnboardingProject);
+                setProjectOnboarding(mapped);
+                if (mapped.length > 0) {
+                    setSelectedProjectOnboardId(mapped[0].id);
+                    setProjectActiveStep(mapped[0].currentStep || 1);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load onboarding projects', e);
+        } finally {
+            setOnboardingLoading(false);
+        }
+    }, [projectOnboardTab]);
+
+    const loadProjectOnboardDetails = useCallback(async (id) => {
+        if (!id) return;
+        try {
+            setProjectOnboardDetailsLoading(true);
+            const res = await fetchProjectOnboardingDetails(id);
+            if (res?.success && res.data) setProjectOnboardDetails(res.data);
+        } catch (e) {
+            console.error('Failed to load project onboard details', e);
+        } finally {
+            setProjectOnboardDetailsLoading(false);
+        }
+    }, []);
+
+    const loadLiveProjects = useCallback(async () => {
+        try {
+            setLiveLoading(true);
+            const res = await fetchLiveProjects();
+            if (res?.success) setLiveProjects(res.data || []);
+        } catch (e) {
+            console.error('Failed to load live projects', e);
+        } finally {
+            setLiveLoading(false);
+        }
+    }, []);
+
+    const loadRejectedProjects = useCallback(async () => {
+        try {
+            setRejectedLoading(true);
+            const res = await fetchRejectedProjects();
+            if (res?.success) setRejectedProjects(res.data || []);
+        } catch (e) {
+            console.error('Failed to load rejected projects', e);
+        } finally {
+            setRejectedLoading(false);
+        }
+    }, []);
+
+    const loadTasks = useCallback(async () => {
+        try {
+            setTasksLoading(true);
+            const res = await fetchAllBranchFieldTasks();
+            if (res?.success) setTasks(res.data || []);
+        } catch (e) {
+            console.error('Failed to load tasks', e);
+        } finally {
+            setTasksLoading(false);
+        }
+    }, []);
+
+    // Initial load
+    useEffect(() => { loadStats(); }, [loadStats]);
+    useEffect(() => { loadKycList('pending'); loadKycList('approved'); loadKycList('rejected'); }, []);
+    useEffect(() => { loadFieldOfficers(); }, [loadFieldOfficers]);
+
+    // Load officer details + leads when officer changes
+    useEffect(() => {
+        if (selectedOfficerId) {
+            loadOfficerDetails(selectedOfficerId);
+            loadOfficerLeads(selectedOfficerId);
+        }
+    }, [selectedOfficerId, loadOfficerDetails, loadOfficerLeads]);
+
+    // Load lead details when lead changes
+    useEffect(() => {
+        if (selectedLeadId) loadLeadDetails(selectedLeadId);
+    }, [selectedLeadId, loadLeadDetails]);
+
+    // Load KYC details when selected builder changes
+    useEffect(() => {
+        if (selectedKycBuilderId) loadKycDetails(selectedKycBuilderId);
+    }, [selectedKycBuilderId, loadKycDetails]);
+
+    // Load onboarding when tab changes
+    useEffect(() => { loadOnboardingProjects(projectOnboardTab); }, [projectOnboardTab]);
+
+    // Load project onboard details when selection changes
+    useEffect(() => {
+        if (selectedProjectOnboardId) loadProjectOnboardDetails(selectedProjectOnboardId);
+    }, [selectedProjectOnboardId, loadProjectOnboardDetails]);
+
+    // Load live/rejected when those sub-tabs become active
+    useEffect(() => {
+        if (activeProjectSubTab === 'live') loadLiveProjects();
+        if (activeProjectSubTab === 'rejected') loadRejectedProjects();
+    }, [activeProjectSubTab]);
+
+    // Load tasks when tasks tab becomes active
+    useEffect(() => {
+        if (activeOfficerSubTab === 'tasks') loadTasks();
+    }, [activeOfficerSubTab]);
+
+    // Keep kycFilteredRecords in sync when kycSubTab changes
+    useEffect(() => {
+        const current = kycRecords.filter(r => r.kycStatus === kycSubTab);
+        if (current.length > 0) setSelectedKycBuilderId(current[0].id);
+        else setSelectedKycBuilderId('');
+    }, [kycSubTab]);
+
+    const handleAssignTask = async (e) => {
         e.preventDefault();
         if (!taskTitle.trim() || !taskProject.trim() || !taskLocation.trim()) return;
 
-        const assignedOfficer = fieldOfficerWorkflowData.find(fo => fo.id === taskOfficerId) || fieldOfficerWorkflowData[0];
-        const randomLat = 22.68 + Math.random() * 0.1;
-        const randomLng = 75.80 + Math.random() * 0.15;
-
-        const newTask = {
-            id: `T-${String(tasks.length + 5).padStart(3, '0')}`,
+        const assignedOfficer = fieldOfficers.find(fo => fo.id === taskOfficerId) || fieldOfficers[0];
+        const body = {
             title: taskTitle,
-            projectName: taskProject,
+            project_name: taskProject,
             location: taskLocation,
             due: taskDue,
             time: taskTime,
-            status: 'Pending',
             priority: taskPriority,
-            officerId: taskOfficerId,
-            officerName: assignedOfficer.name,
+            officer_id: taskOfficerId,
+            officer_name: assignedOfficer?.name || '',
             note: taskNote,
-            tracking: { latitude: parseFloat(randomLat.toFixed(4)), longitude: parseFloat(randomLng.toFixed(4)) }
         };
 
-        setTasks(prev => [newTask, ...prev]);
+        try {
+            await assignFieldTask(body);
+            await loadTasks();
+        } catch (e) {
+            console.error('Failed to assign task', e);
+        }
+
         setTaskTitle('');
         setTaskProject('');
         setTaskLocation('');
@@ -934,81 +997,87 @@ const PanelOverview = () => {
         setTaskNote('');
     };
 
-    const handleCompleteTask = (taskId) => {
-        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Completed' } : t));
+    const handleCompleteTask = async (taskId) => {
+        try {
+            await completeFieldTask(taskId);
+            setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Completed' } : t));
+        } catch (e) {
+            console.error('Failed to complete task', e);
+        }
     };
 
-    const handleDeleteTask = (taskId) => {
-        setTasks(prev => prev.filter(t => t.id !== taskId));
+    const handleDeleteTask = async (taskId) => {
+        try {
+            await deleteFieldTask(taskId);
+            setTasks(prev => prev.filter(t => t.id !== taskId));
+        } catch (e) {
+            console.error('Failed to delete task', e);
+        }
     };
 
     const handleProjectOnboardTabChange = (tab) => {
         setProjectOnboardTab(tab);
-        const filtered = projectOnboarding.filter(p => tab === 'done' ? p.isCompleted : !p.isCompleted);
-        setSelectedProjectOnboardId(filtered[0]?.id || '');
         setProjectActiveStep(1);
+        loadOnboardingProjects(tab);
     };
 
-    const handleOfficerOnboardTabChange = (tab) => {
-        setOfficerOnboardTab(tab);
-        const filtered = fieldOfficerOnboarding.filter(o => {
-            const isOfficerMatch = o.officerId === selectedOfficerId;
-            const isTabMatch = tab === 'done' ? o.isCompleted : !o.isCompleted;
-            return isOfficerMatch && isTabMatch;
-        });
-        setSelectedOfficerOnboardId(filtered[0]?.id || '');
-        setOfficerActiveStep(1);
-    };
+    const handleOfficerOnboardTabChange = () => {};
 
     // Approval / Rejection Handlers
-    const handleApproveProject = (id) => {
-        setProjectOnboarding(prev => prev.map(item => 
-            item.id === id ? { ...item, isLive: true, isRejected: false, rejectionReason: '' } : item
-        ));
+    const handleApproveProject = async (id) => {
+        try {
+            await decideProjectOnboarding(id, { action: 'approve' });
+            setProjectOnboarding(prev => prev.map(item =>
+                item.id === id ? { ...item, isLive: true, isRejected: false, rejectionReason: '' } : item
+            ));
+        } catch (e) {
+            console.error('Failed to approve project', e);
+        }
     };
 
-    const handleRejectProject = (id) => {
+    const handleRejectProject = async (id) => {
         const reason = window.prompt('Enter rejection reason for this project onboarding');
         if (!reason?.trim()) return;
-
-        setProjectOnboarding(prev => prev.map(item => 
-            item.id === id ? { ...item, isLive: false, isRejected: true, rejectionReason: reason.trim() } : item
-        ));
+        try {
+            await decideProjectOnboarding(id, { action: 'reject', reason });
+            setProjectOnboarding(prev => prev.map(item =>
+                item.id === id ? { ...item, isLive: false, isRejected: true, rejectionReason: reason.trim() } : item
+            ));
+        } catch (e) {
+            console.error('Failed to reject project', e);
+        }
     };
 
-    const handleApproveKycBuilder = (id) => {
-        setKycRecords(prev => prev.map(item =>
-            item.id === id ? { ...item, kycStatus: 'approved', rejectionReason: '' } : item
-        ));
-        setKycSubTab('approved');
-        setSelectedKycBuilderId(id);
+    const handleApproveKycBuilder = async (id) => {
+        try {
+            await updateBuilderKycStatus(id, { document_status: 'approved' });
+            setKycRecords(prev => prev.map(item =>
+                item.id === id ? { ...item, kycStatus: 'approved', rejectionReason: '' } : item
+            ));
+            setKycSubTab('approved');
+            setSelectedKycBuilderId(id);
+        } catch (e) {
+            console.error('Failed to approve KYC', e);
+        }
     };
 
-    const handleRejectKycBuilder = (id) => {
+    const handleRejectKycBuilder = async (id) => {
         const reason = window.prompt('Enter rejection reason for this builder KYC');
         if (!reason?.trim()) return;
-
-        setKycRecords(prev => prev.map(item =>
-            item.id === id ? { ...item, kycStatus: 'rejected', rejectionReason: reason.trim() } : item
-        ));
-        setKycSubTab('rejected');
-        setSelectedKycBuilderId(id);
+        try {
+            await updateBuilderKycStatus(id, { document_status: 'rejected', rejection_reason: reason.trim() });
+            setKycRecords(prev => prev.map(item =>
+                item.id === id ? { ...item, kycStatus: 'rejected', rejectionReason: reason.trim() } : item
+            ));
+            setKycSubTab('rejected');
+            setSelectedKycBuilderId(id);
+        } catch (e) {
+            console.error('Failed to reject KYC', e);
+        }
     };
 
-    const handleApproveOfficer = (id) => {
-        setFieldOfficerOnboarding(prev => prev.map(item => 
-            item.id === id ? { ...item, isLive: true, isRejected: false, rejectionReason: '' } : item
-        ));
-    };
-
-    const handleRejectOfficer = (id) => {
-        const reason = window.prompt('Enter rejection reason for this field officer onboarding');
-        if (!reason?.trim()) return;
-
-        setFieldOfficerOnboarding(prev => prev.map(item => 
-            item.id === id ? { ...item, isLive: false, isRejected: true, rejectionReason: reason.trim() } : item
-        ));
-    };
+    const handleApproveOfficer = () => {};
+    const handleRejectOfficer = () => {};
 
     // Pagination states
     const [meetingPage, setMeetingPage] = useState(1);
@@ -1018,20 +1087,6 @@ const PanelOverview = () => {
 
     const handleOfficerSelect = (id) => {
         setSelectedOfficerId(id);
-        const officer = fieldOfficerWorkflowData.find(o => o.id === id);
-        if (officer?.projects?.length) {
-            setSelectedLeadId(officer.projects[0].id);
-        } else {
-            setSelectedLeadId('');
-        }
-
-        // Reset selected officer onboarding item based on the new officer
-        const filtered = fieldOfficerOnboarding.filter(o => 
-            o.officerId === id && (officerOnboardTab === 'done' ? o.isCompleted : !o.isCompleted)
-        );
-        setSelectedOfficerOnboardId(filtered[0]?.id || '');
-        setOfficerActiveStep(1);
-
         setMeetingPage(1);
         setFollowupPage(1);
     };
@@ -1042,12 +1097,9 @@ const PanelOverview = () => {
     );
     const selectedProjectOnboardItem = projectOnboardFiltered.find(p => p.id === selectedProjectOnboardId) || projectOnboardFiltered[0];
 
-    const officerOnboardFiltered = fieldOfficerOnboarding.filter(o => {
-        const isOfficerMatch = o.officerId === selectedOfficerId;
-        const isTabMatch = officerOnboardTab === 'done' ? o.isCompleted : !o.isCompleted;
-        return isOfficerMatch && isTabMatch;
-    });
-    const selectedOfficerOnboardItem = officerOnboardFiltered.find(o => o.id === selectedOfficerOnboardId) || officerOnboardFiltered[0];
+    // Field officer onboarding (not used - officer onboarding driven by project onboarding for now)
+    const officerOnboardFiltered = [];
+    const selectedOfficerOnboardItem = null;
 
     const handleLeadSelect = (id) => {
         setSelectedLeadId(id);
@@ -1070,7 +1122,7 @@ const PanelOverview = () => {
     );
 
     // Paginated Followups calculations
-    const leadFollowUps = selectedLead?.followUps || [];
+    const leadFollowUps = selectedLead?.followups || [];
     const totalFollowupsPages = Math.ceil(leadFollowUps.length / ITEMS_PER_PAGE) || 1;
     const paginatedFollowups = leadFollowUps.slice(
         (followupPage - 1) * ITEMS_PER_PAGE,
@@ -1272,7 +1324,11 @@ const PanelOverview = () => {
                 <div className="mx-auto max-w-[1600px] space-y-6">
                     {/* Metric Cards Grid */}
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-                        {metrics.map((metric) => (
+                        {statsLoading ? (
+                            <div className="col-span-4 flex items-center justify-center py-8">
+                                <Loader2 size={20} className="animate-spin text-[#2717D7]" />
+                            </div>
+                        ) : metrics.map((metric) => (
                             <PanelMetricCard key={metric.key} metric={metric} />
                         ))}
                     </div>
@@ -1327,29 +1383,29 @@ const PanelOverview = () => {
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-4 rounded-[8px] bg-[#F8F9FF] border border-[#E1DDF0]">
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">First Name</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5">{selectedBuilder.firstName}</p>
+                                        <p className="text-xs font-black text-[#171327] mt-0.5">{(kycDetails || kycFilteredRecords[0])?.firstName || '—'}</p>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Last Name</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5">{selectedBuilder.lastName}</p>
+                                        <p className="text-xs font-black text-[#171327] mt-0.5">{(kycDetails || kycFilteredRecords[0])?.lastName || '—'}</p>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Phone Number</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5">{selectedBuilder.mobile}</p>
+                                        <p className="text-xs font-black text-[#171327] mt-0.5">{(kycDetails || kycFilteredRecords[0])?.mobile || '—'}</p>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Company Type</p>
                                         <span className="inline-flex items-center mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold bg-[#F4F1FF] text-[#2717D7] border border-[#D8D2EB]">
-                                            {selectedBuilder.companyType}
+                                            {(kycDetails || kycFilteredRecords[0])?.companyType || 'Builder'}
                                         </span>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">RERA Number</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5 tracking-wide">{selectedBuilder.reraNumber}</p>
+                                        <p className="text-xs font-black text-[#171327] mt-0.5 tracking-wide">{(kycDetails || kycFilteredRecords[0])?.reraNumber || '—'}</p>
                                     </div>
                                     <div className="col-span-2 lg:col-span-1">
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Location</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5 truncate">{selectedBuilder.location}</p>
+                                        <p className="text-xs font-black text-[#171327] mt-0.5 truncate">{(kycDetails || kycFilteredRecords[0])?.location || '—'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1366,9 +1422,9 @@ const PanelOverview = () => {
                                             onChange={(e) => handleOfficerSelect(e.target.value)}
                                             className="h-9 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all shadow-sm"
                                         >
-                                            {fieldOfficerWorkflowData.map((fo) => (
+                                            {fieldOfficers.map((fo) => (
                                                 <option key={fo.id} value={fo.id}>
-                                                    {fo.name} ({fo.area})
+                                                    {fo.name} ({fo.area || 'Unassigned'})
                                                 </option>
                                             ))}
                                         </select>
@@ -1382,25 +1438,25 @@ const PanelOverview = () => {
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-4 rounded-[8px] bg-[#F8F9FF] border border-[#E1DDF0]">
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Full Name</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5">{selectedOfficer?.name}</p>
+                                        <p className="text-xs font-black text-[#171327] mt-0.5">{selectedOfficer?.full_name || '—'}</p>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Mobile Number</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5">{selectedOfficer?.phone}</p>
+                                        <p className="text-xs font-black text-[#171327] mt-0.5">{selectedOfficer?.mobile_number || '—'}</p>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Assigned Area</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5 truncate">{selectedOfficer?.area}</p>
+                                        <p className="text-xs font-black text-[#171327] mt-0.5 truncate">{selectedOfficer?.assigned_area || '—'}</p>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Zone</p>
                                         <span className="inline-flex items-center mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold bg-[#F4F1FF] text-[#2717D7] border border-[#D8D2EB]">
-                                            {selectedOfficer?.zone}
+                                            {selectedOfficer?.zone || 'Zone A-1'}
                                         </span>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Status</p>
-                                        <p className="text-xs font-black text-emerald-600 mt-0.5">{selectedOfficer?.status}</p>
+                                        <p className="text-xs font-black text-emerald-600 mt-0.5">{selectedOfficer?.status || 'Active'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -2006,9 +2062,9 @@ const PanelOverview = () => {
                                             {fieldOfficerOnboarding.filter(o => o.isLive && o.officerId === selectedOfficerId).length === 0 ? (
                                                 <div className="text-center py-12 px-4 border border-dashed border-[#D8D2EB] rounded-[10px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
                                                     <CheckCircle2 className="mx-auto h-12 w-12 text-[#A49DB8] mb-3 stroke-[1.5]" />
-                                                    <h4 className="text-sm font-black text-[#171327] uppercase tracking-wider">No Live Projects for {selectedOfficer?.name}</h4>
+                                                    <h4 className="text-sm font-black text-[#171327] uppercase tracking-wider">No Live Projects for {selectedOfficer?.full_name}</h4>
                                                     <p className="text-xs font-bold text-[#5E5A71] mt-1.5 max-w-md mx-auto">
-                                                        Go to the "Onboarding progress" sub-tab and select the "Done" list under {selectedOfficer?.name || 'officer'} to review and approve completed submissions.
+                                                        Go to the "Onboarding progress" sub-tab and select the "Done" list under {selectedOfficer?.full_name || 'officer'} to review and approve completed submissions.
                                                     </p>
                                                 </div>
                                             ) : (
@@ -2027,7 +2083,7 @@ const PanelOverview = () => {
                                                                             Live
                                                                         </span>
                                                                     </div>
-                                                                    <p className="text-[10px] font-bold text-[#5E5A71] mt-1">Submitted by: <span className="text-[#2717D7]">{selectedOfficer?.name}</span></p>
+                                                                    <p className="text-[10px] font-bold text-[#5E5A71] mt-1">Submitted by: <span className="text-[#2717D7]">{selectedOfficer?.full_name}</span></p>
                                                                     <div className="mt-3 flex items-center gap-1.5 text-[11px] font-bold text-[#5E5A71]">
                                                                         <MapPin size={13} className="text-[#2717D7]" />
                                                                         <span className="truncate">{location ? `${location}, ` : ''}{city}</span>
@@ -2054,9 +2110,6 @@ const PanelOverview = () => {
                                                                         type="button"
                                                                         onClick={() => {
                                                                             setActiveOfficerSubTab('onboardingProgress');
-                                                                            setOfficerOnboardTab('done');
-                                                                            setSelectedOfficerOnboardId(proj.id);
-                                                                            setOfficerActiveStep(1);
                                                                         }}
                                                                         className="flex items-center gap-1 text-[11px] font-black uppercase tracking-wider text-[#2717D7] hover:text-[#1a0fa3] transition-colors"
                                                                     >
@@ -2072,20 +2125,20 @@ const PanelOverview = () => {
                                         </div>
                                     ) : activeOfficerSubTab === 'rejected' ? (
                                         <div className="pt-2">
-                                            {fieldOfficerOnboarding.filter(o => o.isRejected && o.officerId === selectedOfficerId).length === 0 ? (
+                                            {projectOnboarding.filter(p => p.isRejected).length === 0 ? (
                                                 <div className="text-center py-12 px-4 border border-dashed border-[#D8D2EB] rounded-[10px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
                                                     <ShieldAlert className="mx-auto h-12 w-12 text-[#A49DB8] mb-3 stroke-[1.5]" />
-                                                    <h4 className="text-sm font-black text-[#171327] uppercase tracking-wider">No Rejected Projects for {selectedOfficer?.name}</h4>
+                                                    <h4 className="text-sm font-black text-[#171327] uppercase tracking-wider">No Rejected Projects for {selectedOfficer?.full_name}</h4>
                                                     <p className="text-xs font-bold text-[#5E5A71] mt-1.5 max-w-md mx-auto">
-                                                        No projects submitted by {selectedOfficer?.name || 'officer'} have been rejected.
+                                                        No projects submitted by {selectedOfficer?.full_name || 'officer'} have been rejected.
                                                     </p>
                                                 </div>
                                             ) : (
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                                    {fieldOfficerOnboarding.filter(o => o.isRejected && o.officerId === selectedOfficerId).map((proj) => {
+                                                    {projectOnboarding.filter(p => p.isRejected).map((proj) => {
                                                         const selectedTypes = proj.form?.step2?.selectedTypes || [];
-                                                        const city = proj.form?.step1?.city || '';
-                                                        const location = proj.form?.step1?.location || '';
+                                                        const city = proj.form?.step1?.city || proj.location || '';
+                                                        const location = '';
                                                         return (
                                                             <div key={proj.id} className="rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-[0_2px_4px_rgba(33,24,88,0.02)] hover:shadow-[0_4px_12px_rgba(33,24,88,0.06)] transition-all flex flex-col justify-between">
                                                                 <div>
@@ -2095,7 +2148,7 @@ const PanelOverview = () => {
                                                                             Rejected
                                                                         </span>
                                                                     </div>
-                                                                    <p className="text-[10px] font-bold text-[#5E5A71] mt-1">Submitted by: <span className="text-[#2717D7]">{selectedOfficer?.name}</span></p>
+                                                                    <p className="text-[10px] font-bold text-[#5E5A71] mt-1">Submitted by: <span className="text-[#2717D7]">{selectedOfficer?.full_name}</span></p>
                                                                     <div className="mt-3 flex items-center gap-1.5 text-[11px] font-bold text-[#5E5A71]">
                                                                         <MapPin size={13} className="text-[#2717D7]" />
                                                                         <span className="truncate">{location ? `${location}, ` : ''}{city}</span>
@@ -2188,7 +2241,7 @@ const PanelOverview = () => {
                                                                     onChange={(e) => setTaskOfficerId(e.target.value)}
                                                                     className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
                                                                 >
-                                                                    {fieldOfficerWorkflowData.map((fo) => (
+                                                                    {fieldOfficers.map((fo) => (
                                                                         <option key={fo.id} value={fo.id}>{fo.name}</option>
                                                                     ))}
                                                                 </select>
@@ -2435,15 +2488,15 @@ const PanelOverview = () => {
                                         {/* Leads List */}
                                         <div className="rounded-[10px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
                                             <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[#5E5A71] mb-3">
-                                                Leads for {selectedOfficer?.name || 'Officer'}
+                                                Leads for {selectedOfficer?.full_name || 'Officer'}
                                             </h3>
-                                            {!selectedOfficer?.projects?.length ? (
+                                            {!officerLeads.length ? (
                                                 <div className="text-center py-6 border border-dashed border-[#E1DDF0] rounded-[8px] bg-[#FCFBFF]">
                                                     <p className="text-xs font-bold text-[#5E5A71]">No active leads.</p>
                                                 </div>
                                             ) : (
                                                 <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                                                    {selectedOfficer.projects.map((proj) => {
+                                                    {officerLeads.map((proj) => {
                                                         const isSelected = selectedLeadId === proj.id;
                                                         return (
                                                             <button
@@ -2457,14 +2510,14 @@ const PanelOverview = () => {
                                                                 }`}
                                                             >
                                                                 <div className="flex justify-between items-start gap-1">
-                                                                    <p className="text-xs font-black truncate max-w-[120px]">{proj.projectName}</p>
+                                                                    <p className="text-xs font-black truncate max-w-[120px]">{proj.project_name || proj.projectName}</p>
                                                                     <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                                                                        proj.type === 'Hot' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                                                        proj.temperature === 'HOT' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
                                                                     }`}>
-                                                                        {proj.type}
+                                                                        {proj.temperature || 'WARM'}
                                                                     </span>
                                                                 </div>
-                                                                <p className="text-[10px] text-[#5E5A71] mt-1 truncate">{proj.developerName}</p>
+                                                                <p className="text-[10px] text-[#5E5A71] mt-1 truncate">{proj.builder_name || proj.developerName}</p>
                                                             </button>
                                                         );
                                                     })}
