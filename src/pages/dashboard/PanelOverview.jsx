@@ -35,6 +35,8 @@ import {
     fetchRejectedProjects,
     fetchFieldOfficersDropdown,
     fetchOfficerDetails,
+    fetchOfficerProjects,
+    fetchOfficerProjectOnboardingDetails,
     fetchOfficerBuilderLeads,
     fetchBuilderLeadDetails,
     assignFieldTask,
@@ -205,9 +207,44 @@ const Step3View = ({ form }) => {
     const unitConfigs = form.step3?.unitConfigs || {};
     const hasUnits = Object.values(unitConfigs).some(configs => configs && configs.length > 0);
 
+    const totalArea = form.step3?.totalArea;
+    const carpetArea = form.step3?.carpetArea;
+    const khasraNumber = form.step3?.khasraNumber;
+    const propertyAge = form.step3?.propertyAge;
+    const nearbyProject = form.step3?.nearbyProject;
+    const towerNumber = form.step3?.towerNumber;
+    const flatNumber = form.step3?.flatNumber;
+    const priceFrom = form.step3?.priceFrom;
+    const priceTo = form.step3?.priceTo;
+
+    const hasProjectSpecs = totalArea || carpetArea || khasraNumber || propertyAge || towerNumber || flatNumber;
+
     return (
-        <div className="space-y-4">
-            <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+        <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+            {hasProjectSpecs && (
+                <div className="bg-[#F8F9FF] border border-[#E1DDF0] rounded-[8px] p-4 space-y-3">
+                    <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
+                        <Building2 size={14} className="text-[#2717D7]" /> Project Specifications
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {totalArea && <DetailField label="Total Area" value={`${totalArea} ${form.step3?.areaUnit || 'Sq. Ft.'}`} />}
+                        {carpetArea && <DetailField label="Carpet Area" value={`${carpetArea} ${form.step3?.areaUnit || 'Sq. Ft.'}`} />}
+                        {khasraNumber && <DetailField label="Khasra Number" value={khasraNumber} />}
+                        {propertyAge && <DetailField label="Property Age" value={`${propertyAge} Years`} />}
+                        {towerNumber && <DetailField label="Tower Number" value={towerNumber} />}
+                        {flatNumber && <DetailField label="Flat Number" value={flatNumber} />}
+                        {nearbyProject && <DetailField label="Nearby Project" value={nearbyProject} />}
+                        {(priceFrom || priceTo) && (
+                            <DetailField 
+                                label="Price Range" 
+                                value={priceFrom && priceTo ? `₹${priceFrom} - ₹${priceTo}` : (priceFrom ? `From ₹${priceFrom}` : `Up to ₹${priceTo}`)} 
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
+
+            <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5 pt-2">
                 <Building2 size={14} className="text-[#2717D7]" /> Unit Configurations
             </h4>
             {!hasUnits ? (
@@ -701,6 +738,8 @@ const PanelOverview = () => {
 
     // Onboarding projects state (API-driven)
     const [projectOnboarding, setProjectOnboarding] = useState([]);
+    const [draftedCount, setDraftedCount] = useState(0);
+    const [doneCount, setDoneCount] = useState(0);
     const [onboardingLoading, setOnboardingLoading] = useState(false);
     const [projectOnboardTab, setProjectOnboardTab] = useState('drafted');
     const [selectedProjectOnboardId, setSelectedProjectOnboardId] = useState('');
@@ -726,6 +765,17 @@ const PanelOverview = () => {
     const [taskNote, setTaskNote] = useState('');
     const [taskOfficerId, setTaskOfficerId] = useState('');
     const [taskActiveFilter, setTaskActiveFilter] = useState('all');
+
+    // Field Officer Onboarding states (API-driven)
+    const [fieldOfficerOnboarding, setFieldOfficerOnboarding] = useState([]);
+    const [officerDraftedCount, setOfficerDraftedCount] = useState(0);
+    const [officerDoneCount, setOfficerDoneCount] = useState(0);
+    const [officerOnboardingLoading, setOfficerOnboardingLoading] = useState(false);
+    const [officerOnboardTab, setOfficerOnboardTab] = useState('drafted');
+    const [selectedOfficerOnboardId, setSelectedOfficerOnboardId] = useState('');
+    const [officerActiveStep, setOfficerActiveStep] = useState(1);
+    const [officerOnboardDetails, setOfficerOnboardDetails] = useState(null);
+    const [officerOnboardDetailsLoading, setOfficerOnboardDetailsLoading] = useState(false);
 
     // Live tracking map locations
     const [officerLocations, setOfficerLocations] = useState({});
@@ -854,10 +904,26 @@ const PanelOverview = () => {
             if (res?.success) {
                 const mapped = (res.data || []).map(mapOnboardingProject);
                 setProjectOnboarding(mapped);
+                if (tab === 'drafted') {
+                    setDraftedCount(mapped.length);
+                } else {
+                    setDoneCount(mapped.length);
+                }
+
                 if (mapped.length > 0) {
                     setSelectedProjectOnboardId(mapped[0].id);
                     setProjectActiveStep(mapped[0].currentStep || 1);
                 }
+
+                // Pre-fetch other tab in background to update counts
+                const otherTab = tab === 'drafted' ? 'done' : 'drafted';
+                fetchOnboardingProjects({ tab: otherTab }).then(otherRes => {
+                    if (otherRes?.success) {
+                        const otherLength = (otherRes.data || []).length;
+                        if (otherTab === 'drafted') setDraftedCount(otherLength);
+                        else setDoneCount(otherLength);
+                    }
+                }).catch(err => console.error('Failed to pre-fetch other tab', err));
             }
         } catch (e) {
             console.error('Failed to load onboarding projects', e);
@@ -903,15 +969,246 @@ const PanelOverview = () => {
         }
     }, []);
 
+    const mapBackendTaskToFrontend = useCallback((t) => {
+        if (!t) return null;
+        
+        let dueLabel = 'Today';
+        let timeLabel = '12:00 PM';
+        if (t.timeline) {
+            try {
+                const date = new Date(t.timeline);
+                dueLabel = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                timeLabel = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                console.error('Failed to parse timeline', e);
+            }
+        }
+        
+        let statusLabel = 'Pending';
+        if (t.status === 'IN_PROGRESS') statusLabel = 'In Progress';
+        if (t.status === 'COMPLETED') statusLabel = 'Completed';
+        
+        return {
+            id: t.id,
+            title: t.title,
+            note: t.description || '',
+            projectName: t.projectName || 'General Task',
+            location: t.location || 'N/A',
+            officerName: t.assignedTo?.name || 'Unassigned',
+            due: dueLabel,
+            time: timeLabel,
+            priority: t.priority || 'Medium',
+            status: statusLabel
+        };
+    }, []);
+
     const loadTasks = useCallback(async () => {
         try {
             setTasksLoading(true);
             const res = await fetchAllBranchFieldTasks();
-            if (res?.success) setTasks(res.data || []);
+            if (res?.success) {
+                const backendTasks = res.data?.tasks || res.data || [];
+                const mapped = backendTasks.map(mapBackendTaskToFrontend).filter(Boolean);
+                setTasks(mapped);
+            }
         } catch (e) {
             console.error('Failed to load tasks', e);
         } finally {
             setTasksLoading(false);
+        }
+    }, [mapBackendTaskToFrontend]);
+
+    const mapDetailsToForm = useCallback((d) => {
+        if (!d) return {};
+        
+        // Step 1 mapping
+        const basic = d.step_1_basic || {};
+        const step1 = {
+            projectName: basic.project_name,
+            location: basic.location_landmark,
+            city: basic.city,
+            state: basic.state,
+            pincode: basic.pincode,
+            salesOfficerName: basic.sales_officer_name,
+            salesOfficerContact: basic.sales_officer_contact,
+            responsiblePersonName: basic.responsible_person,
+            responsiblePersonContact: basic.responsible_contact
+        };
+
+        // Step 2 mapping
+        const type = d.step_2_type || {};
+        const step2 = {
+            selectedTypes: type.property_types?.length 
+              ? type.property_types.map(pt => ({ mainType: pt.category, subType: pt.property_type }))
+              : [{ mainType: type.category, subType: type.property_type }]
+        };
+
+        // Step 3 mapping
+        const details = d.step_3_details || {};
+        const step3 = {
+            totalArea: details.total_area,
+            carpetArea: details.carpet_area,
+            areaUnit: details.area_unit,
+            propertyAge: details.property_age,
+            khasraNumber: details.khasra_number,
+            nearbyProject: details.nearby_project,
+            towerNumber: details.tower_number,
+            flatNumber: details.flat_number,
+            priceFrom: details.price_from,
+            priceTo: details.price_to,
+            unitConfigs: {
+                'apartment': (details.units || []).map(u => ({
+                    propertyNumber: u.unit_no,
+                    tower: u.tower_block,
+                    floor: u.floor,
+                    bhk: u.bhk_type,
+                    area: u.area,
+                    price: u.price
+                }))
+            }
+        };
+
+        // Step 4 mapping
+        const approvals = d.step_4_approvals || {};
+        const step4 = {
+            possessionStatus: approvals.timeline?.possession_status,
+            expectedPossessionDate: approvals.timeline?.expected_possession_date,
+            projectLaunchStatus: approvals.timeline?.launch_status,
+            projectLaunchDate: approvals.timeline?.launch_expected_date,
+            expectedLaunchDate: approvals.timeline?.launch_expected_date,
+            developmentCompletionPercentage: approvals.timeline?.development_completion,
+            currentDevelopmentStage: approvals.timeline?.stages || [],
+            approvals: {
+                rera: {
+                    status: approvals.compliance?.rera?.approved === 'YES' ? 'Yes' : 'No',
+                    registrationNumber: approvals.compliance?.rera?.details
+                },
+                tncp: {
+                    status: approvals.compliance?.tncp?.approved === 'YES' ? 'Yes' : 'No',
+                    registrationNumber: approvals.compliance?.tncp?.details
+                },
+                buildingPermission: {
+                    status: approvals.compliance?.building_permission?.approved === 'YES' ? 'Yes' : 'No',
+                    registrationNumber: approvals.compliance?.building_permission?.details
+                },
+                developmentPermission: {
+                    status: approvals.compliance?.development_permission?.approved === 'YES' ? 'Yes' : 'No',
+                    registrationNumber: approvals.compliance?.development_permission?.details
+                }
+            }
+        };
+
+        // Step 5 mapping
+        const finance = d.step_5_finance || {};
+        const step5 = {
+            guidelineValueAmount: finance.guideline_registry?.guideline_value,
+            registryChargesMaleBuyer: finance.guideline_registry?.registry_male,
+            registryChargesFemaleBuyer: finance.guideline_registry?.registry_female,
+            propertyJurisdictionArea: finance.guideline_registry?.jurisdiction,
+            guidelineYear: finance.guideline_registry?.guideline_year,
+            otherGovernmentCharges: finance.guideline_registry?.other_charges,
+            loanAvailable: finance.loan_availability?.bank_loan_available,
+            tieUpBankName: finance.loan_availability?.tie_up_with_banks,
+            maximumLoanPercentage: finance.loan_availability?.maximum_loan_percent,
+            loanApprovalStatus: finance.loan_availability?.loan_approval_status,
+            requiredLoanDocuments: finance.loan_availability?.required_documents,
+            ownershipType: finance.land_ownership?.ownership_type,
+            titleVerificationStatus: finance.land_ownership?.title_verification,
+            titleExpectedCompletionDate: finance.land_ownership?.title_expected_completion_date,
+            jvLandOwnerName: finance.land_ownership?.jv_land_owner_name,
+            jvDeveloperBuilderName: finance.land_ownership?.jv_developer_name,
+            jvRevenueAreaSharingDetails: finance.land_ownership?.jv_sharing_details
+        };
+
+        // Step 6 mapping
+        const media = d.step_6_media || {};
+        const step6 = {
+            images: (media.gallery || []).map(img => ({ uri: img.url, fileName: img.label })),
+            documents: (media.documents || []).map(doc => ({ uri: doc.url, name: doc.label })),
+            agreed: media.agreement_status?.is_signed
+        };
+
+        return { step1, step2, step3, step4, step5, step6 };
+    }, []);
+
+    const loadOfficerProjects = useCallback(async (officerId, subTab = activeOfficerSubTab) => {
+        if (!officerId) return;
+        try {
+            setOfficerOnboardingLoading(true);
+            let apiTab = 'onboarding';
+            if (subTab === 'live') apiTab = 'live';
+            if (subTab === 'rejected') apiTab = 'rejected';
+            
+            const res = await fetchOfficerProjects(officerId, { tab: apiTab });
+            if (res?.success) {
+                const mapped = (res.data || []).map(p => ({
+                    id: p.id,
+                    projectName: p.project_name || 'Unnamed Project',
+                    builderName: p.builder_name || 'Unknown Builder',
+                    officerId: officerId,
+                    isCompleted: p.status !== 'DRAFT',
+                    isLive: p.status === 'LIVE',
+                    isRejected: p.status === 'REJECTED',
+                    currentStep: p.current_step || 1,
+                    lastUpdated: p.updated_at ? new Date(p.updated_at).toLocaleDateString('en-IN') : 'recently',
+                    rejectionReason: p.rejection_reason || '',
+                    form: {}
+                }));
+
+                if (subTab === 'onboardingProgress') {
+                    const drafted = mapped.filter(o => !o.isCompleted);
+                    const done = mapped.filter(o => o.isCompleted);
+                    setOfficerDraftedCount(drafted.length);
+                    setOfficerDoneCount(done.length);
+
+                    const activeList = officerOnboardTab === 'done' ? done : drafted;
+                    setFieldOfficerOnboarding(activeList);
+                    if (activeList.length > 0) {
+                        setSelectedOfficerOnboardId(activeList[0].id);
+                        setOfficerActiveStep(1);
+                    } else {
+                        setSelectedOfficerOnboardId('');
+                    }
+                } else {
+                    setFieldOfficerOnboarding(mapped);
+                    if (mapped.length > 0) {
+                        setSelectedOfficerOnboardId(mapped[0].id);
+                        setOfficerActiveStep(1);
+                    } else {
+                        setSelectedOfficerOnboardId('');
+                    }
+
+                    // Background fetch onboarding to sync counts
+                    fetchOfficerProjects(officerId, { tab: 'onboarding' }).then(bgRes => {
+                        if (bgRes?.success) {
+                            const bgMapped = bgRes.data || [];
+                            const draftedLen = bgMapped.filter(p => p.status === 'DRAFT').length;
+                            const doneLen = bgMapped.filter(p => p.status !== 'DRAFT').length;
+                            setOfficerDraftedCount(draftedLen);
+                            setOfficerDoneCount(doneLen);
+                        }
+                    }).catch(err => console.error('Failed to pre-fetch onboarding counts in background', err));
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load officer projects', e);
+        } finally {
+            setOfficerOnboardingLoading(false);
+        }
+    }, [activeOfficerSubTab, officerOnboardTab]);
+
+    const loadOfficerOnboardDetails = useCallback(async (officerId, projectId) => {
+        if (!officerId || !projectId) return;
+        try {
+            setOfficerOnboardDetailsLoading(true);
+            const res = await fetchOfficerProjectOnboardingDetails(officerId, projectId);
+            if (res?.success && res.data) {
+                setOfficerOnboardDetails(res.data);
+            }
+        } catch (e) {
+            console.error('Failed to load officer onboarding details', e);
+        } finally {
+            setOfficerOnboardDetailsLoading(false);
         }
     }, []);
 
@@ -925,8 +1222,9 @@ const PanelOverview = () => {
         if (selectedOfficerId) {
             loadOfficerDetails(selectedOfficerId);
             loadOfficerLeads(selectedOfficerId);
+            loadOfficerProjects(selectedOfficerId, activeOfficerSubTab);
         }
-    }, [selectedOfficerId, loadOfficerDetails, loadOfficerLeads]);
+    }, [selectedOfficerId, loadOfficerDetails, loadOfficerLeads, loadOfficerProjects, activeOfficerSubTab]);
 
     // Load lead details when lead changes
     useEffect(() => {
@@ -957,6 +1255,20 @@ const PanelOverview = () => {
         if (activeOfficerSubTab === 'tasks') loadTasks();
     }, [activeOfficerSubTab]);
 
+    // Load officer projects when sub-tab changes
+    useEffect(() => {
+        if (selectedOfficerId && ['onboardingProgress', 'live', 'rejected'].includes(activeOfficerSubTab)) {
+            loadOfficerProjects(selectedOfficerId, activeOfficerSubTab);
+        }
+    }, [activeOfficerSubTab, selectedOfficerId, loadOfficerProjects]);
+
+    // Load officer project details when selection changes
+    useEffect(() => {
+        if (selectedOfficerId && selectedOfficerOnboardId) {
+            loadOfficerOnboardDetails(selectedOfficerId, selectedOfficerOnboardId);
+        }
+    }, [selectedOfficerId, selectedOfficerOnboardId, loadOfficerOnboardDetails]);
+
     // Keep kycFilteredRecords in sync when kycSubTab changes
     useEffect(() => {
         const current = kycRecords.filter(r => r.kycStatus === kycSubTab);
@@ -968,17 +1280,51 @@ const PanelOverview = () => {
         e.preventDefault();
         if (!taskTitle.trim() || !taskProject.trim() || !taskLocation.trim()) return;
 
-        const assignedOfficer = fieldOfficers.find(fo => fo.id === taskOfficerId) || fieldOfficers[0];
+        let backendPriority = 'NORMAL';
+        if (taskPriority === 'High') backendPriority = 'HIGH';
+        if (taskPriority === 'Low') backendPriority = 'LOW';
+
+        // Parse due and time into an ISO date string
+        let targetDate = new Date();
+        if (taskDue === 'Tomorrow') {
+            targetDate.setDate(targetDate.getDate() + 1);
+        } else if (taskDue === 'This week') {
+            targetDate.setDate(targetDate.getDate() + 6);
+        }
+        
+        let hours = 12;
+        let minutes = 0;
+        const timeStr = taskTime.trim().toUpperCase();
+        const match = timeStr.match(/^(\d+):(\d+)\s*(AM|PM)?$/) || timeStr.match(/^(\d+)\s*(AM|PM)$/);
+        if (match) {
+            if (match[3]) {
+                hours = parseInt(match[1], 10);
+                minutes = match[2] ? parseInt(match[2], 10) : 0;
+                if (match[3] === 'PM' && hours < 12) hours += 12;
+                if (match[3] === 'AM' && hours === 12) hours = 0;
+            } else {
+                hours = parseInt(match[1], 10);
+                minutes = match[2] ? parseInt(match[2], 10) : 0;
+            }
+        }
+        targetDate.setHours(hours, minutes, 0, 0);
+        
+        // Ensure future date
+        if (targetDate <= new Date()) {
+            targetDate.setHours(targetDate.getHours() + 1);
+            if (targetDate <= new Date()) {
+                targetDate.setDate(targetDate.getDate() + 1);
+            }
+        }
+
         const body = {
-            title: taskTitle,
-            project_name: taskProject,
-            location: taskLocation,
-            due: taskDue,
-            time: taskTime,
-            priority: taskPriority,
+            title: taskTitle.trim(),
+            project_name: taskProject.trim(),
+            location: taskLocation.trim(),
+            timeline: targetDate.toISOString(),
+            priority: backendPriority,
             officer_id: taskOfficerId,
-            officer_name: assignedOfficer?.name || '',
-            note: taskNote,
+            note: taskNote.trim(),
         };
 
         try {
@@ -1021,7 +1367,18 @@ const PanelOverview = () => {
         loadOnboardingProjects(tab);
     };
 
-    const handleOfficerOnboardTabChange = () => {};
+    const handleOfficerOnboardTabChange = (tab) => {
+        setOfficerOnboardTab(tab);
+        setOfficerActiveStep(1);
+        const filtered = fieldOfficerOnboarding.filter(o => 
+            tab === 'done' ? o.isCompleted : !o.isCompleted
+        );
+        if (filtered.length > 0) {
+            setSelectedOfficerOnboardId(filtered[0].id);
+        } else {
+            setSelectedOfficerOnboardId('');
+        }
+    };
 
     // Approval / Rejection Handlers
     const handleApproveProject = async (id) => {
@@ -1076,8 +1433,31 @@ const PanelOverview = () => {
         }
     };
 
-    const handleApproveOfficer = () => {};
-    const handleRejectOfficer = () => {};
+    const handleApproveOfficer = async (id) => {
+        try {
+            await decideProjectOnboarding(id, { action: 'approve' });
+            setFieldOfficerOnboarding(prev => prev.map(item =>
+                item.id === id ? { ...item, isLive: true, isRejected: false, rejectionReason: '' } : item
+            ));
+            loadOfficerProjects(selectedOfficerId, activeOfficerSubTab);
+        } catch (e) {
+            console.error('Failed to approve officer project', e);
+        }
+    };
+
+    const handleRejectOfficer = async (id) => {
+        const reason = window.prompt('Enter rejection reason for this officer project onboarding');
+        if (!reason?.trim()) return;
+        try {
+            await decideProjectOnboarding(id, { action: 'reject', reason });
+            setFieldOfficerOnboarding(prev => prev.map(item =>
+                item.id === id ? { ...item, isLive: false, isRejected: true, rejectionReason: reason.trim() } : item
+            ));
+            loadOfficerProjects(selectedOfficerId, activeOfficerSubTab);
+        } catch (e) {
+            console.error('Failed to reject officer project', e);
+        }
+    };
 
     // Pagination states
     const [meetingPage, setMeetingPage] = useState(1);
@@ -1095,11 +1475,27 @@ const PanelOverview = () => {
     const projectOnboardFiltered = projectOnboarding.filter(p => 
         projectOnboardTab === 'done' ? p.isCompleted : !p.isCompleted
     );
-    const selectedProjectOnboardItem = projectOnboardFiltered.find(p => p.id === selectedProjectOnboardId) || projectOnboardFiltered[0];
+    const selectedProjectOnboardItem = (() => {
+        const base = projectOnboardFiltered.find(p => p.id === selectedProjectOnboardId) || projectOnboardFiltered[0];
+        if (!base) return null;
+        return {
+            ...base,
+            form: projectOnboardDetails && projectOnboardDetails.id === base.id ? mapDetailsToForm(projectOnboardDetails) : {}
+        };
+    })();
 
-    // Field officer onboarding (not used - officer onboarding driven by project onboarding for now)
-    const officerOnboardFiltered = [];
-    const selectedOfficerOnboardItem = null;
+    // Field officer onboarding calculations
+    const officerOnboardFiltered = fieldOfficerOnboarding.filter(o => 
+        officerOnboardTab === 'done' ? o.isCompleted : !o.isCompleted
+    );
+    const selectedOfficerOnboardItem = (() => {
+        const base = officerOnboardFiltered.find(p => p.id === selectedOfficerOnboardId) || officerOnboardFiltered[0];
+        if (!base) return null;
+        return {
+            ...base,
+            form: officerOnboardDetails && officerOnboardDetails.id === base.id ? mapDetailsToForm(officerOnboardDetails) : {}
+        };
+    })();
 
     const handleLeadSelect = (id) => {
         setSelectedLeadId(id);
@@ -1539,7 +1935,7 @@ const PanelOverview = () => {
                                                                         : 'text-[#5E5A71] hover:text-[#2717D7]'
                                                                 }`}
                                                             >
-                                                                Drafted ({projectOnboarding.filter(p => !p.isCompleted).length})
+                                                                Drafted ({draftedCount})
                                                                 {projectOnboardTab === 'drafted' && (
                                                                     <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2717D7] rounded-full" />
                                                                 )}
@@ -1553,7 +1949,7 @@ const PanelOverview = () => {
                                                                         : 'text-[#5E5A71] hover:text-[#2717D7]'
                                                                 }`}
                                                             >
-                                                                Done ({projectOnboarding.filter(p => p.isCompleted).length})
+                                                                Done ({doneCount})
                                                                 {projectOnboardTab === 'done' && (
                                                                     <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2717D7] rounded-full" />
                                                                 )}
@@ -1965,7 +2361,7 @@ const PanelOverview = () => {
                                                                         : 'text-[#5E5A71] hover:text-[#2717D7]'
                                                                 }`}
                                                             >
-                                                                Drafted ({fieldOfficerOnboarding.filter(o => o.officerId === selectedOfficerId && !o.isCompleted).length})
+                                                                Drafted ({officerDraftedCount})
                                                                 {officerOnboardTab === 'drafted' && (
                                                                     <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2717D7] rounded-full" />
                                                                 )}
@@ -1979,7 +2375,7 @@ const PanelOverview = () => {
                                                                         : 'text-[#5E5A71] hover:text-[#2717D7]'
                                                                 }`}
                                                             >
-                                                                Done ({fieldOfficerOnboarding.filter(o => o.officerId === selectedOfficerId && o.isCompleted).length})
+                                                                Done ({officerDoneCount})
                                                                 {officerOnboardTab === 'done' && (
                                                                     <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2717D7] rounded-full" />
                                                                 )}
@@ -2125,7 +2521,7 @@ const PanelOverview = () => {
                                         </div>
                                     ) : activeOfficerSubTab === 'rejected' ? (
                                         <div className="pt-2">
-                                            {projectOnboarding.filter(p => p.isRejected).length === 0 ? (
+                                            {fieldOfficerOnboarding.filter(o => o.isRejected && o.officerId === selectedOfficerId).length === 0 ? (
                                                 <div className="text-center py-12 px-4 border border-dashed border-[#D8D2EB] rounded-[10px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
                                                     <ShieldAlert className="mx-auto h-12 w-12 text-[#A49DB8] mb-3 stroke-[1.5]" />
                                                     <h4 className="text-sm font-black text-[#171327] uppercase tracking-wider">No Rejected Projects for {selectedOfficer?.full_name}</h4>
@@ -2135,7 +2531,7 @@ const PanelOverview = () => {
                                                 </div>
                                             ) : (
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                                    {projectOnboarding.filter(p => p.isRejected).map((proj) => {
+                                                    {fieldOfficerOnboarding.filter(o => o.isRejected && o.officerId === selectedOfficerId).map((proj) => {
                                                         const selectedTypes = proj.form?.step2?.selectedTypes || [];
                                                         const city = proj.form?.step1?.city || proj.location || '';
                                                         const location = '';
@@ -2545,6 +2941,20 @@ const PanelOverview = () => {
                                                             <p className="text-xs font-semibold text-[#5E5A71] mt-0.5">
                                                                 Developer: {selectedLead.developerName} | Location: {selectedLead.location}, {selectedLead.city}
                                                             </p>
+                                                            {selectedLead.projectId && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setActiveOfficerSubTab('onboardingProgress');
+                                                                        setOfficerOnboardTab('drafted');
+                                                                        setSelectedOfficerOnboardId(selectedLead.projectId);
+                                                                        setOfficerActiveStep(1);
+                                                                    }}
+                                                                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F4F1FF] border border-[#D8D2EB] hover:border-[#2717D7] rounded-[6px] text-[10px] font-black text-[#2717D7] uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
+                                                                >
+                                                                    <Building2 size={12} /> View Project Onboarding
+                                                                </button>
+                                                            )}
                                                         </div>
                                                         <div className="text-right">
                                                             <p className="text-xs font-bold text-[#171327]">{selectedLead.contactPerson}</p>

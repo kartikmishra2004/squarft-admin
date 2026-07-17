@@ -806,14 +806,17 @@ const Visits = () => {
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0">
                                                     <p className="text-sm font-black leading-tight text-gray-950 break-words">{client.name}</p>
-                                                    <p className="mt-1 text-xs font-semibold text-gray-500 break-words">{client.phone}</p>
+                                                    <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-gray-500">
+                                                        <PhoneCall className="h-3 w-3 text-gray-400 shrink-0" />
+                                                        <span className="break-words">{client.phone}</span>
+                                                    </p>
                                                 </div>
                                                 <ChevronRight className={`mt-1 h-4 w-4 shrink-0 ${isSelected ? 'text-[#3024E8]' : 'text-gray-400'}`} />
                                             </div>
                                             <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
-                                                <MiniCount label="Visits" value={client.visits.length} />
-                                                <MiniCount label="Active" value={client.activeVisits.length} />
-                                                <MiniCount label="Visited" value={client.visited.length} />
+                                                <MiniCount label="Visits" value={client.visits.length} isSelected={isSelected} />
+                                                <MiniCount label="Active" value={client.activeVisits.length} isSelected={isSelected} />
+                                                <MiniCount label="Visited" value={client.visited.length} isSelected={isSelected} />
                                             </div>
                                         </button>
                                     );
@@ -823,20 +826,20 @@ const Visits = () => {
                             <div className="min-w-0 space-y-3">
                                 {selectedClient ? (
                                     <>
-                                        <div className="rounded-lg border border-gray-200 bg-white p-3">
-                                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                        <div className="rounded-lg border border-[#3024E8]/20 bg-[#F7F5FF]/40 p-4 shadow-sm">
+                                            <div className="space-y-3">
                                                 <div className="min-w-0">
-                                                    <p className="text-[10px] font-black uppercase text-[#3024E8]">Selected client</p>
-                                                    <h3 className="mt-0.5 text-lg font-black tracking-tight text-gray-950 break-words">{selectedClient.name}</h3>
-                                                    <p className="mt-1 flex items-start gap-1.5 text-xs font-semibold text-gray-500">
-                                                        <PhoneCall className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                                                    <p className="text-[10px] font-black uppercase tracking-wider text-[#3024E8]">Selected client</p>
+                                                    <h3 className="mt-0.5 text-base font-black tracking-tight text-slate-900 break-words">{selectedClient.name}</h3>
+                                                    <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                                                        <PhoneCall className="h-3.5 w-3.5 text-[#3024E8]/70 shrink-0" />
                                                         <span className="break-words">{selectedClient.phone}</span>
                                                     </p>
                                                 </div>
-                                                <div className="grid grid-cols-3 gap-1.5 lg:w-[240px] lg:shrink-0">
-                                                    <MiniCount label="Visits" value={selectedClient.visits.length} />
-                                                    <MiniCount label="Active" value={selectedClient.activeVisits.length} />
-                                                    <MiniCount label="Visited" value={selectedClient.visited.length} />
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <MiniCount label="Visits" value={selectedClient.visits.length} isSelected={true} />
+                                                    <MiniCount label="Active" value={selectedClient.activeVisits.length} isSelected={true} />
+                                                    <MiniCount label="Visited" value={selectedClient.visited.length} isSelected={true} />
                                                 </div>
                                             </div>
                                         </div>
@@ -1041,10 +1044,14 @@ const SelectField = ({ label, value, onChange, options }) => (
     </div>
 );
 
-const MiniCount = ({ label, value }) => (
-    <div className="rounded-md border border-gray-100 bg-white px-2 py-1.5">
-        <p className="text-sm font-black leading-none text-gray-950">{value ?? 0}</p>
-        <p className="mt-0.5 text-[9px] font-black uppercase text-gray-400">{label}</p>
+const MiniCount = ({ label, value, isSelected }) => (
+    <div className={`rounded-md border px-2 py-1.5 transition-all text-center ${
+        isSelected 
+            ? 'border-[#3024E8]/20 bg-white shadow-sm shadow-[#3024E8]/5' 
+            : 'border-gray-100 bg-gray-50'
+    }`}>
+        <p className={`text-sm font-black leading-none ${isSelected ? 'text-[#3024E8]' : 'text-slate-900'}`}>{value ?? 0}</p>
+        <p className={`mt-1 text-[9px] font-black uppercase tracking-wider ${isSelected ? 'text-[#3024E8]/70' : 'text-gray-400'}`}>{label}</p>
     </div>
 );
 

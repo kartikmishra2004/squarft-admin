@@ -1,6 +1,6 @@
 import { apiRequest } from '../config/api';
 
-const DEALS_BASE = '/api/v1/deals';
+const DEALS_BASE = '/api/v1/admin/deals';
 
 const unwrapData = (response) => response?.data ?? response;
 

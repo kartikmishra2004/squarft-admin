@@ -55,6 +55,12 @@ export const fetchFieldOfficersDropdown = (params = {}) =>
 export const fetchOfficerDetails = (officerId, params = {}) =>
   apiRequest(`${BASE}/field-officers/${officerId}/details${buildQS(params)}`);
 
+export const fetchOfficerProjects = (officerId, params = {}) =>
+  apiRequest(`${BASE}/field-officers/${officerId}/projects${buildQS(params)}`);
+
+export const fetchOfficerProjectOnboardingDetails = (officerId, projectId) =>
+  apiRequest(`${BASE}/field-officers/${officerId}/projects/${projectId}/onboarding`);
+
 export const fetchOfficerBuilderLeads = (officerId) =>
   apiRequest(`${BASE}/field-officers/${officerId}/leads`);
 

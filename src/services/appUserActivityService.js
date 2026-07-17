@@ -66,6 +66,10 @@ export const normalizeAppUser = (user = {}) => ({
   bookedVisits: user.bookedVisits || [],
   screenEvents: user.screenEvents || [],
   recentSearches: user.recentSearches || [],
+  dealsCount: Number(user.summary?.deals || user.dealsCount || 0),
+  savedCount: Number(user.savedCount || user.summary?.saved || (user.savedProperties?.length || 0)),
+  visitsCount: Number(user.visitsCount || user.summary?.visits || (user.bookedVisits?.length || 0)),
+  contactedCount: Number(user.contactedCount || user.summary?.contacted || (user.contactedProperties?.length || 0)),
 });
 
 export const normalizeSavedProperty = (property = {}) => ({
@@ -103,6 +107,36 @@ export const normalizeScreenEvent = (event = {}) => ({
   screen: event.screen || 'App',
   action: event.action || 'Activity recorded',
 });
+
+export const normalizeDeal = (deal = {}) => {
+  let status = String(deal.status || 'pending').toLowerCase();
+  if (status === 'deal completed' || status === 'closed') status = 'completed';
+  if (status === 'deal in process') status = 'active';
+  if (status === 'lost' || status === 'cancelled') status = 'cancelled';
+
+  return {
+    id: deal.id,
+    dealId: deal.deal_code || (deal.id ? `#SQ-${deal.id.substring(0, 5).toUpperCase()}` : '#SQ-PENDING'),
+    property_title: deal.property_name || deal.property_title || 'Property Deal',
+    city: deal.city || 'N/A',
+    area: deal.area || 'N/A',
+    status: status,
+    total_value: Number(deal.negotiation_price || deal.total_value || 0),
+    paid_so_far: Number(deal.paid_amount || deal.paid_so_far || 0),
+    current_stage_index: Number(deal.current_stage_index || 1),
+    total_stages: Number(deal.total_stages || 8),
+    payments: Array.isArray(deal.payments) ? deal.payments.map((p, idx) => ({
+      id: p.id || String(idx),
+      amount: Number(p.amount || 0),
+      title: p.title || `Milestone ${idx + 1}`,
+      due_date: p.due_date || 'N/A',
+      status: p.status || 'pending'
+    })) : [
+      { id: '1', amount: Number(deal.paid_amount || 0), title: 'Paid Amount', due_date: 'Completed', status: 'paid' },
+      { id: '2', amount: Number((deal.negotiation_price || deal.total_value || 0) - (deal.paid_amount || 0)), title: 'Balance Amount', due_date: 'Pending', status: 'pending' }
+    ]
+  };
+};
 
 export const fetchAppUserMetrics = async (params = {}) =>
   unwrapData(await apiRequest(`${APP_USERS_BASE}/metrics${buildQueryString(params)}`, { method: 'GET' }));
@@ -150,6 +184,11 @@ export const fetchRecentSearches = async (userId) => {
   return data || [];
 };
 
+export const fetchUserDeals = async (userId) => {
+  const data = unwrapData(await apiRequest(`/api/v1/admin/deals?userId=${userId}`, { method: 'GET' }));
+  return (data?.items || []).map(normalizeDeal);
+};
+
 export const fetchAppUserActivityBundle = async (userId, summary = {}) => {
   const [
     profileResult,
@@ -159,6 +198,7 @@ export const fetchAppUserActivityBundle = async (userId, summary = {}) => {
     visitsResult,
     eventsResult,
     searchesResult,
+    dealsResult,
   ] = await Promise.allSettled([
     fetchAppUserProfile(userId),
     fetchSavedProperties(userId),
@@ -167,6 +207,7 @@ export const fetchAppUserActivityBundle = async (userId, summary = {}) => {
     fetchAppUserVisits(userId),
     fetchScreenEvents(userId),
     fetchRecentSearches(userId),
+    fetchUserDeals(userId),
   ]);
 
   const profile = profileResult.status === 'fulfilled' ? profileResult.value : normalizeAppUser(summary);
@@ -179,5 +220,6 @@ export const fetchAppUserActivityBundle = async (userId, summary = {}) => {
     bookedVisits: visitsResult.status === 'fulfilled' ? visitsResult.value : [],
     screenEvents: eventsResult.status === 'fulfilled' ? eventsResult.value : [],
     recentSearches: searchesResult.status === 'fulfilled' ? searchesResult.value : profile.recentSearches || [],
+    deals: dealsResult.status === 'fulfilled' ? dealsResult.value : [],
   };
 };

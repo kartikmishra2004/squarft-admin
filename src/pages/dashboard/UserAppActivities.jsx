@@ -28,7 +28,6 @@ import {
 
 const tabs = [
     { id: 'savedProperties', label: 'Saved Properties', icon: Heart },
-    { id: 'seenProperties', label: 'Seen', icon: Eye },
     { id: 'contactedProperties', label: 'Contacted', icon: PhoneCall },
     { id: 'bookedVisits', label: 'Visits', icon: CalendarDays },
     { id: 'screenEvents', label: 'Activity Log', icon: Activity },
@@ -614,7 +613,7 @@ const UserAppActivities = () => {
         }
 
         if (activeTab === 'dealManagement') {
-            const userDeals = userDealsData[selectedUser?.id] || [];
+            const userDeals = (selectedUser?.deals && selectedUser.deals.length > 0) ? selectedUser.deals : (userDealsData[selectedUser?.id] || []);
             if (!userDeals.length) {
                 return (
                     <div className="py-16 text-center">
@@ -910,9 +909,9 @@ const UserAppActivities = () => {
                                                 <Badge variant={getStatusVariant(user.status)}>{user.status}</Badge>
                                             </div>
                                             <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-100">
-                                                <MiniStat label="Active" value={formatActiveTime(user.activeMinutesToday)} />
-                                                <MiniStat label="Saved" value={user.savedProperties.length} />
-                                                <MiniStat label="Visits" value={user.bookedVisits.length} />
+                                                <MiniStat label="Deals" value={user.dealsCount || 0} />
+                                                <MiniStat label="Visits" value={user.visitsCount || user.bookedVisits.length} />
+                                                <MiniStat label="Contacted" value={user.contactedCount || user.contactedProperties.length} />
                                             </div>
                                         </button>
                                     );
@@ -964,9 +963,9 @@ const UserAppActivities = () => {
                                     </div>
 
                                     <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <ActivityCard label="Saved" value={selectedUser.savedProperties.length} icon={Heart} />
-                                        <ActivityCard label="Seen" value={selectedUser.seenProperties.length} icon={Eye} />
-                                        <ActivityCard label="Contacted" value={selectedUser.contactedProperties.length} icon={PhoneCall} />
+                                        <ActivityCard label="Deals" value={selectedUser.dealsCount || 0} icon={CreditCard} />
+                                        <ActivityCard label="Visits" value={selectedUser.visitsCount || selectedUser.bookedVisits.length} icon={CalendarDays} />
+                                        <ActivityCard label="Contacted" value={selectedUser.contactedCount || selectedUser.contactedProperties.length} icon={PhoneCall} />
                                     </div>
                                 </Card>
 
@@ -978,7 +977,7 @@ const UserAppActivities = () => {
                                             const count = tab.id === 'userComplaints'
                                                 ? complaints.filter((c) => c.userId === selectedUser?.id).length
                                                 : tab.id === 'dealManagement'
-                                                ? (userDealsData[selectedUser?.id]?.length || 0)
+                                                ? (selectedUser.dealsCount || userDealsData[selectedUser?.id]?.length || 0)
                                                 : selectedUser[tab.id]?.length || 0;
                                             return (
                                                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${isActive ? 'bg-[#6F4BFF] text-white shadow-md shadow-[#6F4BFF]/20' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
