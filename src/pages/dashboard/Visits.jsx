@@ -133,7 +133,7 @@ const getVisitProperties = (visit) => (
 
 const getVisitPhotos = (visit) => (
     visit?.propertyPhotos
-    || visit?.uploadedPhotos
+    || (Array.isArray(visit?.uploadedPhotos) && visit.uploadedPhotos.length > 0 ? visit.uploadedPhotos : null)
     || (visit?.status === 'Completed'
         ? [
             { url: '/inventory-images/project-main.png', label: 'Uploaded site photo' },
@@ -923,6 +923,33 @@ const Visits = () => {
                                                 </div>
                                             ) : (
                                                 <>
+                                                    {/* Officer Feedback */}
+                                                    {(selectedVisit.officerNote || selectedVisit.leadTemperature) && (
+                                                        <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <h3 className="text-sm font-black text-gray-800">Officer feedback</h3>
+                                                                {selectedVisit.leadTemperature && (
+                                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                                                                        selectedVisit.leadTemperature.toLowerCase() === 'hot' || selectedVisit.leadTemperature.toLowerCase() === 'interested'
+                                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                                            : selectedVisit.leadTemperature.toLowerCase() === 'warm' || selectedVisit.leadTemperature.toLowerCase() === 'maybe'
+                                                                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                                                : 'bg-slate-50 text-slate-700 border border-slate-200'
+                                                                    }`}>
+                                                                        {selectedVisit.leadTemperature.toLowerCase() === 'hot' ? 'Interested (Hot)' :
+                                                                         selectedVisit.leadTemperature.toLowerCase() === 'warm' ? 'Maybe (Warm)' :
+                                                                         selectedVisit.leadTemperature.toLowerCase() === 'cold' ? 'Not Interested (Cold)' :
+                                                                         selectedVisit.leadTemperature}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-xs font-semibold leading-5 text-gray-700">
+                                                                {selectedVisit.officerNote || 'No detailed note provided by the officer.'}
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Client Review */}
                                                     <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                                                         <h3 className="mb-2 text-sm font-black text-gray-800">Client review</h3>
                                                         {selectedVisit.userRating && (

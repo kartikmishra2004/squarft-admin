@@ -104,8 +104,11 @@ export const normalizeVisit = (visit = {}) => {
     otpStatus: visit.otp_status || visit.otpStatus ? 'Verified' : 'Pending',
     notes: visit.notes || visit.user_note || '',
     purpose: visit.purpose || 'BUY',
-    userReview: visit.userReview || visit.officer_note || '',
+    userReview: visit.userReview || '',
     userRating: visit.userRating,
+    officerNote: visit.officer_note || '',
+    leadTemperature: visit.lead_temperature || '',
+    uploadedPhotos: visit.uploadedPhotos || [],
   };
 };
 
@@ -136,7 +139,7 @@ const buildSlotRange = (payload = {}) => {
 };
 
 export const canPersistVisitPayload = (payload = {}) => (
-  Boolean(payload.officerId && payload.customerId && payload.propertyId)
+  Boolean(payload.officerId && (payload.customerId || (payload.customerName && payload.customerPhone)) && payload.propertyId)
 );
 
 export const fetchVisitMetrics = async () =>
@@ -161,6 +164,8 @@ export const createVisit = async (payload = {}) => {
     body: JSON.stringify({
       officerId: payload.officerId,
       customerId: payload.customerId,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
       propertyId: payload.propertyId,
       slotStart,
       slotEnd,
@@ -181,6 +186,7 @@ export const saveVisit = async (visitId, payload = {}) => {
       slotStart,
       slotEnd,
       notes: payload.notes,
+      status: toVisitApiStatus(payload.status),
     }),
   })));
 };
