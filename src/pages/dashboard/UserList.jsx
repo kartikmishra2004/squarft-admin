@@ -39,7 +39,7 @@ const documentFields = [
 const getDocBadgeVariant = (status) => {
     if (!status) return 'yellow';
     const s = status.toLowerCase();
-    if (s === 'approved') return 'green';
+    if (s === 'approved' || s === 'verified') return 'green';
     if (s === 'pending') return 'yellow';
     return 'red';
 };
@@ -433,6 +433,17 @@ const UserEditView = ({ onBack }) => {
 
     const docStatus = formState.document_status?.toLowerCase();
 
+    const handleDeleteUser = async () => {
+        if (window.confirm(`Are you sure you want to delete ${profile.full_name}?`)) {
+            try {
+                await dispatch(removeAppUser(profile.id)).unwrap();
+                onBack();
+            } catch (err) {
+                setSaveError(err || 'Failed to delete user.');
+            }
+        }
+    };
+
     return (
         <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
             <Header title="User Verification" showBack onBack={onBack} />
@@ -453,16 +464,20 @@ const UserEditView = ({ onBack }) => {
                         </div>
 
                         <div className="flex flex-wrap gap-3 bg-white p-2 rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100">
-                            {docStatus !== 'approved' && (
-                                <Button variant="success" icon={CheckCircle2} onClick={() => handleStatusUpdate('approved')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6">Approve Account</Button>
-                            )}
-                            {docStatus !== 'rejected' && (
-                                <Button variant="danger" icon={XCircle} onClick={() => handleStatusUpdate('rejected')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6 bg-rose-500 hover:bg-rose-600 text-white">Reject Details</Button>
-                            )}
-                            {docStatus === 'approved' && (
-                                <div className="flex items-center gap-2 px-6 py-2 bg-emerald-50 text-emerald-700 font-black text-[10px] uppercase tracking-widest rounded-xl border border-emerald-200">
-                                    <CheckCircle2 className="w-4 h-4" /> Verified & Active
-                                </div>
+                            {(docStatus === 'approved' || docStatus === 'verified') ? (
+                                <>
+                                    <div className="flex items-center gap-2 px-6 py-2 bg-emerald-50 text-emerald-700 font-black text-[10px] uppercase tracking-widest rounded-xl border border-emerald-200">
+                                        <CheckCircle2 className="w-4 h-4" /> Verified & Active
+                                    </div>
+                                    <Button variant="danger" icon={Trash2} onClick={handleDeleteUser} className="font-black uppercase tracking-widest text-[10px] h-11 px-6 bg-rose-500 hover:bg-rose-600 text-white">Delete User</Button>
+                                </>
+                            ) : (
+                                <>
+                                    <Button variant="success" icon={CheckCircle2} onClick={() => handleStatusUpdate('approved')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6">Approve Account</Button>
+                                    {docStatus !== 'rejected' && (
+                                        <Button variant="danger" icon={XCircle} onClick={() => handleStatusUpdate('rejected')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6 bg-rose-500 hover:bg-rose-600 text-white">Reject Details</Button>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -499,7 +514,7 @@ const UserEditView = ({ onBack }) => {
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Document Status</label>
-                                <select value={formState.document_status}
+                                <select value={formState.document_status === 'verified' ? 'approved' : formState.document_status}
                                     onChange={(e) => setFormState({ ...formState, document_status: e.target.value })}
                                     className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50">
                                     <option value="pending">Pending</option>
