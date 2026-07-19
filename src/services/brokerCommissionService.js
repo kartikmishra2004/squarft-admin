@@ -141,6 +141,15 @@ export const fetchBrokerList = async (params = {}) => {
   };
 };
 
+export const fetchBrokerProperties = async (brokerId, params = {}) => {
+  const response = await apiRequest(
+    `${ADMIN_BROKERS_BASE}/${brokerId}/properties${buildQueryString({ limit: 100, ...params })}`,
+    { method: 'GET' },
+  );
+
+  return (unwrapData(response) || []).map(normalizeBrokerProperty);
+};
+
 export const fetchBrokerDetail = async (brokerId) => {
   const [profile, wallet, transactions, commissions] = await Promise.all([
     apiRequest(`${ADMIN_BROKERS_BASE}/${brokerId}`, { method: 'GET' }).then(unwrapData),

@@ -258,7 +258,7 @@ export const mergeClientProfile = (summary = {}, overview = {}) => {
 
 export const normalizeRequirement = (requirement = {}, client = {}) => {
   const propertyType = normalizePropertyType(requirement.property_type);
-  const location = requirement.location || requirement.preferred_locations;
+  const location = requirement.preferred_locations || requirement.location;
   const preferredLocations = Array.isArray(location)
     ? location
     : String(location || '')
@@ -271,7 +271,7 @@ export const normalizeRequirement = (requirement = {}, client = {}) => {
     customer_name: requirement.customer_name || client.name || '',
     contact_number: requirement.contact_number || client.phone || '',
     requirement_type: toTitleCase(requirement.type || requirement.requirement_type || 'Buy'),
-    property_category: inferCategory(propertyType),
+    property_category: toTitleCase(requirement.property_category) || inferCategory(propertyType),
     property_type: propertyType,
     configuration: 'N/A',
     min_area: requirement.min_area || '',
@@ -312,23 +312,34 @@ export const normalizeTimelineAndNotes = (payload = {}) => ({
   status: normalizeClientStatus(payload.summary?.current_status),
 });
 
-export const normalizeClientVisit = (visit = {}, client = {}) => ({
-  id: visit.id,
-  customerName: client.name || visit.customer_name || 'Client',
-  customerPhone: client.phone || visit.customer_phone || '',
-  officerName: visit.officer || visit.officer_name || 'Unassigned',
-  property: {
-    name: visit.property || visit.property_name || 'Property visit',
-    type: visit.property_type || 'Property',
-    config: visit.property_config || '',
-    address: visit.property_address || '',
-    price: visit.property_price || '',
-  },
-  date: visit.date_and_time || '',
-  time: visit.date_and_time || '',
-  status: visit.status || 'Scheduled',
-  notes: visit.notes || '',
-});
+export const normalizeClientVisit = (visit = {}, client = {}) => {
+  const slotStart = visit.slot_start ? new Date(visit.slot_start) : null;
+  const slotEnd = visit.slot_end ? new Date(visit.slot_end) : null;
+  const validStart = slotStart && !Number.isNaN(slotStart.getTime()) ? slotStart : null;
+  const validEnd = slotEnd && !Number.isNaN(slotEnd.getTime()) ? slotEnd : null;
+
+  const formatTime = (date) => date?.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) || '';
+
+  return {
+    id: visit.id,
+    customerName: client.name || visit.customer_name || 'Client',
+    customerPhone: client.phone || visit.customer_phone || '',
+    officerName: visit.officer || visit.officer_name || 'Unassigned',
+    property: {
+      name: visit.property || visit.property_name || 'Property visit',
+      type: visit.property_type || 'Property',
+      config: visit.property_config || '',
+      address: visit.property_address || '',
+      price: visit.property_price || '',
+    },
+    date: validStart ? validStart.toLocaleDateString('en-IN') : (visit.date_and_time || ''),
+    time: validStart && validEnd ? `${formatTime(validStart)} - ${formatTime(validEnd)}` : (visit.date_and_time || ''),
+    slotStart: visit.slot_start || null,
+    slotEnd: visit.slot_end || null,
+    status: visit.status || 'Scheduled',
+    notes: visit.notes || '',
+  };
+};
 
 const normalizeUnitStatus = (status) => {
   const value = String(status || '').toLowerCase();
@@ -362,11 +373,19 @@ const normalizeWorkspaceInventory = (workspace = {}) => (
   })
 );
 
+const formatUpdatedAt = (value) => {
+  if (!value) return 'recently';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'recently';
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
 export const normalizeProject = (project = {}, workspace = {}, details = {}) => {
   const detail = details || {};
   const header = detail.header || {};
   const snapshot = detail.snapshot || {};
   const operations = detail.operations || {};
+  const approvals = detail.approvals || {};
   const inventory = normalizeWorkspaceInventory(workspace);
   const totalUnits = Number(snapshot.total_units || inventory.reduce((sum, item) => sum + item.totalUnits, 0));
   const availableUnits = Number(snapshot.available_units || inventory.reduce((sum, item) => sum + item.availableUnits, 0));
@@ -387,7 +406,14 @@ export const normalizeProject = (project = {}, workspace = {}, details = {}) => 
     officer: operations.inventory_officer || 'Unassigned',
     specs: header.specifications || project.property_type || 'Property',
     docs: operations.documents_count || (detail.documents || []).length || 0,
-    updated: 'recently',
+    documents: (detail.documents || []).map((doc) => ({
+      title: doc.title || 'Project Document',
+      status: doc.status || 'AVAILABLE',
+      updatedAt: formatUpdatedAt(doc.created_at),
+    })),
+    possession: approvals.possession ? formatUpdatedAt(approvals.possession) : 'Not available',
+    rera: approvals.rera || 'Not available',
+    updated: formatUpdatedAt(header.updated_at),
     matchPercentage: project.match_percentage,
     source: project.source,
     inventory,
@@ -510,6 +536,7 @@ export const fetchClientProfileBundle = async (clientId, summary = {}) => {
     timelineResult,
     visitsResult,
     projectsResult,
+    meetingsResult,
   ] = await Promise.allSettled([
     fetchClientOverview(clientId),
     fetchClientAssignedProperties(clientId),
@@ -517,6 +544,7 @@ export const fetchClientProfileBundle = async (clientId, summary = {}) => {
     fetchClientTimelineAndNotes(clientId),
     fetchClientSiteVisits(clientId, summary),
     fetchRecommendedProjects(clientId),
+    fetchClientMeetings(clientId),
   ]);
 
   const overview = overviewResult.status === 'fulfilled' ? overviewResult.value : {};
@@ -529,6 +557,7 @@ export const fetchClientProfileBundle = async (clientId, summary = {}) => {
     customerRequirements: requirementsResult.status === 'fulfilled' ? requirementsResult.value : [],
     timeline: timelineData.timeline || [],
     notes: timelineData.notes || [],
+    meetings: meetingsResult.status === 'fulfilled' ? meetingsResult.value : [],
     nextFollowUp: timelineData.nextFollowUp || summary.nextFollowUp || '',
     status: timelineData.status || summary.status || 'Active',
   };
@@ -544,6 +573,7 @@ export const fetchClientProfileBundle = async (clientId, summary = {}) => {
       timeline: timelineResult.status === 'rejected' ? timelineResult.reason : null,
       visits: visitsResult.status === 'rejected' ? visitsResult.reason : null,
       projects: projectsResult.status === 'rejected' ? projectsResult.reason : null,
+      meetings: meetingsResult.status === 'rejected' ? meetingsResult.reason : null,
     },
   };
 };
@@ -589,3 +619,38 @@ export const convertClientToDeal = async (clientId, deal = {}) =>
     method: 'POST',
     body: JSON.stringify(deal),
   }));
+
+export const normalizeMeeting = (meeting = {}) => ({
+  id: meeting.id,
+  date: meeting.date || '',
+  time: meeting.time || '',
+  mode: meeting.mode || 'Office Meeting',
+  location: meeting.location || '',
+  status: meeting.status || 'Scheduled',
+  agenda: meeting.agenda || '',
+  remarks: meeting.remarks || '',
+});
+
+export const fetchClientMeetings = async (clientId) => {
+  const data = unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/clients/${clientId}/meetings`, { method: 'GET' }));
+  return (data || []).map(normalizeMeeting);
+};
+
+export const addClientMeeting = async (clientId, meeting = {}) => {
+  const data = unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/clients/${clientId}/meetings`, {
+    method: 'POST',
+    body: JSON.stringify(meeting),
+  }));
+  return normalizeMeeting(data);
+};
+
+export const updateClientMeeting = async (meetingId, meeting = {}) => {
+  const data = unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/meetings/${meetingId}`, {
+    method: 'PUT',
+    body: JSON.stringify(meeting),
+  }));
+  return normalizeMeeting(data);
+};
+
+export const deleteClientMeeting = async (meetingId) =>
+  unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/meetings/${meetingId}`, { method: 'DELETE' }));

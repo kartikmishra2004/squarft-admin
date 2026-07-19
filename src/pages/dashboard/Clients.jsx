@@ -32,9 +32,11 @@ import Header from '../../components/layout/Header';
 import Table from '../../components/ui/Table';
 import propertyHeroImage from '../../assets/login-bg.png';
 import {
+    addClientMeeting,
     addClientRequirement,
     assignUnitsToClient,
     convertClientToDeal,
+    deleteClientMeeting,
     fetchAvailableOfficers,
     fetchClientHubClients,
     fetchClientProfileBundle,
@@ -43,6 +45,7 @@ import {
     registerClient,
     saveClientNote,
     scheduleClientVisit,
+    updateClientMeeting,
     updateClientProfile,
     updateClientRequirement,
 } from '../../services/clientHubService';
@@ -155,6 +158,8 @@ const ClientProfileView = ({
     onUpdateClient,
     onAddNote,
     onAddMeeting,
+    onUpdateMeeting,
+    onDeleteMeeting,
     onContinueToDeal,
     onScheduleVisit,
     onSaveRequirement,
@@ -214,12 +219,6 @@ const ClientProfileView = ({
     const schedulableProjects = projects.filter((project) => project.propertyId);
 
     const getProject = (id) => projects.find((project) => project.id === id);
-
-    const createTimelineEvent = (title, details) => ({
-        title,
-        details,
-        ...getNowStamp(),
-    });
 
     const handleAddNote = async () => {
         const text = newNote.trim();
@@ -315,11 +314,12 @@ const ClientProfileView = ({
         }
     };
 
+    const [meetingSaving, setMeetingSaving] = useState(false);
+
     const handleSaveMeeting = async () => {
         if (!meetingForm.date || !meetingForm.time) return;
 
         const meeting = {
-            id: editingMeetingIndex === null ? `M-${Date.now()}` : client.meetings?.[editingMeetingIndex]?.id || `M-${Date.now()}`,
             date: meetingForm.date,
             time: meetingForm.time,
             mode: meetingForm.mode,
@@ -329,32 +329,21 @@ const ClientProfileView = ({
             remarks: meetingForm.remarks || 'Client meeting scheduled.',
         };
 
-        if (editingMeetingIndex === null) {
-            await onAddMeeting(meeting);
-            onUpdateClient({
-                meetings: [meeting, ...(client.meetings || [])],
-                nextFollowUp: meeting.date,
-                timeline: [
-                    createTimelineEvent('Meeting Scheduled', `For ${meeting.date} at ${meeting.time}`),
-                    ...(client.timeline || []),
-                ],
-            });
-        } else {
-            const nextMeetings = (client.meetings || []).map((item, index) => (
-                index === editingMeetingIndex ? meeting : item
-            ));
-            onUpdateClient({
-                meetings: nextMeetings,
-                nextFollowUp: meeting.date,
-                timeline: [
-                    createTimelineEvent('Meeting Updated', `${meeting.mode} updated for ${meeting.date} at ${meeting.time}`),
-                    ...(client.timeline || []),
-                ],
-            });
+        setMeetingSaving(true);
+        try {
+            const editingMeetingId = editingMeetingIndex === null ? null : client.meetings?.[editingMeetingIndex]?.id;
+            if (editingMeetingId) {
+                await onUpdateMeeting(editingMeetingId, meeting);
+            } else {
+                await onAddMeeting(meeting);
+            }
+            setMeetingForm(meetingInitialState);
+            setEditingMeetingIndex(null);
+        } catch (error) {
+            console.error('Failed to save meeting:', error);
+        } finally {
+            setMeetingSaving(false);
         }
-
-        setMeetingForm(meetingInitialState);
-        setEditingMeetingIndex(null);
     };
 
     const handleEditMeeting = (meeting, index) => {
@@ -375,30 +364,22 @@ const ClientProfileView = ({
         setMeetingForm(meetingInitialState);
     };
 
-    const handleMeetingStatusChange = (meeting, index, status) => {
-        const nextMeetings = (client.meetings || []).map((item, itemIndex) => (
-            itemIndex === index ? { ...item, status } : item
-        ));
-        onUpdateClient({
-            meetings: nextMeetings,
-            timeline: [
-                createTimelineEvent(`Meeting ${status}`, `${meeting.mode || 'Meeting'} on ${meeting.date} marked ${status.toLowerCase()}.`),
-                ...(client.timeline || []),
-            ],
-        });
+    const handleMeetingStatusChange = async (meeting, index, status) => {
+        try {
+            await onUpdateMeeting(meeting.id, { ...meeting, status });
+        } catch (error) {
+            console.error('Failed to update meeting status:', error);
+        }
     };
 
-    const handleDeleteMeeting = (meeting, index) => {
-        const nextMeetings = (client.meetings || []).filter((_, itemIndex) => itemIndex !== index);
-        onUpdateClient({
-            meetings: nextMeetings,
-            timeline: [
-                createTimelineEvent('Meeting Removed', `${meeting.mode || 'Meeting'} on ${meeting.date} removed.`),
-                ...(client.timeline || []),
-            ],
-        });
-        if (editingMeetingIndex === index) {
-            handleCancelMeetingEdit();
+    const handleDeleteMeeting = async (meeting, index) => {
+        try {
+            await onDeleteMeeting(meeting.id);
+            if (editingMeetingIndex === index) {
+                handleCancelMeetingEdit();
+            }
+        } catch (error) {
+            console.error('Failed to delete meeting:', error);
         }
     };
 
@@ -491,22 +472,12 @@ const ClientProfileView = ({
         }
     };
 
-    const getCheckInTime = (timeRange) => {
-        if (!timeRange) return '12:45 PM';
-        return timeRange.split('-')[0].trim();
-    };
-
     const getVisitBadgeClass = (status) => {
         if (status === 'Completed') return 'bg-emerald-50 text-emerald-700';
         if (status === 'Cancelled') return 'bg-gray-100 text-gray-500';
         return 'bg-rose-50 text-rose-600';
     };
 
-    const propertyImages = [
-        { id: 'front', position: 'center', label: 'Exterior' },
-        { id: 'tower', position: 'right center', label: 'Tower' },
-        { id: 'view', position: 'left center', label: 'View' },
-    ];
     const activeFloorPlanProject = expandedProjectId ? getProject(expandedProjectId) : null;
     const activeFloorPlanInventory = activeFloorPlanProject ? buildInventoryWithUnits(activeFloorPlanProject) : [];
     const activeFloorPlanConfigIndex = activeFloorPlanProject ? (expandedConfigByProject[activeFloorPlanProject.id] ?? 0) : 0;
@@ -726,13 +697,12 @@ const ClientProfileView = ({
                                             {officers.map((officer) => {
                                                 const officerVisits = visits.filter((v) => v.officerName === officer && v.status !== 'Cancelled' && v.status !== 'Completed');
                                                 const slots = ['10:00-11:00', '12:00-13:00', '15:00-16:00', '17:00-18:00'];
+                                                const slotHours = { '10:00-11:00': 10, '12:00-13:00': 12, '15:00-16:00': 15, '17:00-18:00': 17 };
                                                 const busySlots = officerVisits.map((v) => {
-                                                    const t = (v.time || '').toLowerCase();
-                                                    if (t.includes('10')) return '10:00-11:00';
-                                                    if (t.includes('12')) return '12:00-13:00';
-                                                    if (t.includes('15') || t.includes('3:')) return '15:00-16:00';
-                                                    if (t.includes('17') || t.includes('5:')) return '17:00-18:00';
-                                                    return null;
+                                                    if (!v.slotStart) return null;
+                                                    const hour = new Date(v.slotStart).getHours();
+                                                    const match = Object.entries(slotHours).find(([, slotHour]) => slotHour === hour);
+                                                    return match ? match[0] : null;
                                                 }).filter(Boolean);
                                                 const isSelected = (assignedOfficer || assignedSalesOfficer) === officer;
                                                 const freeCount = slots.filter((s) => !busySlots.includes(s)).length;
@@ -822,14 +792,13 @@ const ClientProfileView = ({
                             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] gap-6 items-start">
                                 <div className="space-y-4">
                                     {projects.map((project) => {
-                                        const isRecommended = project.priceRange.includes('Cr') && client.budget.includes('Cr');
                                         const isExpanded = expandedProjectId === project.id;
                                         const selectedProjectUnits = selectedProps.filter((assignment) => assignment.projectId === project.id);
                                         return (
                                             <Card key={project.id} noPadding className={`relative border-2 transition-all ${isExpanded ? 'border-purple-400 shadow-lg ring-2 ring-[#6F4BFF]/10 bg-purple-50/10' : 'border-gray-200 hover:border-[#6F4BFF]/50'}`}>
                                                 <button type="button" className="w-full text-left flex gap-4 p-4 items-start" onClick={() => openProjectFloorPlan(project)}>
                                                     <div className="flex-1">
-                                                        {isRecommended && <div className="mb-1"><Badge variant="green">98% Match</Badge></div>}
+                                                        {Number.isFinite(project.matchPercentage) && <div className="mb-1"><Badge variant="green">{project.matchPercentage}% Match</Badge></div>}
                                                         <h4 className="font-bold text-gray-900 text-base capitalize mb-1">{project.name}</h4>
                                                         <p className="text-[11px] text-gray-500 font-medium flex items-start gap-1 mb-1"><MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" /> {project.location}</p>
                                                         <p className="text-[11px] text-gray-400 font-medium mb-2">by {project.builder} · {project.specs}</p>
@@ -1179,12 +1148,11 @@ const ClientProfileView = ({
                                         <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
                                             <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 font-black text-emerald-600">
                                                 <MapPin className="h-4 w-4" />
-                                                Checked In: {getCheckInTime(selectedSiteVisit.time)}
+                                                Scheduled Slot: {selectedSiteVisit.time || 'Not specified'}
                                             </div>
-                                            <span className="text-xs font-bold text-gray-400">Geo-Verified</span>
                                         </div>
 
-                                        {/* Completed-only: Arrival time + Review + Photos */}
+                                        {/* Completed-only: Arrival time + Review (only rendered when the backend actually provides this data) */}
                                         {selectedSiteVisit.status === 'Completed' && (
                                             <>
                                                 {selectedSiteVisit.arrivalTime && (
@@ -1211,33 +1179,8 @@ const ClientProfileView = ({
                                                         <p className="text-sm font-semibold text-gray-700 leading-relaxed">{selectedSiteVisit.userReview}</p>
                                                     </div>
                                                 )}
-
-                                                <div className="mt-3">
-                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Client & Officer Together</p>
-                                                    <div className="relative rounded-xl overflow-hidden border-2 border-emerald-200 shadow-sm">
-                                                        <img src={propertyHeroImage} alt="Client and officer at site" className="w-full h-36 object-cover" />
-                                                        <div className="absolute bottom-2 right-2">
-                                                            <span className="inline-flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow">
-                                                                <CheckCircle2 className="w-3 h-3" /> Verified
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
                                             </>
                                         )}
-
-                                        <div className="mt-4 grid grid-cols-3 gap-3">
-                                            {propertyImages.map((image) => (
-                                                <div key={image.id} className="aspect-square overflow-hidden rounded-lg border border-white bg-white shadow-sm">
-                                                    <img
-                                                        src={propertyHeroImage}
-                                                        alt={`${selectedSiteVisit.property.name} ${image.label}`}
-                                                        className="h-full w-full object-cover"
-                                                        style={{ objectPosition: image.position }}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
 
                                         <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                                             {[
@@ -1361,8 +1304,8 @@ const ClientProfileView = ({
                                             <textarea rows="4" value={meetingForm.remarks} onChange={(event) => setMeetingForm({ ...meetingForm, remarks: event.target.value })} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 bg-white"></textarea>
                                         </div>
 
-                                        <Button onClick={handleSaveMeeting} disabled={!meetingForm.date || !meetingForm.time} className="w-full bg-[#6F4BFF] hover:bg-[#5936eb] text-white disabled:opacity-50 disabled:cursor-not-allowed">
-                                            {editingMeetingIndex === null ? 'Save Meeting' : 'Update Meeting'}
+                                        <Button onClick={handleSaveMeeting} disabled={!meetingForm.date || !meetingForm.time || meetingSaving} className="w-full bg-[#6F4BFF] hover:bg-[#5936eb] text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                                            {meetingSaving ? 'Saving...' : editingMeetingIndex === null ? 'Save Meeting' : 'Update Meeting'}
                                         </Button>
                                     </div>
                                 </div>
@@ -1522,8 +1465,8 @@ const ClientProfileView = ({
                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Approval Summary</p>
                                 <div className="mt-3 space-y-2 text-sm font-bold text-gray-700">
                                     <p>Status: <span className="text-gray-950">{projectDetails.status}</span></p>
-                                    <p>Possession: <span className="text-gray-950">Dec 2027</span></p>
-                                    <p>RERA: <span className="text-gray-950">{projectDetails.id}-RERA-2026</span></p>
+                                    <p>Possession: <span className="text-gray-950">{projectDetails.possession}</span></p>
+                                    <p>RERA: <span className="text-gray-950">{projectDetails.rera}</span></p>
                                 </div>
                             </div>
                         </div>
@@ -1571,12 +1514,15 @@ const ClientProfileView = ({
                                 <FileText className="h-4 w-4 text-[#6F4BFF]" /> Document Vault
                             </h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {['RERA Certificate', 'Master Brochure', 'Floor Plans', 'Pricing Sheet', 'Builder KYC', 'Site Layout'].map((doc) => (
-                                    <div key={doc} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                                        <p className="text-sm font-black text-gray-900">{doc}</p>
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">Available - Updated {projectDetails.updated}</p>
+                                {(projectDetails.documents || []).map((doc, index) => (
+                                    <div key={`${doc.title}-${index}`} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                        <p className="text-sm font-black text-gray-900">{doc.title}</p>
+                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">{doc.status} - Updated {doc.updatedAt}</p>
                                     </div>
                                 ))}
+                                {(projectDetails.documents || []).length === 0 && (
+                                    <p className="col-span-full text-center text-xs font-bold text-gray-400 py-4">No documents uploaded for this project yet.</p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1973,11 +1919,11 @@ const Clients = () => {
         area_unit: requirement.area_unit,
         customer_name: requirement.customer_name,
         contact_number: requirement.contact_number,
-        preferred_location: requirement.preferred_locations?.[0] || '',
+        preferred_locations: requirement.preferred_locations || [],
         budget_min: requirement.budget_min,
         budget_max: requirement.budget_max,
-        details: requirement.notes,
-        otp: requirement.otp,
+        notes: requirement.notes,
+        contact_verified: requirement.contact_verified,
     });
 
     const handleRegisterClient = async (event) => {
@@ -2088,17 +2034,20 @@ const Clients = () => {
     };
 
     const toRequirementUpdatePayload = (requirement) => ({
-        property_type: [
-            requirement.property_category,
-            requirement.property_type,
-            requirement.configuration && requirement.configuration !== 'N/A' ? requirement.configuration : '',
-        ].filter(Boolean).join(' - '),
+        id: requirement.id,
+        customer_name: requirement.customer_name,
+        contact_number: requirement.contact_number,
+        requirement_type: String(requirement.requirement_type || 'Buy').toLowerCase(),
+        property_category: requirement.property_category,
+        property_type: requirement.property_type,
+        min_area: requirement.min_area,
+        max_area: requirement.max_area,
+        area_unit: requirement.area_unit,
         budget_min: requirement.budget_min ? Number(requirement.budget_min) : null,
         budget_max: requirement.budget_max ? Number(requirement.budget_max) : null,
         preferred_locations: requirement.preferred_locations || [],
-        timeline: selectedClient?.req?.timeline && selectedClient.req.timeline !== 'Not Specified'
-            ? selectedClient.req.timeline
-            : null,
+        notes: requirement.notes,
+        contact_verified: requirement.contact_verified,
     });
 
     const handleSaveRequirement = async (requirement) => {
@@ -2125,13 +2074,18 @@ const Clients = () => {
         await fetchClientList();
     };
 
-    const handleSaveMeetingNote = async (meeting) => {
-        await saveClientNote(selectedClientId, {
-            note_type: 'General Note',
-            next_follow_up: meeting.date,
-            client_status: selectedClient?.status || 'Active',
-            content: `${meeting.mode}: ${meeting.agenda}. ${meeting.remarks}`.trim(),
-        });
+    const handleAddMeeting = async (meeting) => {
+        await addClientMeeting(selectedClientId, meeting);
+        await refreshSelectedClient();
+    };
+
+    const handleUpdateMeeting = async (meetingId, meeting) => {
+        await updateClientMeeting(meetingId, meeting);
+        await refreshSelectedClient();
+    };
+
+    const handleDeleteMeetingRemote = async (meetingId) => {
+        await deleteClientMeeting(meetingId);
         await refreshSelectedClient();
     };
 
@@ -2219,7 +2173,9 @@ const Clients = () => {
                         onBack={() => setSelectedClientId(null)}
                         onUpdateClient={handleUpdateSelectedClient}
                         onAddNote={handleSaveClientNote}
-                        onAddMeeting={handleSaveMeetingNote}
+                        onAddMeeting={handleAddMeeting}
+                        onUpdateMeeting={handleUpdateMeeting}
+                        onDeleteMeeting={handleDeleteMeetingRemote}
                         onContinueToDeal={handleContinueToDeal}
                         onScheduleVisit={handleScheduleVisit}
                         onSaveRequirement={handleSaveRequirement}

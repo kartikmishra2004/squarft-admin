@@ -6,6 +6,7 @@ const ROLE_ACCESS_ENDPOINTS = {
   ROLES: '/api/admin/role-access/roles',
   ROLE_DETAIL: (roleId) => `/api/admin/role-access/roles/${roleId}`,
   ROLE_PERMISSIONS: (roleId) => `/api/admin/role-access/roles/${roleId}/permissions`,
+  ROLE_STATUS: (roleId) => `/api/admin/role-access/roles/${roleId}/status`,
   MY_ACCESS: '/api/admin/role-access/me',
   ACTIVITY_LOGS: '/api/admin/role-access/activity-logs',
 };
@@ -99,34 +100,69 @@ export const createBranchRole = async (roleData = {}) => {
     ].filter(Boolean));
   }
 
+  const body = {
+    branchId: roleData.branchId,
+    name: name.trim(),
+    description: roleData.description?.trim() || '',
+  };
+
+  if (roleData.phone && roleData.password) {
+    body.phone = roleData.phone.trim();
+    body.password = roleData.password;
+    body.fullName = roleData.fullName?.trim() || '';
+    body.email = roleData.email?.trim() || undefined;
+  }
+
   const response = await apiRequest(ROLE_ACCESS_ENDPOINTS.ROLES, {
     method: 'POST',
-    body: JSON.stringify({
-      branchId: roleData.branchId,
-      name: name.trim(),
-      description: roleData.description?.trim() || '',
-    }),
+    body: JSON.stringify(body),
   });
 
   return normalizeRoleAccessData(unwrapData(response));
 };
 
 export const updateRolePermissions = async (roleId, permissionsData = {}) => {
+  const permissions = permissionsData.permissions;
   const tabAccess = permissionsData.tabAccess || permissionsData.tabs || [];
+  const usingPermissions = Array.isArray(permissions);
 
-  if (!roleId || !permissionsData.branchId || !Array.isArray(tabAccess)) {
+  if (!roleId || !permissionsData.branchId || (!usingPermissions && !Array.isArray(tabAccess))) {
     throw clientError('Role ID, branch ID, and tab access are required', [
       !roleId && { field: 'roleId', message: 'roleId is required' },
       !permissionsData.branchId && { field: 'branchId', message: 'branchId is required' },
-      !Array.isArray(tabAccess) && { field: 'tabAccess', message: 'tabAccess must be an array' },
+      !usingPermissions && !Array.isArray(tabAccess) && { field: 'tabAccess', message: 'tabAccess must be an array' },
     ].filter(Boolean));
+  }
+
+  const body = { branchId: permissionsData.branchId };
+  if (usingPermissions) {
+    body.permissions = permissions;
+  } else {
+    body.tabAccess = tabAccess;
   }
 
   const response = await apiRequest(ROLE_ACCESS_ENDPOINTS.ROLE_PERMISSIONS(roleId), {
     method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+
+  return normalizeRoleAccessData(unwrapData(response));
+};
+
+export const updateRoleStatus = async (roleId, statusData = {}) => {
+  if (!roleId || !statusData.branchId || !statusData.status) {
+    throw clientError('Role ID, branch ID, and status are required', [
+      !roleId && { field: 'roleId', message: 'roleId is required' },
+      !statusData.branchId && { field: 'branchId', message: 'branchId is required' },
+      !statusData.status && { field: 'status', message: 'status is required' },
+    ].filter(Boolean));
+  }
+
+  const response = await apiRequest(ROLE_ACCESS_ENDPOINTS.ROLE_STATUS(roleId), {
+    method: 'PATCH',
     body: JSON.stringify({
-      branchId: permissionsData.branchId,
-      tabAccess,
+      branchId: statusData.branchId,
+      status: statusData.status,
     }),
   });
 

@@ -28,7 +28,7 @@ import {
 
 const DEALS_PER_PAGE = 5;
 
-const filterOptions = ['All', 'Overdue', 'Upcoming', 'Paid'];
+const filterOptions = ['All', 'Overdue', 'Upcoming', 'Partial', 'Paid'];
 const manualMilestoneStatuses = ['upcoming', 'overdue', 'cancelled'];
 
 const formatCurrency = (amount) => `Rs ${Number(amount || 0).toLocaleString('en-IN')}`;
@@ -56,8 +56,17 @@ const getStatusClass = (status) => {
     return 'bg-[#FFF7E6] text-[#A15A00]';
 };
 
+const toTitleCase = (value) => (
+    value
+        ? String(value).replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+        : ''
+);
+
 const parseDealDate = (dateStr) => {
     if (!dateStr) return '';
+    const isoMatch = String(dateStr).match(/^\d{4}-\d{2}-\d{2}/);
+    if (isoMatch) return isoMatch[0];
+
     const parts = dateStr.split(' ');
     if (parts.length !== 3) return '';
     const day = parts[0].padStart(2, '0');
@@ -170,7 +179,7 @@ const PaymentMilestones = () => {
         const pending = Math.max(total - collected, 0);
         const nextMilestone = paymentSchedule.find((item) => getRemainingAmount(item) > 0);
         const progress = total > 0 ? Math.round((collected / total) * 100) : 0;
-        const dealStatus = nextMilestone ? (nextMilestone.status || 'Upcoming') : 'Paid';
+        const dealStatus = nextMilestone ? toTitleCase(nextMilestone.status || 'upcoming') : 'Paid';
 
         return {
             ...deal,
@@ -696,7 +705,7 @@ const PaymentMilestones = () => {
                                                                 <td className="px-3 py-3 text-xs font-bold text-emerald-700">{formatCurrency(getCollectedAmount(milestone))}</td>
                                                                 <td className="px-3 py-3 text-xs font-bold text-amber-700">{formatCurrency(remaining)}</td>
                                                                 <td className="px-3 py-3 text-[10px] font-bold text-[#615C71]">{milestone.due_date}</td>
-                                                                <td className="px-3 py-3"><StatusPill status={milestone.status} /></td>
+                                                                <td className="px-3 py-3"><StatusPill status={toTitleCase(milestone.status)} /></td>
                                                                 <td className="px-3 py-3">
                                                                     <div className="flex flex-wrap gap-1.5">
                                                                         <button

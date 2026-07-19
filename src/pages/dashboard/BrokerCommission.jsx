@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Banknote,
     Building2,
@@ -24,176 +24,27 @@ import {
     fetchBrokerSummary,
 } from '../../services/brokerCommissionService';
 
-const brokerCommissionData = [
-    {
-        id: 'BRK-1024',
-        name: 'Anil Nahar',
-        agency: 'Aarambh Realty',
-        mobile: '+91 91659 93939',
-        email: 'anil@squarftbroker.in',
-        city: 'Indore',
-        area: 'Mahalakshmi Nagar',
-        kycStatus: 'Approved',
-        brokerStatus: 'Active',
-        joinedOn: '05 Mar 2026',
-        stats: { total_properties: 12, sales: 7, pending: 3, rejected: 2 },
-        wallet: {
-            balance: 1423534,
-            totalEarned: 5280000,
-            totalWithdrawn: 3856466,
-            lockedAmount: 185000,
-            withdrawalPending: 250000,
-        },
-        bankAccounts: [
-            { id: 'BANK-01', bankName: 'Bank of India', accountNumberMasked: 'xxxxxxxx6789', ifsc: 'BKID0008891', primary: true, status: 'Verified' },
-            { id: 'BANK-02', bankName: 'HDFC Bank', accountNumberMasked: 'xxxxxxxx1234', ifsc: 'HDFC0002401', primary: false, status: 'Review' },
-        ],
-        uploadedProperties: [
-            { id: 'PROP-001', name: 'Sunset Villa', category: 'Residential', type: 'Villa', location: 'Mahalakshmi Nagar, Indore', price: 2510000, status: 'Approved', photos: 8, documents: 3, uploadedOn: '12 Jun 2026' },
-            { id: 'PROP-002', name: 'Fully Furnished 1 BHK Flat', category: 'Residential', type: 'Apartment', location: 'Vijay Nagar, Indore', price: 3050000, status: 'Pending', photos: 6, documents: 2, uploadedOn: '13 Jun 2026' },
-            { id: 'PROP-003', name: 'City Center Office Space', category: 'Commercial', type: 'Office', location: 'MG Road, Indore', price: 9500000, status: 'Rejected', photos: 5, documents: 1, uploadedOn: '10 Jun 2026' },
-        ],
-        clients: [
-            { id: 'CL-101', name: 'Suresh Kumar', phone: '+91 98987 88776', budget: '2 Cr - 3 Cr', interest: 'Sunset Villa', status: 'Interested', onboardedOn: '08 Jun 2026' },
-            { id: 'CL-102', name: 'Pooja Hegde', phone: '+91 99887 77665', budget: '80 L - 1.2 Cr', interest: 'Fully Furnished 1 BHK Flat', status: 'Active', onboardedOn: '10 Jun 2026' },
-            { id: 'CL-103', name: 'Rajesh Patel', phone: '+91 98221 33221', budget: '4 Cr - 6 Cr', interest: 'Sunset Villa', status: 'Deal Closed', onboardedOn: '12 Jun 2026' }
-        ],
-        commissions: [
-            { id: 'COM-001', propertyName: 'Sunset Villa', location: 'Mahalakshmi Nagar, Indore', saleValue: 2510000, rate: 5, amount: 125000, status: 'Paid', createdAt: '15 Mar 2026', transactionId: '23010412432431' },
-            { id: 'COM-002', propertyName: 'Fully Furnished 1 BHK Flat', location: 'Mahalakshmi Nagar, Indore', saleValue: 3050000, rate: 5, amount: 325000, status: 'Paid', createdAt: '15 Mar 2026', transactionId: '23010412432432' },
-            { id: 'COM-003', propertyName: '2 BHK Apartment', location: 'Vijay Nagar, Indore', saleValue: 4500000, rate: 3, amount: 135000, status: 'Pending', createdAt: '02 Apr 2026', transactionId: 'Awaiting payout' },
-        ],
-        transactions: [
-            { id: 'TXN-7182', property_name: 'Sunset Villa', type: 'credit', amount: 125000, bank_name: 'Bank of India - xxxxxxxx6789', created_at: '2026-06-14', status: 'success' },
-            { id: 'TXN-7183', property_name: 'Withdrawal to bank', type: 'debit', amount: 250000, bank_name: 'Bank of India - xxxxxxxx6789', created_at: '2026-06-13', status: 'processing' },
-        ],
-        withdrawals: [
-            {
-                id: 'WDR-1091',
-                requestedAmount: 250000,
-                bankName: 'Bank of India',
-                accountNumberMasked: 'xxxxxxxx6789',
-                ifsc: 'BKID0008891',
-                accountHolder: 'Anil Nahar',
-                requestedAt: '14 Jun 2026, 10:45 AM',
-                source: 'Broker app wallet',
-                status: 'Pending payout',
-                utr: 'Awaiting payment',
-            },
-        ],
-    },
-    {
-        id: 'BRK-1032',
-        name: 'Manas Gangrade',
-        agency: 'Prime Square Brokers',
-        mobile: '+91 98765 43210',
-        email: 'manas@squarftbroker.in',
-        city: 'Indore',
-        area: 'Vijay Nagar',
-        kycStatus: 'Approved',
-        brokerStatus: 'Active',
-        joinedOn: '11 Feb 2026',
-        stats: { total_properties: 9, sales: 4, pending: 4, rejected: 1 },
-        wallet: {
-            balance: 682000,
-            totalEarned: 2460000,
-            totalWithdrawn: 1778000,
-            lockedAmount: 72000,
-            withdrawalPending: 0,
-        },
-        bankAccounts: [
-            { id: 'BANK-11', bankName: 'ICICI Bank', accountNumberMasked: 'xxxxxxxx5566', ifsc: 'ICIC0001212', primary: true, status: 'Verified' },
-        ],
-        uploadedProperties: [
-            { id: 'PROP-011', name: 'Lake View Apartment', category: 'Residential', type: 'Apartment', location: 'Pipliyapala, Indore', price: 5800000, status: 'Approved', photos: 9, documents: 3, uploadedOn: '09 Jun 2026' },
-            { id: 'PROP-012', name: 'Green Field Plot', category: 'Residential', type: 'Plot', location: 'Super Corridor, Indore', price: 3000000, status: 'Pending', photos: 5, documents: 2, uploadedOn: '12 Jun 2026' },
-            { id: 'PROP-013', name: 'Silver Oak Studio', category: 'Commercial', type: 'Shop', location: 'Old Palasia, Indore', price: 6500000, status: 'Pending', photos: 6, documents: 2, uploadedOn: '13 Jun 2026' },
-        ],
-        clients: [
-            { id: 'CL-201', name: 'Neha Sharma', phone: '+91 91122 33445', budget: '1.5 Cr - 2.5 Cr', interest: 'Lake View Apartment', status: 'Active', onboardedOn: '11 Jun 2026' },
-            { id: 'CL-202', name: 'Devendra Jha', phone: '+91 98888 77777', budget: '3 Cr - 4 Cr', interest: 'Green Field Plot', status: 'Interested', onboardedOn: '13 Jun 2026' }
-        ],
-        commissions: [
-            { id: 'COM-011', propertyName: 'Lake View Apartment', location: 'Pipliyapala, Indore', saleValue: 5800000, rate: 4, amount: 232000, status: 'Paid', createdAt: '20 May 2026', transactionId: '23010412432512' },
-            { id: 'COM-012', propertyName: 'Green Field Plot', location: 'Super Corridor, Indore', saleValue: 3000000, rate: 3, amount: 90000, status: 'Pending', createdAt: '04 Jun 2026', transactionId: 'Awaiting payout' },
-        ],
-        transactions: [
-            { id: 'TXN-8210', property_name: 'Lake View Apartment', type: 'credit', amount: 232000, bank_name: 'ICICI Bank - xxxxxxxx5566', created_at: '2026-05-21', status: 'success' },
-            { id: 'TXN-8211', property_name: 'Commission adjustment', type: 'credit', amount: 45000, bank_name: 'Wallet balance', created_at: '2026-06-03', status: 'success' },
-        ],
-        withdrawals: [
-            {
-                id: 'WDR-1164',
-                requestedAmount: 180000,
-                bankName: 'ICICI Bank',
-                accountNumberMasked: 'xxxxxxxx5566',
-                ifsc: 'ICIC0001212',
-                accountHolder: 'Manas Gangrade',
-                requestedAt: '13 Jun 2026, 04:15 PM',
-                source: 'Broker app wallet',
-                status: 'Pending payout',
-                utr: 'Awaiting payment',
-            },
-        ],
-    },
-    {
-        id: 'BRK-1041',
-        name: 'Apex Realty',
-        agency: 'Apex Realty Channel',
-        mobile: '+91 98100 12300',
-        email: 'ops@apexrealty.in',
-        city: 'Mumbai',
-        area: 'Andheri West',
-        kycStatus: 'Under review',
-        brokerStatus: 'Watchlist',
-        joinedOn: '18 Jan 2026',
-        stats: { total_properties: 16, sales: 5, pending: 8, rejected: 3 },
-        wallet: {
-            balance: 940000,
-            totalEarned: 3115000,
-            totalWithdrawn: 2175000,
-            lockedAmount: 420000,
-            withdrawalPending: 500000,
-        },
-        bankAccounts: [
-            { id: 'BANK-21', bankName: 'Axis Bank', accountNumberMasked: 'xxxxxxxx9988', ifsc: 'UTIB0000711', primary: true, status: 'Verified' },
-            { id: 'BANK-22', bankName: 'Kotak Bank', accountNumberMasked: 'xxxxxxxx7722', ifsc: 'KKBK0005888', primary: false, status: 'Blocked' },
-        ],
-        uploadedProperties: [
-            { id: 'PROP-021', name: 'Skyline Residency', category: 'Residential', type: 'Apartment', location: 'Andheri West, Mumbai', price: 18500000, status: 'Approved', photos: 11, documents: 4, uploadedOn: '08 Jun 2026' },
-            { id: 'PROP-022', name: 'The Pinnacle Penthouse', category: 'Residential', type: 'Apartment', location: 'New Palasia, Indore', price: 8500000, status: 'Pending', photos: 7, documents: 2, uploadedOn: '13 Jun 2026' },
-            { id: 'PROP-023', name: 'Riverside Bungalow', category: 'Residential', type: 'Rowhouse', location: 'Khandwa Road, Indore', price: 5200000, status: 'Rejected', photos: 4, documents: 1, uploadedOn: '11 Jun 2026' },
-        ],
-        clients: [
-            { id: 'CL-301', name: 'Vikram Malhotra', phone: '+91 95555 44444', budget: '15 Cr - 20 Cr', interest: 'Skyline Residency', status: 'Deal Closed', onboardedOn: '05 Jun 2026' },
-            { id: 'CL-302', name: 'Rohan Mehra', phone: '+91 96666 55555', budget: '6 Cr - 10 Cr', interest: 'The Pinnacle Penthouse', status: 'Active', onboardedOn: '09 Jun 2026' }
-        ],
-        commissions: [
-            { id: 'COM-021', propertyName: 'Skyline Residency', location: 'Andheri West, Mumbai', saleValue: 17600000, rate: 2.5, amount: 440000, status: 'Paid', createdAt: '01 Jun 2026', transactionId: '23010412432671' },
-            { id: 'COM-022', propertyName: 'The Pinnacle Penthouse', location: 'New Palasia, Indore', saleValue: 8500000, rate: 4, amount: 340000, status: 'Hold', createdAt: '08 Jun 2026', transactionId: 'KYC hold' },
-        ],
-        transactions: [
-            { id: 'TXN-9312', property_name: 'Skyline Residency', type: 'credit', amount: 440000, bank_name: 'Axis Bank - xxxxxxxx9988', created_at: '2026-06-01', status: 'success' },
-            { id: 'TXN-9313', property_name: 'Withdrawal to bank', type: 'debit', amount: 500000, bank_name: 'Axis Bank - xxxxxxxx9988', created_at: '2026-06-12', status: 'pending' },
-        ],
-        withdrawals: [
-            {
-                id: 'WDR-1187',
-                requestedAmount: 500000,
-                bankName: 'Axis Bank',
-                accountNumberMasked: 'xxxxxxxx9988',
-                ifsc: 'UTIB0000711',
-                accountHolder: 'Apex Realty',
-                requestedAt: '12 Jun 2026, 05:20 PM',
-                source: 'Broker app wallet',
-                status: 'Compliance hold',
-                utr: 'KYC review pending',
-            },
-        ],
-    },
-];
+const EMPTY_BROKER = {
+    id: null,
+    name: '',
+    agency: '-',
+    mobile: '-',
+    email: '-',
+    city: '-',
+    kycStatus: 'Pending',
+    brokerStatus: 'Active',
+    stats: { total_properties: 0, sales: 0, pending: 0, rejected: 0 },
+    wallet: { balance: 0, totalEarned: 0, totalWithdrawn: 0, lockedAmount: 0, withdrawalPending: 0 },
+    bankAccounts: [],
+    uploadedProperties: [],
+    clients: [],
+    commissions: [],
+    transactions: [],
+    withdrawals: [],
+};
 
-const propertyFilters = ['All', 'Approved', 'Pending', 'Rejected'];
+
+const propertyFilters = ['All', 'Published', 'Pending Review', 'Draft', 'Rejected'];
 
 const formatCurrency = (amount) => `Rs ${Number(amount || 0).toLocaleString('en-IN')}`;
 
@@ -207,7 +58,7 @@ const isPendingStatus = (status) => ['pending', 'processing', 'pending payout'].
 
 const getStatusClass = (status) => {
     const normalized = String(status).toLowerCase();
-    if (normalized.includes('paid') || normalized.includes('approved') || normalized.includes('verified') || normalized.includes('success')) {
+    if (normalized.includes('paid') || normalized.includes('completed') || normalized.includes('published') || normalized.includes('approved') || normalized.includes('verified') || normalized.includes('success')) {
         return 'bg-[#E8F9EE] text-[#0C6B39]';
     }
     if (normalized.includes('reject') || normalized.includes('blocked') || normalized.includes('hold') || normalized.includes('watch')) {
@@ -219,9 +70,9 @@ const getStatusClass = (status) => {
 const BrokerCommission = () => {
     const navigate = useNavigate();
     const [activePageTab, setActivePageTab] = useState('brokerCommission');
-    const [brokers, setBrokers] = useState(brokerCommissionData);
+    const [brokers, setBrokers] = useState([]);
     const [summary, setSummary] = useState(null);
-    const [selectedBrokerId, setSelectedBrokerId] = useState(brokerCommissionData[0].id);
+    const [selectedBrokerId, setSelectedBrokerId] = useState(null);
     const [search, setSearch] = useState('');
     const [propertyFilter, setPropertyFilter] = useState('All');
     const [brokerDirectoryView, setBrokerDirectoryView] = useState('list');
@@ -298,19 +149,42 @@ const BrokerCommission = () => {
         void Promise.resolve().then(() => loadBrokerDetail(selectedBrokerId));
     }, [selectedBrokerId, brokers, loadedBrokerDetails, detailLoading, loadBrokerDetail]);
 
-    const filteredBrokers = useMemo(() => {
-        const query = search.trim().toLowerCase();
-        if (!query) return brokers;
+    const isFirstSearchRun = useRef(true);
 
-        return brokers.filter((broker) => (
-            broker.name.toLowerCase().includes(query)
-            || broker.agency.toLowerCase().includes(query)
-            || broker.mobile.toLowerCase().includes(query)
-            || broker.city.toLowerCase().includes(query)
-        ));
-    }, [brokers, search]);
+    useEffect(() => {
+        if (isFirstSearchRun.current) {
+            isFirstSearchRun.current = false;
+            return undefined;
+        }
 
-    const selectedBroker = brokers.find((broker) => broker.id === selectedBrokerId) || filteredBrokers[0] || brokers[0] || brokerCommissionData[0];
+        let active = true;
+        const handle = setTimeout(async () => {
+            setPageLoading(true);
+            setPageError('');
+
+            try {
+                const brokerList = await fetchBrokerList(search.trim() ? { search: search.trim() } : {});
+                if (!active) return;
+
+                setBrokers(brokerList.items);
+                setSelectedBrokerId((current) => (
+                    brokerList.items.some((broker) => broker.id === current) ? current : (brokerList.items[0]?.id ?? null)
+                ));
+            } catch (error) {
+                console.error('Failed to search brokers:', error);
+                if (active) setPageError(error?.message || 'Failed to search brokers.');
+            } finally {
+                if (active) setPageLoading(false);
+            }
+        }, 400);
+
+        return () => {
+            active = false;
+            clearTimeout(handle);
+        };
+    }, [search]);
+
+    const selectedBroker = brokers.find((broker) => broker.id === selectedBrokerId) || brokers[0] || EMPTY_BROKER;
     const selectedProperties = selectedBroker.uploadedProperties.filter((property) => propertyFilter === 'All' || property.status === propertyFilter);
     const selectedTransaction = selectedBroker.transactions.find((transaction) => transaction.id === selectedTransactionId) || selectedBroker.transactions[0];
     const getTransactionStatus = (transaction) => transaction?.status || 'Pending';
@@ -443,10 +317,10 @@ const BrokerCommission = () => {
                                     <div className="mt-4 space-y-2">
                                         {brokers.map((broker) => {
                                             const paidCommission = broker.commissions
-                                                .filter((commission) => commission.status === 'Paid')
+                                                .filter((commission) => commission.status === 'Completed')
                                                 .reduce((sum, commission) => sum + commission.amount, 0);
                                             const pendingCommission = broker.commissions
-                                                .filter((commission) => commission.status !== 'Paid')
+                                                .filter((commission) => commission.status !== 'Completed')
                                                 .reduce((sum, commission) => sum + commission.amount, 0);
 
                                             return (
@@ -678,9 +552,9 @@ const BrokerCommission = () => {
                             </section>
 
                             <div className="grid min-w-0 gap-4 xl:grid-cols-[170px_minmax(0,1fr)]">
-                                <aside className="min-w-0 space-y-4">
-                                    <section className="rounded-[8px] border border-[#D8D2EB] bg-white p-3">
-                                        <div className="flex items-center gap-2 rounded-[6px] border border-[#D8D2EB] bg-[#FCFBFF] px-2">
+                                <aside className="min-w-0 space-y-4 xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)] xl:self-start">
+                                    <section className="flex h-full max-h-[calc(100vh-2rem)] flex-col rounded-[8px] border border-[#D8D2EB] bg-white p-3">
+                                        <div className="flex items-center gap-2 rounded-[6px] border border-[#D8D2EB] bg-[#FCFBFF] px-2 shrink-0">
                                             <Search size={14} className="text-[#7B7486]" />
                                             <input
                                                 value={search}
@@ -690,8 +564,11 @@ const BrokerCommission = () => {
                                             />
                                         </div>
 
-                                        <div className="mt-3 space-y-2">
-                                            {filteredBrokers.map((broker) => {
+                                        <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                                            {brokers.length === 0 && !pageLoading && (
+                                                <p className="py-4 text-center text-[10px] font-bold text-[#615C71]">No brokers found.</p>
+                                            )}
+                                            {brokers.map((broker) => {
                                                 const selected = broker.id === selectedBroker.id;
                                                 return (
                                                     <button
@@ -924,8 +801,8 @@ const BrokerPropertyDetailsModal = ({ property, selectedBroker, isOpen, onClose 
         specs: `${property.category} - ${property.type}`,
         status: property.status,
         units: 1,
-        available: property.status === 'Approved' ? 1 : 0,
-        progress: property.status === 'Approved' ? 100 : 50,
+        available: property.status === 'Published' ? 1 : 0,
+        progress: property.status === 'Published' ? 100 : 50,
         officer: 'Operations Desk',
         updated: property.uploadedOn,
         inventory: [
@@ -934,7 +811,7 @@ const BrokerPropertyDetailsModal = ({ property, selectedBroker, isOpen, onClose 
                 size: 'Onboarded Unit',
                 basePrice: formatCurrency(property.price),
                 totalUnits: 1,
-                availableUnits: property.status === 'Approved' ? 1 : 0,
+                availableUnits: property.status === 'Published' ? 1 : 0,
             }
         ],
     };
@@ -947,7 +824,7 @@ const BrokerPropertyDetailsModal = ({ property, selectedBroker, isOpen, onClose 
                 return {
                     id: `${project.id}-${configIndex}-${index}`,
                     number: `${index + 1}`.padStart(3, '0'),
-                    status: index === 0 && property.status === 'Approved' ? 'Available' : 'Sold',
+                    status: index === 0 && property.status === 'Published' ? 'Available' : 'Sold',
                 };
             }),
         };
@@ -1051,7 +928,7 @@ const BrokerPropertyDetailsModal = ({ property, selectedBroker, isOpen, onClose 
                         <p className="text-[10px] font-black uppercase tracking-widest text-[#8B8498]">Registration Details</p>
                         <div className="mt-3 space-y-2 text-sm font-bold text-[#514B63]">
                             <p>Status: <span className="text-gray-950">{property.status}</span></p>
-                            <p>RERA Status: <span className="text-gray-950">{property.status === 'Approved' ? 'Verified' : 'Pending Review'}</span></p>
+                            <p>RERA Status: <span className="text-gray-950">{property.status === 'Published' ? 'Verified' : 'Pending Review'}</span></p>
                             <p>Referral Code: <span className="text-gray-950">{selectedBroker.id}</span></p>
                         </div>
                     </div>
