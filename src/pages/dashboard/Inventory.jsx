@@ -21,6 +21,7 @@ import {
 } from '../../store/inventorySlice';
 import { projectOnboardingList } from '../../data/mockData';
 import * as inventoryService from '../../services/inventoryService';
+import { fetchProjectOnboardingDetails } from '../../services/panelOverviewService';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -158,10 +159,10 @@ const inferInventoryHierarchy = (project, row) => {
 };
 
 const getInventoryCounts = (project) => {
-    const total = project.units || (project.inventory || []).reduce((sum, item) => sum + (item.totalUnits || 0), 0);
-    const available = project.available || (project.inventory || []).reduce((sum, item) => sum + (item.availableUnits || 0), 0);
-    const sold = Math.max(total - available, 0);
-    const booked = project.booked || Math.max(Math.round(sold * 0.25), 0);
+    const total = typeof project.units === 'number' ? project.units : (project.inventory || []).reduce((sum, item) => sum + (item.totalUnits || 0), 0);
+    const available = typeof project.available === 'number' ? project.available : (project.inventory || []).reduce((sum, item) => sum + (item.availableUnits || 0), 0);
+    const sold = typeof project.sold === 'number' ? project.sold : Math.max(total - available, 0);
+    const booked = typeof project.booked === 'number' ? project.booked : Math.max(Math.round(sold * 0.25), 0);
 
     return { total, available, sold, booked };
 };
@@ -170,8 +171,31 @@ const getProjectMeta = (project) => {
     const builderProfile = project.builderProfile || {};
     const brokerProfile = project.brokerProfile || {};
     const reraNumber = builderProfile.reraNumber || brokerProfile.reraNumber || project.reraNumber || 'RERA pending';
-    const possession = project.possession || (project.status === 'Active' || project.status === 'Approved' ? 'Ready / Near possession' : 'Timeline pending');
-    const avgPrice = project.avgPrice || project.avg_price_per_sqft || 'Price on request';
+    
+    const possession = project.expectedPossessionDate || project.expected_possession_date || project.possession || project.possessionDate || project.possession_date || 
+        (project.status === 'published' || project.status === 'Active' || project.status === 'Approved' ? 'Ready / Near possession' : 'Timeline pending');
+
+    let avgPriceVal = project.avgPrice || project.avgPricePerSqft || project.avg_price_per_sqft;
+    if (!avgPriceVal && project.inventory?.length) {
+        let totalRate = 0;
+        let count = 0;
+        project.inventory.forEach(row => {
+            const minPriceVal = Number(row.minPrice || row.price || 0);
+            const areaVal = Number(row.areaSqft || row.area || 0);
+            if (minPriceVal && areaVal) {
+                totalRate += (minPriceVal / areaVal);
+                count++;
+            }
+        });
+        if (count > 0) {
+            avgPriceVal = Math.round(totalRate / count);
+        }
+    }
+    if (typeof avgPriceVal === 'number' || (avgPriceVal && !isNaN(Number(avgPriceVal)) && avgPriceVal !== '')) {
+        avgPriceVal = `₹${Number(avgPriceVal).toLocaleString('en-IN')} / Sq.Ft`;
+    }
+    const avgPrice = avgPriceVal || 'Price on request';
+
     const amenities = project.amenities || [
         project.specs,
         project.configs?.[0],
@@ -1029,6 +1053,134 @@ const Step6DetailsView = ({ form }) => {
     );
 };
 
+const mapDetailsToForm = (d) => {
+    if (!d) return {};
+
+    // Step 1 mapping
+    const basic = d.step_1_basic || {};
+    const step1 = {
+        projectName: basic.project_name,
+        location: basic.location_landmark,
+        city: basic.city,
+        state: basic.state,
+        pincode: basic.pincode,
+        salesOfficerName: basic.sales_officer_name,
+        salesOfficerContact: basic.sales_officer_contact,
+        responsiblePersonName: basic.responsible_person,
+        responsiblePersonContact: basic.responsible_contact
+    };
+
+    // Step 2 mapping
+    const type = d.step_2_type || {};
+    const step2 = {
+        selectedTypes: type.property_types?.length
+            ? type.property_types.map(pt => ({ mainType: pt.category, subType: pt.property_type }))
+            : [{ mainType: type.category, subType: type.property_type }]
+    };
+
+    // Step 3 mapping
+    const details = d.step_3_details || {};
+    const unitConfigs = {};
+    if (details.units && details.units.length > 0) {
+        details.units.forEach(u => {
+            const key = (u.bhk_type || type.property_type || 'default').toLowerCase();
+            if (!unitConfigs[key]) {
+                unitConfigs[key] = [];
+            }
+            unitConfigs[key].push({
+                propertyNumber: u.unit_no,
+                tower: u.tower_block,
+                floor: u.floor,
+                bhk: u.bhk_type,
+                area: u.area,
+                price: u.price
+            });
+        });
+    } else {
+        unitConfigs[(type.property_type || 'default').toLowerCase()] = [];
+    }
+
+    const step3 = {
+        totalArea: details.total_area,
+        carpetArea: details.carpet_area,
+        areaUnit: details.area_unit,
+        propertyAge: details.property_age,
+        khasraNumber: details.khasra_number,
+        nearbyProject: details.nearby_project,
+        towerNumber: details.tower_number,
+        flatNumber: details.flat_number,
+        priceFrom: details.price_from,
+        priceTo: details.price_to,
+        unitConfigs
+    };
+
+    // Step 4 mapping
+    const approvals = d.step_4_approvals || {};
+    const step4 = {
+        possessionStatus: approvals.timeline?.possession_status,
+        expectedPossessionDate: approvals.timeline?.expected_possession_date,
+        projectLaunchStatus: approvals.timeline?.launch_status,
+        projectLaunchDate: approvals.timeline?.launch_expected_date,
+        expectedLaunchDate: approvals.timeline?.launch_expected_date,
+        developmentCompletionPercentage: approvals.timeline?.development_completion,
+        currentDevelopmentStage: approvals.timeline?.stages || [],
+        approvals: {
+            rera: {
+                status: approvals.compliance?.rera?.approved === 'YES' ? 'Yes' : 'No',
+                registrationNumber: approvals.compliance?.rera?.approved === 'YES' ? approvals.compliance?.rera?.details : null,
+                expectedTime: approvals.compliance?.rera?.approved !== 'YES' ? approvals.compliance?.rera?.details?.replace(/^Expected:\s*/i, '') : null
+            },
+            tncp: {
+                status: approvals.compliance?.tncp?.approved === 'YES' ? 'Yes' : 'No',
+                registrationNumber: approvals.compliance?.tncp?.approved === 'YES' ? approvals.compliance?.tncp?.details : null,
+                expectedTime: approvals.compliance?.tncp?.approved !== 'YES' ? approvals.compliance?.tncp?.details?.replace(/^Expected:\s*/i, '') : null
+            },
+            buildingPermission: {
+                status: approvals.compliance?.building_permission?.approved === 'YES' ? 'Yes' : 'No',
+                registrationNumber: approvals.compliance?.building_permission?.approved === 'YES' ? approvals.compliance?.building_permission?.details : null,
+                expectedTime: approvals.compliance?.building_permission?.approved !== 'YES' ? approvals.compliance?.building_permission?.details?.replace(/^Expected:\s*/i, '') : null
+            },
+            developmentPermission: {
+                status: approvals.compliance?.development_permission?.approved === 'YES' ? 'Yes' : 'No',
+                registrationNumber: approvals.compliance?.development_permission?.approved === 'YES' ? approvals.compliance?.development_permission?.details : null,
+                expectedTime: approvals.compliance?.development_permission?.approved !== 'YES' ? approvals.compliance?.development_permission?.details?.replace(/^Expected:\s*/i, '') : null
+            }
+        }
+    };
+
+    // Step 5 mapping
+    const finance = d.step_5_finance || {};
+    const step5 = {
+        guidelineValueAmount: finance.guideline_registry?.guideline_value,
+        registryChargesMaleBuyer: finance.guideline_registry?.registry_male,
+        registryChargesFemaleBuyer: finance.guideline_registry?.registry_female,
+        propertyJurisdictionArea: finance.guideline_registry?.jurisdiction,
+        guidelineYear: finance.guideline_registry?.guideline_year,
+        otherGovernmentCharges: finance.guideline_registry?.other_charges,
+        loanAvailable: finance.loan_availability?.bank_loan_available,
+        tieUpBankName: finance.loan_availability?.tie_up_with_banks,
+        maximumLoanPercentage: finance.loan_availability?.maximum_loan_percent,
+        loanApprovalStatus: finance.loan_availability?.loan_approval_status,
+        requiredLoanDocuments: finance.loan_availability?.required_documents,
+        ownershipType: finance.land_ownership?.ownership_type,
+        titleVerificationStatus: finance.land_ownership?.title_verification,
+        titleExpectedCompletionDate: finance.land_ownership?.title_expected_completion_date,
+        jvLandOwnerName: finance.land_ownership?.jv_land_owner_name,
+        jvDeveloperBuilderName: finance.land_ownership?.jv_developer_name,
+        jvRevenueAreaSharingDetails: finance.land_ownership?.jv_sharing_details
+    };
+
+    // Step 6 mapping
+    const media = d.step_6_media || {};
+    const step6 = {
+        images: (media.gallery || []).map(img => ({ uri: img.url, fileName: img.label })),
+        documents: (media.documents || []).map(doc => ({ uri: doc.url, name: doc.label })),
+        agreed: media.agreement_status?.is_signed
+    };
+
+    return { step1, step2, step3, step4, step5, step6 };
+};
+
 const getOnboardingForm = (project) => {
     const matched = projectOnboardingList.find(p => p.projectName.toLowerCase() === project.name.toLowerCase() || p.projectName.toLowerCase().includes(project.name.toLowerCase()));
     if (matched) return matched.form;
@@ -1187,9 +1339,53 @@ const ProjectDetailView = ({ project, onBack }) => {
     const [documents, setDocuments] = useState([]);
     const [docsLoading, setDocsLoading] = useState(false);
 
+    const [onboardDetails, setOnboardDetails] = useState(null);
+    const [onboardLoading, setOnboardLoading] = useState(false);
+
+    useEffect(() => {
+        if (!project?.id) return;
+        const loadOnboard = async () => {
+            try {
+                setOnboardLoading(true);
+                const res = await fetchProjectOnboardingDetails(project.id);
+                if (res?.success && res.data) {
+                    setOnboardDetails(res.data);
+                }
+            } catch (err) {
+                console.error("Failed to load onboarding details for inventory", err);
+            } finally {
+                setOnboardLoading(false);
+            }
+        };
+        loadOnboard();
+    }, [project]);
+
     const projectForm = useMemo(() => {
+        if (onboardDetails) {
+            return mapDetailsToForm(onboardDetails);
+        }
         if (!localProjectData) return null;
         return getOnboardingForm(localProjectData);
+    }, [onboardDetails, localProjectData]);
+
+    const dynamicHierarchy = useMemo(() => {
+        if (!localProjectData?.inventory?.length) return [];
+        const groups = {};
+        localProjectData.inventory.forEach(row => {
+            const hierarchy = inferInventoryHierarchy(localProjectData, row);
+            const main = hierarchy.mainType || 'Other';
+            const sub = hierarchy.subType;
+            if (sub) {
+                if (!groups[main]) {
+                    groups[main] = new Set();
+                }
+                groups[main].add(sub);
+            }
+        });
+        return Object.entries(groups).map(([mainType, subSet]) => ({
+            mainType,
+            subTypes: Array.from(subSet)
+        }));
     }, [localProjectData]);
 
     useEffect(() => {
@@ -1448,11 +1644,83 @@ const ProjectDetailView = ({ project, onBack }) => {
                             </Card>
 
                             <Card noPadding className="overflow-hidden border-gray-100 shadow-xl shadow-gray-200/50">
+                                <div className="p-6 border-b border-gray-100 bg-white text-left">
+                                    <h3 className="text-sm font-black text-gray-800 tracking-wider uppercase mb-1 flex items-center gap-2">
+                                        <Building2 className="w-4 h-4 text-[#6F4BFF]" /> Project Key Details
+                                    </h3>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4">Key structural, area, and location specifications</p>
+                                    
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                        {localProjectData.area && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Sector / Landmark</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800">{localProjectData.area}</p>
+                                            </div>
+                                        )}
+                                        {localProjectData.category && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Category</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800 capitalize">{localProjectData.category}</p>
+                                            </div>
+                                        )}
+                                        {localProjectData.propertyType && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Property Type</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800 capitalize">{localProjectData.propertyType}</p>
+                                            </div>
+                                        )}
+                                        {projectForm?.step3?.totalArea && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total Area</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800">{projectForm.step3.totalArea} {projectForm.step3.areaUnit}</p>
+                                            </div>
+                                        )}
+                                        {projectForm?.step3?.carpetArea && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Carpet Area</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800">{projectForm.step3.carpetArea} {projectForm.step3.areaUnit}</p>
+                                            </div>
+                                        )}
+                                        {projectForm?.step3?.propertyAge && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Property Age</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800">{projectForm.step3.propertyAge} Years</p>
+                                            </div>
+                                        )}
+                                        {projectForm?.step3?.khasraNumber && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Khasra Number</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800">{projectForm.step3.khasraNumber}</p>
+                                            </div>
+                                        )}
+                                        {projectForm?.step3?.nearbyProject && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Nearby Project</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800">{projectForm.step3.nearbyProject}</p>
+                                            </div>
+                                        )}
+                                        {projectForm?.step3?.towerNumber && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Towers Count</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800">{projectForm.step3.towerNumber}</p>
+                                            </div>
+                                        )}
+                                        {projectForm?.step3?.flatNumber && (
+                                            <div className="rounded-xl border border-gray-50 bg-gray-50/50 p-3">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Flats/Plots Count</p>
+                                                <p className="mt-1 text-sm font-black text-gray-800">{projectForm.step3.flatNumber}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </Card>
+
+                            <Card noPadding className="overflow-hidden border-gray-100 shadow-xl shadow-gray-200/50">
                                 <div className="p-6 border-b border-gray-100 bg-white">
                                     <h3 className="text-lg font-black text-gray-800 tracking-tight">Inventory Configurations</h3>
                                     <p className="text-xs text-gray-500 mt-1 font-bold">Compact view of property hierarchy, unit configuration, area, price, and live availability.</p>
                                     <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                                        {PROPERTY_TYPE_HIERARCHY.map((group) => (
+                                        {dynamicHierarchy.map((group) => (
                                             <div key={group.mainType} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                                                 <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Property Main Type</p>
                                                 <p className="mt-1 text-sm font-black text-gray-900">{group.mainType}</p>
@@ -1472,7 +1740,9 @@ const ProjectDetailView = ({ project, onBack }) => {
                                     {localProjectData.inventory.map((row, i) => {
                                         const hierarchy = inferInventoryHierarchy(localProjectData, row);
                                         const totalCount = row.unitsList ? row.unitsList.length : (row.totalUnits || 0);
-                                        const availableCount = row.unitsList ? row.unitsList.filter(u => u.status === 'Available').length : (row.availableUnits || 0);
+                                        const availableCount = row.unitsList ? row.unitsList.filter(u => u.status === 'Available' || u.status === 'available').length : (row.availableUnits || 0);
+                                        const bookedCount = row.unitsList ? row.unitsList.filter(u => u.status === 'Booked' || u.status === 'booked').length : (row.bookedUnits || 0);
+                                        const soldCount = row.unitsList ? row.unitsList.filter(u => u.status === 'Sold' || u.status === 'sold').length : (row.soldUnits || 0);
                                         const percentAvailable = totalCount ? (availableCount / totalCount) * 100 : 0;
                                         const statusColor = percentAvailable > 50 ? 'bg-emerald-500' : percentAvailable > 20 ? 'bg-amber-500' : 'bg-rose-500';
                                         const isExpanded = expandedConfigIndex === i;
@@ -1495,7 +1765,33 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                             <div className="mt-3">
                                                                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Configuration / Variant</p>
                                                                 <h4 className="mt-1 text-lg font-black text-gray-900 tracking-tight">{hierarchy.configuration}</h4>
-                                                                <p className="mt-1 text-sm font-bold text-gray-500">{row.size || row.area || 'Area / size missing'}</p>
+                                                                {(() => {
+                                                                    const minPriceVal = Number(row.minPrice || row.price || 0);
+                                                                    const areaVal = Number(row.areaSqft || row.area || 0);
+                                                                    const ratePerSqft = minPriceVal && areaVal ? Math.round(minPriceVal / areaVal) : null;
+                                                                    return (
+                                                                        <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                                                            <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
+                                                                                {row.size || (row.areaSqft ? `${row.areaSqft.toLocaleString('en-IN')} Sq.Ft` : 'Area missing')}
+                                                                            </span>
+                                                                            {ratePerSqft && ratePerSqft > 0 && (
+                                                                                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md">
+                                                                                    ₹{ratePerSqft.toLocaleString('en-IN')}/Sq.Ft
+                                                                                </span>
+                                                                            )}
+                                                                            {row.rangeName && (
+                                                                                <span className="text-xs font-bold text-[#6F4BFF] bg-[#6F4BFF]/5 border border-[#6F4BFF]/10 px-2 py-0.5 rounded-md">
+                                                                                    Range: {row.rangeName}
+                                                                                </span>
+                                                                            )}
+                                                                            {(row.towerName || row.floorName) && (
+                                                                                <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md">
+                                                                                    {[row.towerName, row.floorName].filter(Boolean).join(' - ')}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         </div>
                                                         <div className="sm:text-right">
@@ -1517,18 +1813,22 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                         </div>
                                                     )}
 
-                                                    <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                    <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                        <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Total Units</p>
+                                                            <p className="text-lg font-black text-gray-900">{totalCount}</p>
+                                                        </div>
                                                         <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
                                                             <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Available</p>
                                                             <p className="text-lg font-black text-gray-900">{availableCount}</p>
                                                         </div>
                                                         <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
-                                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Total</p>
-                                                            <p className="text-lg font-black text-gray-900">{totalCount}</p>
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Booked</p>
+                                                            <p className="text-lg font-black text-gray-900">{bookedCount}</p>
                                                         </div>
-                                                        <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2 col-span-2 sm:col-span-1">
-                                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Availability</p>
-                                                            <p className="text-lg font-black text-gray-900">{Math.round(percentAvailable)}%</p>
+                                                        <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Sold</p>
+                                                            <p className="text-lg font-black text-gray-900">{soldCount}</p>
                                                         </div>
                                                     </div>
 
@@ -1540,61 +1840,33 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                         <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden border border-gray-100">
                                                             <div className={`h-full ${statusColor} rounded-full`} style={{ width: `${percentAvailable}%` }}></div>
                                                         </div>
-                                                    </div>
-
-                                                    <div className="mt-5 flex justify-end">
-                                                        <Button
-                                                            variant={isExpanded ? 'primary' : 'secondary'}
-                                                            className="text-[10px] py-1.5 px-4 font-black uppercase tracking-widest h-9"
-                                                            icon={isExpanded ? X : Maximize}
-                                                            onClick={() => handleToggleConfig(i, row)}
-                                                        >
-                                                            {isExpanded ? 'Hide Floor Plan' : 'Floor Plan'}
-                                                        </Button>
+                                                        <div className="mt-5 flex justify-end">
+                                                            <Button
+                                                                variant={isExpanded ? 'primary' : 'secondary'}
+                                                                className="text-[10px] py-1.5 px-4 font-black uppercase tracking-widest h-9"
+                                                                icon={isExpanded ? X : Layers}
+                                                                onClick={() => handleToggleConfig(i, row)}
+                                                            >
+                                                                {isExpanded ? 'Hide Units' : 'View Units'}
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 </div>
 
                                                 {isExpanded && (
                                                     <div className="border-t border-[#6F4BFF]/10 bg-white/70 p-5 md:p-6 animate-in slide-in-from-top-2 duration-300">
-                                                        <div className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.25fr] gap-6">
-                                                            <div className="rounded-2xl overflow-hidden bg-[#F8FAFC] border border-[#E0E8FF]">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setFloorPlanModal({ row, project: localProjectData })}
-                                                                    className="relative w-full min-h-[260px] flex items-center justify-center p-6 bg-white"
-                                                                >
-                                                                    <img
-                                                                        src={DEFAULT_FLOOR_PLAN_IMAGE}
-                                                                        alt={`${row.type} floor plan`}
-                                                                        className="w-full max-w-[420px] h-[220px] object-contain"
-                                                                    />
-                                                                    <span className="absolute bottom-4 right-4 inline-flex items-center gap-1 rounded-md bg-black/55 px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest text-white">
-                                                                        <Maximize className="w-3 h-3" /> Full Screen
-                                                                    </span>
-                                                                </button>
-                                                                <div className="px-5 py-4 border-t border-[#E0E8FF] flex items-center justify-between gap-4">
-                                                                    <div>
-                                                                        <p className="text-sm font-black text-gray-900">Floor Plan</p>
-                                                                        <p className="text-xs font-bold text-gray-500 mt-0.5">{hierarchy.mainType} / {hierarchy.subType} / {hierarchy.configuration}</p>
-                                                                    </div>
-                                                                    <div className="w-9 h-9 rounded-full bg-[#F1F3FF] text-[#4A43EC] flex items-center justify-center">
-                                                                        <Layers className="w-4 h-4" />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div>
-                                                                <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-5 flex items-center gap-2">
-                                                                    <Layers className="w-4 h-4 text-[#6F4BFF]" /> Unit Availability
-                                                                </h4>
+                                                        <div>
+                                                            <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-5 flex items-center gap-2">
+                                                                <Layers className="w-4 h-4 text-[#6F4BFF]" /> Unit Availability
+                                                            </h4>
                                                             <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
                                                                 {configUnits.map((unit) => (
                                                                     <button
                                                                         key={unit.id}
                                                                         onClick={() => handleUnitClick(unit)}
                                                                         className={`h-12 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                                                                            unit.status === 'Available' ? 'bg-white border-gray-200 hover:border-[#6F4BFF] hover:shadow-md' :
-                                                                            unit.status === 'Sold' ? 'bg-rose-50 border-rose-100 text-rose-300' :
+                                                                            unit.status === 'Available' || unit.status === 'available' ? 'bg-white border-gray-200 hover:border-[#6F4BFF] hover:shadow-md' :
+                                                                            unit.status === 'Sold' || unit.status === 'sold' ? 'bg-rose-50 border-rose-100 text-rose-300' :
                                                                             'bg-amber-50 border-amber-100 text-amber-500'
                                                                         } ${editingUnit?.id === unit.id ? 'ring-2 ring-[#6F4BFF] shadow-lg shadow-[#6F4BFF]/20 scale-105 z-10' : ''}`}
                                                                     >
@@ -1603,100 +1875,99 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                                     </button>
                                                                 ))}
                                                             </div>
-                                                            </div>
-                                                        </div>
 
-                                                        <div className="mt-6">
-                                                            {editingUnit ? (
-                                                                <div className="rounded-2xl border border-[#6F4BFF]/20 bg-white p-6 shadow-xl shadow-[#6F4BFF]/10 animate-in zoom-in-95 duration-200">
-                                                                    <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
-                                                                        <h4 className="font-black text-gray-900 tracking-tight">Unit {editingUnit.number} Details</h4>
-                                                                        <button onClick={() => setEditingUnit(null)} className="p-1 hover:bg-gray-100 rounded-lg text-gray-400"><X className="w-4 h-4" /></button>
-                                                                    </div>
-                                                                    <div className="space-y-5">
-                                                                        <div className="grid grid-cols-2 gap-4">
-                                                                            <div>
-                                                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Status</p>
-                                                                                <Badge variant={editingUnit.status === 'Available' ? 'green' : editingUnit.status === 'Sold' ? 'red' : 'yellow'}>{editingUnit.status}</Badge>
+                                                            <div className="mt-6">
+                                                                {editingUnit ? (
+                                                                    <div className="rounded-2xl border border-[#6F4BFF]/20 bg-white p-6 shadow-xl shadow-[#6F4BFF]/10 animate-in zoom-in-95 duration-200">
+                                                                        <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
+                                                                            <h4 className="font-black text-gray-900 tracking-tight">Unit {editingUnit.number} Details</h4>
+                                                                            <button onClick={() => setEditingUnit(null)} className="p-1 hover:bg-gray-100 rounded-lg text-gray-400"><X className="w-4 h-4" /></button>
+                                                                        </div>
+                                                                        <div className="space-y-5">
+                                                                            <div className="grid grid-cols-2 gap-4">
+                                                                                <div>
+                                                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Status</p>
+                                                                                    <Badge variant={editingUnit.status === 'Available' ? 'green' : editingUnit.status === 'Sold' ? 'red' : 'yellow'}>{editingUnit.status}</Badge>
+                                                                                </div>
+                                                                                <div>
+                                                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Floor</p>
+                                                                                    <p className="font-black text-gray-800">{editingUnit.floor}th Floor</p>
+                                                                                </div>
                                                                             </div>
                                                                             <div>
-                                                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Floor</p>
-                                                                                <p className="font-black text-gray-800">{editingUnit.floor}th Floor</p>
+                                                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Facing</p>
+                                                                                <p className="font-black text-gray-800">{editingUnit.facing}</p>
                                                                             </div>
-                                                                        </div>
-                                                                        <div>
-                                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Facing</p>
-                                                                            <p className="font-black text-gray-800">{editingUnit.facing}</p>
-                                                                        </div>
-                                                                        {editingUnit.status === 'Sold' && (
-                                                                            <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4">
-                                                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                                                                                    <div>
-                                                                                        <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Sale Source</p>
-                                                                                        <p className="text-base font-black text-gray-900">{editingUnit.soldByLabel}</p>
+                                                                            {editingUnit.status === 'Sold' && (
+                                                                                <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4">
+                                                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                                                                                        <div>
+                                                                                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Sale Source</p>
+                                                                                            <p className="text-base font-black text-gray-900">{editingUnit.soldByLabel}</p>
+                                                                                        </div>
+                                                                                        <Badge variant={editingUnit.soldBy === 'us' ? 'green' : 'gray'}>
+                                                                                            {editingUnit.soldBy === 'us' ? 'SquarFT Sale' : 'Project Sale'}
+                                                                                        </Badge>
                                                                                     </div>
-                                                                                    <Badge variant={editingUnit.soldBy === 'us' ? 'green' : 'gray'}>
-                                                                                        {editingUnit.soldBy === 'us' ? 'SquarFT Sale' : 'Project Sale'}
-                                                                                    </Badge>
-                                                                                </div>
 
-                                                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                                                    <div className="rounded-xl bg-white/80 border border-rose-100 px-3 py-2">
-                                                                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Sold Date</p>
-                                                                                        <p className="text-sm font-black text-gray-900 mt-1">{editingUnit.soldDate}</p>
-                                                                                    </div>
-                                                                                    <div className="rounded-xl bg-white/80 border border-rose-100 px-3 py-2">
-                                                                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Sold Value</p>
-                                                                                        <p className="text-sm font-black text-gray-900 mt-1">{editingUnit.soldValue}</p>
-                                                                                    </div>
-                                                                                    <div className="rounded-xl bg-white/80 border border-rose-100 px-3 py-2">
-                                                                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Handled By</p>
-                                                                                        <p className="text-sm font-black text-gray-900 mt-1">{editingUnit.soldByUser}</p>
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                {editingUnit.soldBy === 'us' && editingUnit.customer && (
-                                                                                    <div className="mt-4 border-t border-rose-100 pt-4">
-                                                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Customer Details</p>
-                                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                                            <div>
-                                                                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Name</p>
-                                                                                                <p className="text-sm font-black text-gray-900">{editingUnit.customer.name}</p>
-                                                                                            </div>
-                                                                                            <div>
-                                                                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Phone</p>
-                                                                                                <p className="text-sm font-black text-gray-900">{editingUnit.customer.phone}</p>
-                                                                                            </div>
-                                                                                            <div>
-                                                                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Email</p>
-                                                                                                <p className="text-sm font-black text-gray-900 break-all">{editingUnit.customer.email}</p>
-                                                                                            </div>
-                                                                                            <div>
-                                                                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Booking ID</p>
-                                                                                                <p className="text-sm font-black text-gray-900">{editingUnit.customer.bookingId}</p>
-                                                                                            </div>
-                                                                                            <div className="md:col-span-2">
-                                                                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Lead Source</p>
-                                                                                                <p className="text-sm font-black text-gray-900">{editingUnit.customer.leadSource}</p>
-                                                                                            </div>
+                                                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                                                        <div className="rounded-xl bg-white/80 border border-rose-100 px-3 py-2">
+                                                                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Sold Date</p>
+                                                                                            <p className="text-sm font-black text-gray-900 mt-1">{editingUnit.soldDate}</p>
+                                                                                        </div>
+                                                                                        <div className="rounded-xl bg-white/80 border border-rose-100 px-3 py-2">
+                                                                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Sold Value</p>
+                                                                                            <p className="text-sm font-black text-gray-900 mt-1">{editingUnit.soldValue}</p>
+                                                                                        </div>
+                                                                                        <div className="rounded-xl bg-white/80 border border-rose-100 px-3 py-2">
+                                                                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Handled By</p>
+                                                                                            <p className="text-sm font-black text-gray-900 mt-1">{editingUnit.soldByUser}</p>
                                                                                         </div>
                                                                                     </div>
-                                                                                )}
+
+                                                                                    {editingUnit.soldBy === 'us' && editingUnit.customer && (
+                                                                                        <div className="mt-4 border-t border-rose-100 pt-4">
+                                                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Customer Details</p>
+                                                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                                                <div>
+                                                                                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Name</p>
+                                                                                                    <p className="text-sm font-black text-gray-900">{editingUnit.customer.name}</p>
+                                                                                                </div>
+                                                                                                <div>
+                                                                                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Phone</p>
+                                                                                                    <p className="text-sm font-black text-gray-900">{editingUnit.customer.phone}</p>
+                                                                                                </div>
+                                                                                                <div>
+                                                                                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Email</p>
+                                                                                                    <p className="text-sm font-black text-gray-900 break-all">{editingUnit.customer.email}</p>
+                                                                                                </div>
+                                                                                                <div>
+                                                                                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Booking ID</p>
+                                                                                                    <p className="text-sm font-black text-gray-900">{editingUnit.customer.bookingId}</p>
+                                                                                                </div>
+                                                                                                <div className="md:col-span-2">
+                                                                                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Lead Source</p>
+                                                                                                    <p className="text-sm font-black text-gray-900">{editingUnit.customer.leadSource}</p>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                            <div>
+                                                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Unit Price (Base)</p>
+                                                                                <p className="font-black text-gray-900 text-lg flex items-center gap-1"><IndianRupee className="w-4 h-4 text-[#6F4BFF]" /> {editingUnit.price || 'Price on request'}</p>
                                                                             </div>
-                                                                        )}
-                                                                        <div>
-                                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Unit Price (Base)</p>
-                                                                            <p className="font-black text-gray-900 text-lg flex items-center gap-1"><IndianRupee className="w-4 h-4 text-[#6F4BFF]" /> {editingUnit.price || 'Price on request'}</p>
                                                                         </div>
                                                                     </div>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="h-full min-h-[260px] flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-gray-200 rounded-2xl opacity-60 bg-gray-50/50">
-                                                                    <Edit2 className="w-10 h-10 text-gray-300 mb-4" />
-                                                                    <p className="text-sm font-black text-gray-900 uppercase tracking-widest">No Unit Selected</p>
-                                                                    <p className="text-xs font-bold text-gray-500 mt-1">Select any unit to manage price and availability.</p>
-                                                                </div>
-                                                            )}
+                                                                ) : (
+                                                                    <div className="h-full min-h-[260px] flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-gray-200 rounded-2xl opacity-60 bg-gray-50/50">
+                                                                        <Edit2 className="w-10 h-10 text-gray-300 mb-4" />
+                                                                        <p className="text-sm font-black text-gray-900 uppercase tracking-widest">No Unit Selected</p>
+                                                                        <p className="text-xs font-bold text-gray-500 mt-1">Select any unit to manage price and availability.</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )}

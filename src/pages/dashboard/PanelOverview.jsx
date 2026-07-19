@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { 
-    Calendar, 
-    Phone, 
-    MapPin, 
-    Clock, 
+import {
+    Calendar,
+    Phone,
+    MapPin,
+    Clock,
     Compass,
     ChevronLeft,
     ChevronRight,
@@ -235,9 +235,9 @@ const Step3View = ({ form }) => {
                         {flatNumber && <DetailField label="Flat Number" value={flatNumber} />}
                         {nearbyProject && <DetailField label="Nearby Project" value={nearbyProject} />}
                         {(priceFrom || priceTo) && (
-                            <DetailField 
-                                label="Price Range" 
-                                value={priceFrom && priceTo ? `₹${priceFrom} - ₹${priceTo}` : (priceFrom ? `From ₹${priceFrom}` : `Up to ₹${priceTo}`)} 
+                            <DetailField
+                                label="Price Range"
+                                value={priceFrom && priceTo ? `₹${priceFrom} - ₹${priceTo}` : (priceFrom ? `From ₹${priceFrom}` : `Up to ₹${priceTo}`)}
                             />
                         )}
                     </div>
@@ -298,7 +298,7 @@ const Step3View = ({ form }) => {
 const Step4View = ({ form }) => {
     const approvals = form.step4?.approvals || {};
     const stages = form.step4?.currentDevelopmentStage || [];
-    
+
     return (
         <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
             <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-2 flex items-center gap-1.5">
@@ -315,8 +315,8 @@ const Step4View = ({ form }) => {
                 <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Development Completion</p>
                 <div className="flex items-center gap-3">
                     <div className="flex-1 h-3 rounded-full bg-[#EFEAF8] overflow-hidden border border-[#E1DDF0]">
-                        <div 
-                            className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+                        <div
+                            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                             style={{ width: `${form.step4?.developmentCompletionPercentage || 0}%` }}
                         />
                     </div>
@@ -344,15 +344,14 @@ const Step4View = ({ form }) => {
                         <div key={key} className="p-3 border border-[#E1DDF0] rounded-[8px] bg-[#FCFBFF]">
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-[9px] font-black uppercase tracking-wider text-[#797298]">
-                                    {key.toUpperCase() === 'RERA' ? 'RERA Certification' : 
-                                     key === 'buildingPermission' ? 'Building Permission' : 
-                                     key === 'developmentPermission' ? 'Development Permission' : 
-                                     key === 'tncp' ? 'TNCP Approval' : key}
+                                    {key.toUpperCase() === 'RERA' ? 'RERA Certification' :
+                                        key === 'buildingPermission' ? 'Building Permission' :
+                                            key === 'developmentPermission' ? 'Development Permission' :
+                                                key === 'tncp' ? 'TNCP Approval' : key}
                                 </span>
-                                <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                    value.status === 'Yes' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
-                                    value.status === 'No' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600'
-                                }`}>
+                                <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${value.status === 'Yes' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                        value.status === 'No' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600'
+                                    }`}>
                                     {value.status || 'Pending'}
                                 </span>
                             </div>
@@ -490,11 +489,10 @@ const Step6View = ({ form }) => {
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0">
-                                                <span className={`text-[8px] font-black uppercase border px-2 py-0.5 rounded ${
-                                                    uri
+                                                <span className={`text-[8px] font-black uppercase border px-2 py-0.5 rounded ${uri
                                                         ? 'bg-[#F4F1FF] text-[#2717D7] border-[#D8D2EB]'
                                                         : 'bg-amber-50 text-amber-600 border-amber-100'
-                                                }`}>
+                                                    }`}>
                                                     {uri ? 'PDF' : 'No PDF'}
                                                 </span>
                                                 {uri && (
@@ -567,8 +565,8 @@ const Step6View = ({ form }) => {
                 <div>
                     <h5 className="text-xs font-black text-[#04622E]">Onboarding Agreement Status</h5>
                     <p className="text-[10px] font-bold text-emerald-700/80 mt-0.5">
-                        {agreed 
-                            ? 'The builder / field officer has verified and agreed to all registration terms.' 
+                        {agreed
+                            ? 'The builder / field officer has verified and agreed to all registration terms.'
                             : 'Agreement signature is pending builder acceptance.'}
                     </p>
                 </div>
@@ -606,7 +604,7 @@ const OnboardingDetailViewer = ({ data, activeStep, setActiveStep, onApprove, on
                 {steps.map((step) => {
                     const completed = isStepCompleted(step.id);
                     const active = isStepActive(step.id);
-                    
+
                     return (
                         <button
                             key={step.id}
@@ -614,18 +612,16 @@ const OnboardingDetailViewer = ({ data, activeStep, setActiveStep, onApprove, on
                             onClick={() => setActiveStep(step.id)}
                             className="flex flex-col items-center min-w-[70px] focus:outline-none group relative"
                         >
-                            <div className={`h-8 w-8 rounded-full border flex items-center justify-center transition-all ${
-                                completed 
-                                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' 
-                                    : active 
-                                        ? 'border-[#2717D7] bg-[#F4F1FF] text-[#2717D7] font-black' 
+                            <div className={`h-8 w-8 rounded-full border flex items-center justify-center transition-all ${completed
+                                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                                    : active
+                                        ? 'border-[#2717D7] bg-[#F4F1FF] text-[#2717D7] font-black'
                                         : 'border-[#D8D2EB] bg-white text-[#797298] group-hover:border-[#2717D7]'
-                            }`}>
+                                }`}>
                                 {completed ? <Check size={14} strokeWidth={3} /> : <span className="text-[10px] font-black">{step.id}</span>}
                             </div>
-                            <span className={`text-[8px] font-black uppercase tracking-wider text-center mt-1.5 transition-colors ${
-                                active ? 'text-[#2717D7]' : 'text-[#797298] group-hover:text-[#2717D7]'
-                            }`}>
+                            <span className={`text-[8px] font-black uppercase tracking-wider text-center mt-1.5 transition-colors ${active ? 'text-[#2717D7]' : 'text-[#797298] group-hover:text-[#2717D7]'
+                                }`}>
                                 {step.title}
                             </span>
                             {active && (
@@ -651,15 +647,15 @@ const OnboardingDetailViewer = ({ data, activeStep, setActiveStep, onApprove, on
                 <div className="flex flex-col gap-3 pt-4 border-t border-[#EFEAF8] mt-4">
                     {data.isRejected ? (
                         <>
-                        <div className="flex items-center justify-center p-3 rounded-[8px] border border-rose-100 bg-rose-50 text-rose-600 text-xs font-black uppercase tracking-wider">
-                            ✗ This application has been rejected by the admin.
-                        </div>
-                        {data.rejectionReason && (
-                            <div className="rounded-[8px] border border-rose-100 bg-rose-50 p-3">
-                                <p className="text-[9px] font-black uppercase tracking-wider text-rose-500">Rejection Reason</p>
-                                <p className="mt-1 text-xs font-bold text-rose-700">{data.rejectionReason}</p>
+                            <div className="flex items-center justify-center p-3 rounded-[8px] border border-rose-100 bg-rose-50 text-rose-600 text-xs font-black uppercase tracking-wider">
+                                ✗ This application has been rejected by the admin.
                             </div>
-                        )}
+                            {data.rejectionReason && (
+                                <div className="rounded-[8px] border border-rose-100 bg-rose-50 p-3">
+                                    <p className="text-[9px] font-black uppercase tracking-wider text-rose-500">Rejection Reason</p>
+                                    <p className="mt-1 text-xs font-bold text-rose-700">{data.rejectionReason}</p>
+                                </div>
+                            )}
                         </>
                     ) : data.isLive ? (
                         <div className="flex items-center justify-center p-3 rounded-[8px] border border-emerald-100 bg-emerald-50 text-emerald-600 text-xs font-black uppercase tracking-wider">
@@ -971,7 +967,7 @@ const PanelOverview = () => {
 
     const mapBackendTaskToFrontend = useCallback((t) => {
         if (!t) return null;
-        
+
         let dueLabel = 'Today';
         let timeLabel = '12:00 PM';
         if (t.timeline) {
@@ -983,11 +979,11 @@ const PanelOverview = () => {
                 console.error('Failed to parse timeline', e);
             }
         }
-        
+
         let statusLabel = 'Pending';
         if (t.status === 'IN_PROGRESS') statusLabel = 'In Progress';
         if (t.status === 'COMPLETED') statusLabel = 'Completed';
-        
+
         return {
             id: t.id,
             title: t.title,
@@ -1020,7 +1016,7 @@ const PanelOverview = () => {
 
     const mapDetailsToForm = useCallback((d) => {
         if (!d) return {};
-        
+
         // Step 1 mapping
         const basic = d.step_1_basic || {};
         const step1 = {
@@ -1038,13 +1034,33 @@ const PanelOverview = () => {
         // Step 2 mapping
         const type = d.step_2_type || {};
         const step2 = {
-            selectedTypes: type.property_types?.length 
-              ? type.property_types.map(pt => ({ mainType: pt.category, subType: pt.property_type }))
-              : [{ mainType: type.category, subType: type.property_type }]
+            selectedTypes: type.property_types?.length
+                ? type.property_types.map(pt => ({ mainType: pt.category, subType: pt.property_type }))
+                : [{ mainType: type.category, subType: type.property_type }]
         };
 
         // Step 3 mapping
         const details = d.step_3_details || {};
+        const unitConfigs = {};
+        if (details.units && details.units.length > 0) {
+            details.units.forEach(u => {
+                const key = (u.bhk_type || type.property_type || 'default').toLowerCase();
+                if (!unitConfigs[key]) {
+                    unitConfigs[key] = [];
+                }
+                unitConfigs[key].push({
+                    propertyNumber: u.unit_no,
+                    tower: u.tower_block,
+                    floor: u.floor,
+                    bhk: u.bhk_type,
+                    area: u.area,
+                    price: u.price
+                });
+            });
+        } else {
+            unitConfigs[(type.property_type || 'default').toLowerCase()] = [];
+        }
+
         const step3 = {
             totalArea: details.total_area,
             carpetArea: details.carpet_area,
@@ -1056,16 +1072,7 @@ const PanelOverview = () => {
             flatNumber: details.flat_number,
             priceFrom: details.price_from,
             priceTo: details.price_to,
-            unitConfigs: {
-                'apartment': (details.units || []).map(u => ({
-                    propertyNumber: u.unit_no,
-                    tower: u.tower_block,
-                    floor: u.floor,
-                    bhk: u.bhk_type,
-                    area: u.area,
-                    price: u.price
-                }))
-            }
+            unitConfigs
         };
 
         // Step 4 mapping
@@ -1081,19 +1088,23 @@ const PanelOverview = () => {
             approvals: {
                 rera: {
                     status: approvals.compliance?.rera?.approved === 'YES' ? 'Yes' : 'No',
-                    registrationNumber: approvals.compliance?.rera?.details
+                    registrationNumber: approvals.compliance?.rera?.approved === 'YES' ? approvals.compliance?.rera?.details : null,
+                    expectedTime: approvals.compliance?.rera?.approved !== 'YES' ? approvals.compliance?.rera?.details?.replace(/^Expected:\s*/i, '') : null
                 },
                 tncp: {
                     status: approvals.compliance?.tncp?.approved === 'YES' ? 'Yes' : 'No',
-                    registrationNumber: approvals.compliance?.tncp?.details
+                    registrationNumber: approvals.compliance?.tncp?.approved === 'YES' ? approvals.compliance?.tncp?.details : null,
+                    expectedTime: approvals.compliance?.tncp?.approved !== 'YES' ? approvals.compliance?.tncp?.details?.replace(/^Expected:\s*/i, '') : null
                 },
                 buildingPermission: {
                     status: approvals.compliance?.building_permission?.approved === 'YES' ? 'Yes' : 'No',
-                    registrationNumber: approvals.compliance?.building_permission?.details
+                    registrationNumber: approvals.compliance?.building_permission?.approved === 'YES' ? approvals.compliance?.building_permission?.details : null,
+                    expectedTime: approvals.compliance?.building_permission?.approved !== 'YES' ? approvals.compliance?.building_permission?.details?.replace(/^Expected:\s*/i, '') : null
                 },
                 developmentPermission: {
                     status: approvals.compliance?.development_permission?.approved === 'YES' ? 'Yes' : 'No',
-                    registrationNumber: approvals.compliance?.development_permission?.details
+                    registrationNumber: approvals.compliance?.development_permission?.approved === 'YES' ? approvals.compliance?.development_permission?.details : null,
+                    expectedTime: approvals.compliance?.development_permission?.approved !== 'YES' ? approvals.compliance?.development_permission?.details?.replace(/^Expected:\s*/i, '') : null
                 }
             }
         };
@@ -1138,7 +1149,7 @@ const PanelOverview = () => {
             let apiTab = 'onboarding';
             if (subTab === 'live') apiTab = 'live';
             if (subTab === 'rejected') apiTab = 'rejected';
-            
+
             const res = await fetchOfficerProjects(officerId, { tab: apiTab });
             if (res?.success) {
                 const mapped = (res.data || []).map(p => ({
@@ -1291,7 +1302,7 @@ const PanelOverview = () => {
         } else if (taskDue === 'This week') {
             targetDate.setDate(targetDate.getDate() + 6);
         }
-        
+
         let hours = 12;
         let minutes = 0;
         const timeStr = taskTime.trim().toUpperCase();
@@ -1308,7 +1319,7 @@ const PanelOverview = () => {
             }
         }
         targetDate.setHours(hours, minutes, 0, 0);
-        
+
         // Ensure future date
         if (targetDate <= new Date()) {
             targetDate.setHours(targetDate.getHours() + 1);
@@ -1370,7 +1381,7 @@ const PanelOverview = () => {
     const handleOfficerOnboardTabChange = (tab) => {
         setOfficerOnboardTab(tab);
         setOfficerActiveStep(1);
-        const filtered = fieldOfficerOnboarding.filter(o => 
+        const filtered = fieldOfficerOnboarding.filter(o =>
             tab === 'done' ? o.isCompleted : !o.isCompleted
         );
         if (filtered.length > 0) {
@@ -1462,7 +1473,7 @@ const PanelOverview = () => {
     // Pagination states
     const [meetingPage, setMeetingPage] = useState(1);
     const [followupPage, setFollowupPage] = useState(1);
-    
+
     const ITEMS_PER_PAGE = 5;
 
     const handleOfficerSelect = (id) => {
@@ -1472,7 +1483,7 @@ const PanelOverview = () => {
     };
 
     // Filtered Onboarding calculations
-    const projectOnboardFiltered = projectOnboarding.filter(p => 
+    const projectOnboardFiltered = projectOnboarding.filter(p =>
         projectOnboardTab === 'done' ? p.isCompleted : !p.isCompleted
     );
     const selectedProjectOnboardItem = (() => {
@@ -1485,7 +1496,7 @@ const PanelOverview = () => {
     })();
 
     // Field officer onboarding calculations
-    const officerOnboardFiltered = fieldOfficerOnboarding.filter(o => 
+    const officerOnboardFiltered = fieldOfficerOnboarding.filter(o =>
         officerOnboardTab === 'done' ? o.isCompleted : !o.isCompleted
     );
     const selectedOfficerOnboardItem = (() => {
@@ -1594,12 +1605,12 @@ const PanelOverview = () => {
             setTimeout(() => {
                 map.invalidateSize();
             }, 200);
-            
+
             // Render initial markers
             Object.entries(officerLocations).forEach(([id, fo]) => {
                 const color = id === 'FO-001' ? '#2717D7' : id === 'FO-002' ? '#10B981' : '#F59E0B';
                 const initial = fo.name.split(' ').map(n => n[0]).join('');
-                
+
                 const customIcon = L.divIcon({
                     className: 'custom-officer-icon',
                     html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 9px; font-weight: 900; position: relative;">
@@ -1642,7 +1653,7 @@ const PanelOverview = () => {
         Object.entries(officerLocations).forEach(([id, fo]) => {
             const color = id === 'FO-001' ? '#2717D7' : id === 'FO-002' ? '#10B981' : '#F59E0B';
             const initial = fo.name.split(' ').map(n => n[0]).join('');
-            
+
             const customIcon = L.divIcon({
                 className: 'custom-officer-icon',
                 html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 9px; font-weight: 900; position: relative;">
@@ -1737,11 +1748,10 @@ const PanelOverview = () => {
                                 <button
                                     type="button"
                                     onClick={() => setActiveTab('project')}
-                                    className={`pb-2 text-sm font-black uppercase tracking-[0.12em] transition-all relative ${
-                                        activeTab === 'project'
+                                    className={`pb-2 text-sm font-black uppercase tracking-[0.12em] transition-all relative ${activeTab === 'project'
                                             ? 'text-[#2717D7]'
                                             : 'text-[#5E5A71] hover:text-[#2717D7]'
-                                    }`}
+                                        }`}
                                 >
                                     Project
                                     {activeTab === 'project' && (
@@ -1751,11 +1761,10 @@ const PanelOverview = () => {
                                 <button
                                     type="button"
                                     onClick={() => setActiveTab('fieldOfficer')}
-                                    className={`pb-2 text-sm font-black uppercase tracking-[0.12em] transition-all relative ${
-                                        activeTab === 'fieldOfficer'
+                                    className={`pb-2 text-sm font-black uppercase tracking-[0.12em] transition-all relative ${activeTab === 'fieldOfficer'
                                             ? 'text-[#2717D7]'
                                             : 'text-[#5E5A71] hover:text-[#2717D7]'
-                                    }`}
+                                        }`}
                                 >
                                     Field Officer
                                     {activeTab === 'fieldOfficer' && (
@@ -1874,11 +1883,10 @@ const PanelOverview = () => {
                                                 key={subTab.id}
                                                 type="button"
                                                 onClick={() => setActiveProjectSubTab(subTab.id)}
-                                                className={`h-9 rounded-[6px] border px-3.5 text-xs font-black uppercase tracking-[0.1em] transition-all ${
-                                                    isActive
+                                                className={`h-9 rounded-[6px] border px-3.5 text-xs font-black uppercase tracking-[0.1em] transition-all ${isActive
                                                         ? 'border-[#2717D7] bg-[#2717D7] text-white shadow-sm'
                                                         : 'border-[#D8D2EB] bg-white text-[#5E5A71] hover:border-[#2717D7] hover:text-[#2717D7]'
-                                                }`}
+                                                    }`}
                                             >
                                                 {subTab.label}
                                             </button>
@@ -1900,11 +1908,10 @@ const PanelOverview = () => {
                                                 key={subTab.id}
                                                 type="button"
                                                 onClick={() => setActiveOfficerSubTab(subTab.id)}
-                                                className={`h-9 rounded-[6px] border px-3.5 text-xs font-black uppercase tracking-[0.1em] transition-all ${
-                                                    isActive
+                                                className={`h-9 rounded-[6px] border px-3.5 text-xs font-black uppercase tracking-[0.1em] transition-all ${isActive
                                                         ? 'border-[#2717D7] bg-[#2717D7] text-white shadow-sm'
                                                         : 'border-[#D8D2EB] bg-white text-[#5E5A71] hover:border-[#2717D7] hover:text-[#2717D7]'
-                                                }`}
+                                                    }`}
                                             >
                                                 {subTab.label}
                                             </button>
@@ -1929,11 +1936,10 @@ const PanelOverview = () => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleProjectOnboardTabChange('drafted')}
-                                                                className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${
-                                                                    projectOnboardTab === 'drafted'
+                                                                className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${projectOnboardTab === 'drafted'
                                                                         ? 'text-[#2717D7]'
                                                                         : 'text-[#5E5A71] hover:text-[#2717D7]'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 Drafted ({draftedCount})
                                                                 {projectOnboardTab === 'drafted' && (
@@ -1943,11 +1949,10 @@ const PanelOverview = () => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleProjectOnboardTabChange('done')}
-                                                                className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${
-                                                                    projectOnboardTab === 'done'
+                                                                className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${projectOnboardTab === 'done'
                                                                         ? 'text-[#2717D7]'
                                                                         : 'text-[#5E5A71] hover:text-[#2717D7]'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 Done ({doneCount})
                                                                 {projectOnboardTab === 'done' && (
@@ -1975,26 +1980,24 @@ const PanelOverview = () => {
                                                                             setSelectedProjectOnboardId(proj.id);
                                                                             setProjectActiveStep(proj.isCompleted ? 1 : proj.currentStep);
                                                                         }}
-                                                                        className={`w-full text-left p-3 rounded-[8px] border transition-all ${
-                                                                            isSelected
+                                                                        className={`w-full text-left p-3 rounded-[8px] border transition-all ${isSelected
                                                                                 ? 'border-[#2717D7] bg-[#F4F1FF] text-[#2717D7]'
                                                                                 : 'border-[#E1DDF0] bg-white hover:border-[#2717D7]/40 text-[#171327]'
-                                                                        }`}
+                                                                            }`}
                                                                     >
                                                                         <div className="flex justify-between items-start">
                                                                             <p className="text-xs font-black truncate max-w-[120px]">{proj.projectName}</p>
-                                                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                                                proj.isCompleted ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
-                                                                            }`}>
+                                                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${proj.isCompleted ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                                                                }`}>
                                                                                 {proj.isCompleted ? 'Completed' : `Step ${proj.currentStep}`}
                                                                             </span>
                                                                         </div>
                                                                         <p className="text-[10px] text-[#5E5A71] mt-0.5 truncate">{proj.builderName}</p>
-                                                                        
+
                                                                         {/* Progress Bar */}
                                                                         <div className="mt-3 flex items-center gap-2">
                                                                             <div className="flex-1 h-1 rounded-full bg-[#EFEAF8] overflow-hidden">
-                                                                                <div 
+                                                                                <div
                                                                                     className={`h-full rounded-full ${proj.isCompleted ? 'bg-emerald-500' : 'bg-[#2717D7]'}`}
                                                                                     style={{ width: `${progressPct}%` }}
                                                                                 />
@@ -2012,10 +2015,10 @@ const PanelOverview = () => {
                                             {/* Right Column: Step-wise Form Detail View */}
                                             <div className="lg:col-span-2">
                                                 {selectedProjectOnboardItem ? (
-                                                    <OnboardingDetailViewer 
-                                                        data={selectedProjectOnboardItem} 
-                                                        activeStep={projectActiveStep} 
-                                                        setActiveStep={setProjectActiveStep} 
+                                                    <OnboardingDetailViewer
+                                                        data={selectedProjectOnboardItem}
+                                                        activeStep={projectActiveStep}
+                                                        setActiveStep={setProjectActiveStep}
                                                         onApprove={handleApproveProject}
                                                         onReject={handleRejectProject}
                                                     />
@@ -2191,11 +2194,10 @@ const PanelOverview = () => {
                                                                 key={tab.id}
                                                                 type="button"
                                                                 onClick={() => setKycSubTab(tab.id)}
-                                                                className={`rounded-[6px] px-2 py-1.5 text-[9px] font-black uppercase tracking-wider transition-all ${
-                                                                    isActive
+                                                                className={`rounded-[6px] px-2 py-1.5 text-[9px] font-black uppercase tracking-wider transition-all ${isActive
                                                                         ? 'bg-[#2717D7] text-white shadow-sm'
                                                                         : 'text-[#5E5A71] hover:bg-white hover:text-[#2717D7]'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 {tab.label} ({count})
                                                             </button>
@@ -2215,11 +2217,10 @@ const PanelOverview = () => {
                                                                 key={builder.id}
                                                                 type="button"
                                                                 onClick={() => setSelectedKycBuilderId(builder.id)}
-                                                                className={`w-full text-left rounded-[8px] border p-3 transition-all ${
-                                                                    isSelected
+                                                                className={`w-full text-left rounded-[8px] border p-3 transition-all ${isSelected
                                                                         ? 'border-[#2717D7] bg-[#F4F1FF]'
                                                                         : 'border-[#E1DDF0] bg-white hover:border-[#2717D7]/40'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="min-w-0">
@@ -2230,13 +2231,12 @@ const PanelOverview = () => {
                                                                             {builder.firstName} {builder.lastName}
                                                                         </p>
                                                                     </div>
-                                                                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider border ${
-                                                                        builder.kycStatus === 'approved'
+                                                                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider border ${builder.kycStatus === 'approved'
                                                                             ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
                                                                             : builder.kycStatus === 'rejected'
                                                                                 ? 'bg-rose-50 text-rose-600 border-rose-100'
                                                                                 : 'bg-amber-50 text-amber-600 border-amber-100'
-                                                                    }`}>
+                                                                        }`}>
                                                                         {builder.kycStatus}
                                                                     </span>
                                                                 </div>
@@ -2263,13 +2263,12 @@ const PanelOverview = () => {
                                                             Basic details collected from the project-panel registration form.
                                                         </p>
                                                     </div>
-                                                    <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border ${
-                                                        selectedKycBuilder?.kycStatus === 'approved'
+                                                    <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border ${selectedKycBuilder?.kycStatus === 'approved'
                                                             ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
                                                             : selectedKycBuilder?.kycStatus === 'rejected'
                                                                 ? 'bg-rose-50 text-rose-600 border-rose-100'
                                                                 : 'bg-amber-50 text-amber-600 border-amber-100'
-                                                    }`}>
+                                                        }`}>
                                                         {selectedKycBuilder?.kycStatus === 'approved' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
                                                         {selectedKycBuilder?.kycStatus || 'Pending'} KYC
                                                     </div>
@@ -2355,11 +2354,10 @@ const PanelOverview = () => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleOfficerOnboardTabChange('drafted')}
-                                                                className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${
-                                                                    officerOnboardTab === 'drafted'
+                                                                className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${officerOnboardTab === 'drafted'
                                                                         ? 'text-[#2717D7]'
                                                                         : 'text-[#5E5A71] hover:text-[#2717D7]'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 Drafted ({officerDraftedCount})
                                                                 {officerOnboardTab === 'drafted' && (
@@ -2369,11 +2367,10 @@ const PanelOverview = () => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleOfficerOnboardTabChange('done')}
-                                                                className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${
-                                                                    officerOnboardTab === 'done'
+                                                                className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${officerOnboardTab === 'done'
                                                                         ? 'text-[#2717D7]'
                                                                         : 'text-[#5E5A71] hover:text-[#2717D7]'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 Done ({officerDoneCount})
                                                                 {officerOnboardTab === 'done' && (
@@ -2401,25 +2398,23 @@ const PanelOverview = () => {
                                                                             setSelectedOfficerOnboardId(proj.id);
                                                                             setOfficerActiveStep(proj.isCompleted ? 1 : proj.currentStep);
                                                                         }}
-                                                                        className={`w-full text-left p-3 rounded-[8px] border transition-all ${
-                                                                            isSelected
+                                                                        className={`w-full text-left p-3 rounded-[8px] border transition-all ${isSelected
                                                                                 ? 'border-[#2717D7] bg-[#F4F1FF] text-[#2717D7]'
                                                                                 : 'border-[#E1DDF0] bg-white hover:border-[#2717D7]/40 text-[#171327]'
-                                                                        }`}
+                                                                            }`}
                                                                     >
                                                                         <div className="flex justify-between items-start">
                                                                             <p className="text-xs font-black truncate max-w-[150px]">{proj.projectName}</p>
-                                                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                                                proj.isCompleted ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
-                                                                            }`}>
+                                                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${proj.isCompleted ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                                                                }`}>
                                                                                 {proj.isCompleted ? 'Completed' : `Step ${proj.currentStep}`}
                                                                             </span>
                                                                         </div>
-                                                                        
+
                                                                         {/* Progress Bar */}
                                                                         <div className="mt-3 flex items-center gap-2">
                                                                             <div className="flex-1 h-1 rounded-full bg-[#EFEAF8] overflow-hidden">
-                                                                                <div 
+                                                                                <div
                                                                                     className={`h-full rounded-full ${proj.isCompleted ? 'bg-emerald-500' : 'bg-[#2717D7]'}`}
                                                                                     style={{ width: `${progressPct}%` }}
                                                                                 />
@@ -2437,10 +2432,10 @@ const PanelOverview = () => {
                                             {/* Right Column: Step-wise Form Detail View */}
                                             <div className="lg:col-span-2">
                                                 {selectedOfficerOnboardItem ? (
-                                                    <OnboardingDetailViewer 
-                                                        data={selectedOfficerOnboardItem} 
-                                                        activeStep={officerActiveStep} 
-                                                        setActiveStep={setOfficerActiveStep} 
+                                                    <OnboardingDetailViewer
+                                                        data={selectedOfficerOnboardItem}
+                                                        activeStep={officerActiveStep}
+                                                        setActiveStep={setOfficerActiveStep}
                                                         onApprove={handleApproveOfficer}
                                                         onReject={handleRejectOfficer}
                                                     />
@@ -2590,15 +2585,15 @@ const PanelOverview = () => {
                                                         <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[#2717D7]">Assign New Task</h3>
                                                         <p className="text-[10px] text-[#5E5A71] font-bold mt-0.5">Assign site visits and compliance checks to field officers.</p>
                                                     </div>
-                                                    
+
                                                     <form onSubmit={handleAssignTask} className="space-y-3">
                                                         <div>
                                                             <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Task Title</label>
-                                                            <input 
-                                                                type="text" 
+                                                            <input
+                                                                type="text"
                                                                 value={taskTitle}
                                                                 onChange={(e) => setTaskTitle(e.target.value)}
-                                                                placeholder="e.g. Verify property boundaries" 
+                                                                placeholder="e.g. Verify property boundaries"
                                                                 className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
                                                                 required
                                                             />
@@ -2607,22 +2602,22 @@ const PanelOverview = () => {
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div>
                                                                 <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Project Name</label>
-                                                                <input 
-                                                                    type="text" 
+                                                                <input
+                                                                    type="text"
                                                                     value={taskProject}
                                                                     onChange={(e) => setTaskProject(e.target.value)}
-                                                                    placeholder="e.g. Skyline Residency" 
+                                                                    placeholder="e.g. Skyline Residency"
                                                                     className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
                                                                     required
                                                                 />
                                                             </div>
                                                             <div>
                                                                 <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Location</label>
-                                                                <input 
-                                                                    type="text" 
+                                                                <input
+                                                                    type="text"
                                                                     value={taskLocation}
                                                                     onChange={(e) => setTaskLocation(e.target.value)}
-                                                                    placeholder="e.g. Vijay Nagar, Indore" 
+                                                                    placeholder="e.g. Vijay Nagar, Indore"
                                                                     className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
                                                                     required
                                                                 />
@@ -2632,7 +2627,7 @@ const PanelOverview = () => {
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div>
                                                                 <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Select Field Officer</label>
-                                                                <select 
+                                                                <select
                                                                     value={taskOfficerId}
                                                                     onChange={(e) => setTaskOfficerId(e.target.value)}
                                                                     className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
@@ -2644,7 +2639,7 @@ const PanelOverview = () => {
                                                             </div>
                                                             <div>
                                                                 <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Priority</label>
-                                                                <select 
+                                                                <select
                                                                     value={taskPriority}
                                                                     onChange={(e) => setTaskPriority(e.target.value)}
                                                                     className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
@@ -2659,7 +2654,7 @@ const PanelOverview = () => {
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div>
                                                                 <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Due Date</label>
-                                                                <select 
+                                                                <select
                                                                     value={taskDue}
                                                                     onChange={(e) => setTaskDue(e.target.value)}
                                                                     className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
@@ -2671,11 +2666,11 @@ const PanelOverview = () => {
                                                             </div>
                                                             <div>
                                                                 <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Time</label>
-                                                                <input 
-                                                                    type="text" 
+                                                                <input
+                                                                    type="text"
                                                                     value={taskTime}
                                                                     onChange={(e) => setTaskTime(e.target.value)}
-                                                                    placeholder="e.g. 10:30 AM" 
+                                                                    placeholder="e.g. 10:30 AM"
                                                                     className="w-full h-9 mt-1 rounded-[6px] border border-[#D8D2EB] bg-white px-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
                                                                     required
                                                                 />
@@ -2684,17 +2679,17 @@ const PanelOverview = () => {
 
                                                         <div>
                                                             <label className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Task Notes</label>
-                                                            <textarea 
+                                                            <textarea
                                                                 rows="2"
                                                                 value={taskNote}
                                                                 onChange={(e) => setTaskNote(e.target.value)}
-                                                                placeholder="e.g. Collect copy of original RERA certificate..." 
+                                                                placeholder="e.g. Collect copy of original RERA certificate..."
                                                                 className="w-full mt-1 rounded-[6px] border border-[#D8D2EB] bg-white p-3 text-xs font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none transition-all"
                                                             />
                                                         </div>
 
-                                                        <button 
-                                                            type="submit" 
+                                                        <button
+                                                            type="submit"
                                                             className="w-full h-9 mt-2 rounded-[6px] bg-[#2717D7] hover:bg-[#1a0fa3] text-white text-xs font-black uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
                                                         >
                                                             Assign Task
@@ -2749,7 +2744,7 @@ const PanelOverview = () => {
                                                         <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[#2717D7]">All Active Field Tasks</h3>
                                                         <p className="text-[10px] text-[#5E5A71] font-bold mt-0.5">Track execution and completion metrics for all assigned tasks.</p>
                                                     </div>
-                                                    
+
                                                     {/* Filter Button Tabs */}
                                                     <div className="flex gap-1.5 bg-[#F8F9FF] border border-[#E1DDF0] rounded-lg p-1">
                                                         {['all', 'Pending', 'In Progress', 'Completed'].map((filter) => (
@@ -2757,11 +2752,10 @@ const PanelOverview = () => {
                                                                 key={filter}
                                                                 type="button"
                                                                 onClick={() => setTaskActiveFilter(filter)}
-                                                                className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
-                                                                    taskActiveFilter === filter
+                                                                className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${taskActiveFilter === filter
                                                                         ? 'bg-white border border-[#D8D2EB] text-[#2717D7] shadow-xs'
                                                                         : 'text-[#797298] hover:text-[#2717D7]'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 {filter}
                                                             </button>
@@ -2819,20 +2813,18 @@ const PanelOverview = () => {
                                                                             </span>
                                                                         </td>
                                                                         <td className="px-4 py-3.5 text-center">
-                                                                            <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                                                                task.priority === 'High' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                                                                                task.priority === 'Medium' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                                                                                'bg-blue-50 text-blue-600 border border-blue-100'
-                                                                            }`}>
+                                                                            <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${task.priority === 'High' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                                                    task.priority === 'Medium' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                                                                        'bg-blue-50 text-blue-600 border border-blue-100'
+                                                                                }`}>
                                                                                 {task.priority}
                                                                             </span>
                                                                         </td>
                                                                         <td className="px-4 py-3.5 text-center">
-                                                                            <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                                                                task.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                                                task.status === 'In Progress' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                                                                                'bg-blue-50 text-blue-600 border border-blue-100'
-                                                                            }`}>
+                                                                            <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${task.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                                                    task.status === 'In Progress' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
+                                                                                        'bg-blue-50 text-blue-600 border border-blue-100'
+                                                                                }`}>
                                                                                 {task.status}
                                                                             </span>
                                                                         </td>
@@ -2878,7 +2870,7 @@ const PanelOverview = () => {
 
                             {activeTab === 'fieldOfficer' && activeOfficerSubTab === 'newAquisition' && (
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
-                                    
+
                                     {/* Left Column: Leads */}
                                     <div className="lg:col-span-1 space-y-4">
                                         {/* Leads List */}
@@ -2899,17 +2891,15 @@ const PanelOverview = () => {
                                                                 key={proj.id}
                                                                 type="button"
                                                                 onClick={() => handleLeadSelect(proj.id)}
-                                                                className={`w-full text-left p-3 rounded-[8px] border transition-all ${
-                                                                    isSelected
+                                                                className={`w-full text-left p-3 rounded-[8px] border transition-all ${isSelected
                                                                         ? 'border-[#2717D7] bg-[#F4F1FF] text-[#2717D7]'
                                                                         : 'border-[#E1DDF0] bg-white hover:border-[#2717D7]/40 text-[#171327]'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 <div className="flex justify-between items-start gap-1">
                                                                     <p className="text-xs font-black truncate max-w-[120px]">{proj.project_name || proj.projectName}</p>
-                                                                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                                                                        proj.temperature === 'HOT' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
-                                                                    }`}>
+                                                                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${proj.temperature === 'HOT' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                                                        }`}>
                                                                         {proj.temperature || 'WARM'}
                                                                     </span>
                                                                 </div>
@@ -2932,7 +2922,7 @@ const PanelOverview = () => {
                                             </div>
                                         ) : (
                                             <div className="rounded-[10px] border border-[#D8D2EB] bg-white p-5 space-y-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-                                                
+
                                                 {/* Selected Lead Info */}
                                                 <div className="border-b border-[#EFEAF8] pb-4">
                                                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2969,11 +2959,10 @@ const PanelOverview = () => {
                                                         <button
                                                             type="button"
                                                             onClick={() => handleActivityTabSelect('meetings')}
-                                                            className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${
-                                                                activeActivityTab === 'meetings'
+                                                            className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${activeActivityTab === 'meetings'
                                                                     ? 'text-[#2717D7]'
                                                                     : 'text-[#5E5A71] hover:text-[#2717D7]'
-                                                            }`}
+                                                                }`}
                                                         >
                                                             Meetings ({leadMeetings.length})
                                                             {activeActivityTab === 'meetings' && (
@@ -2983,11 +2972,10 @@ const PanelOverview = () => {
                                                         <button
                                                             type="button"
                                                             onClick={() => handleActivityTabSelect('followups')}
-                                                            className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${
-                                                                activeActivityTab === 'followups'
+                                                            className={`pb-1.5 text-xs font-black uppercase tracking-[0.1em] transition-all relative ${activeActivityTab === 'followups'
                                                                     ? 'text-[#2717D7]'
                                                                     : 'text-[#5E5A71] hover:text-[#2717D7]'
-                                                            }`}
+                                                                }`}
                                                         >
                                                             Followups ({leadFollowUps.length})
                                                             {activeActivityTab === 'followups' && (
@@ -3081,11 +3069,10 @@ const PanelOverview = () => {
                                                                                         )}
                                                                                     </td>
                                                                                     <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                                                                                        <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                                                                            meeting.status === 'Completed' || meeting.status === 'Done'
+                                                                                        <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${meeting.status === 'Completed' || meeting.status === 'Done'
                                                                                                 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                                                                                                 : 'bg-blue-50 text-blue-600 border border-blue-100'
-                                                                                        }`}>
+                                                                                            }`}>
                                                                                             {meeting.status}
                                                                                         </span>
                                                                                     </td>
@@ -3196,11 +3183,10 @@ const PanelOverview = () => {
                                                                         key={pg}
                                                                         type="button"
                                                                         onClick={() => setMeetingPage(pg)}
-                                                                        className={`h-8 w-8 grid place-items-center rounded-md border text-xs ${
-                                                                            meetingPage === pg
+                                                                        className={`h-8 w-8 grid place-items-center rounded-md border text-xs ${meetingPage === pg
                                                                                 ? 'border-[#2717D7] bg-[#2717D7] text-white'
                                                                                 : 'border-[#D8D2EB] hover:border-[#2717D7] hover:text-[#2717D7]'
-                                                                        }`}
+                                                                            }`}
                                                                     >
                                                                         {pg}
                                                                     </button>
@@ -3238,11 +3224,10 @@ const PanelOverview = () => {
                                                                         key={pg}
                                                                         type="button"
                                                                         onClick={() => setFollowupPage(pg)}
-                                                                        className={`h-8 w-8 grid place-items-center rounded-md border text-xs ${
-                                                                            followupPage === pg
+                                                                        className={`h-8 w-8 grid place-items-center rounded-md border text-xs ${followupPage === pg
                                                                                 ? 'border-[#2717D7] bg-[#2717D7] text-white'
                                                                                 : 'border-[#D8D2EB] hover:border-[#2717D7] hover:text-[#2717D7]'
-                                                                        }`}
+                                                                            }`}
                                                                     >
                                                                         {pg}
                                                                     </button>
