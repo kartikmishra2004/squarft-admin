@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { getBranches } from '../../store/branchesSlice';
 import {
     AlertTriangle,
     Bell,
@@ -15,8 +17,6 @@ import {
     UsersRound,
 } from 'lucide-react';
 import { fetchSuperDashboardOverview } from '../../services/dashboardService';
-
-const cityOptions = ['All Cities', 'Indore', 'Bhopal'];
 
 const formatMoney = (amount) => {
     if (!amount) return '0';
@@ -45,7 +45,7 @@ const formatRelativeTime = (value) => {
     return `${days} day${days === 1 ? '' : 's'} ago`;
 };
 
-const cityToApiValue = (city) => (city === 'All Cities' ? '' : city);
+// cityToApiValue removed as filtering is branch-based now
 
 const Panel = ({ children, className = '' }) => (
     <section className={`rounded-[8px] border border-[#C8C2DD] bg-white shadow-[0_1px_0_rgba(53,38,110,0.03)] ${className}`}>
@@ -53,45 +53,79 @@ const Panel = ({ children, className = '' }) => (
     </section>
 );
 
-const TopBar = ({ activeCity, setActiveCity }) => (
-    <div className="sticky top-0 z-10 border-b border-[#D7D0EA] bg-[#F9F6FF]/95 backdrop-blur px-4 py-3 sm:px-6">
-        <div className="mx-auto flex max-w-[1480px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[8px] bg-[#F0EDFA] px-4 text-[#8A84A3] lg:max-w-[620px]">
-                <Search size={19} />
-                <input
-                    className="w-full bg-transparent text-sm font-medium text-[#221C34] outline-none placeholder:text-[#756E8B]"
-                    placeholder="Global Search (Projects, Leads, Payouts...)"
-                />
-            </label>
+const TopBar = ({ activeBranchId, setActiveBranchId, branches }) => {
+    const [isOpen, setIsOpen] = useState(false);
 
-            <div className="flex flex-wrap items-center gap-3">
-                <div className="flex h-11 rounded-[8px] bg-[#E8E2F4] p-1">
-                    {cityOptions.map((city) => (
-                        <button
-                            key={city}
-                            onClick={() => setActiveCity(city)}
-                            className={`min-w-20 rounded-[6px] px-3 text-xs font-bold transition ${
-                                activeCity === city ? 'bg-white text-[#2512D9] shadow-sm' : 'text-[#211A32] hover:text-[#2512D9]'
-                            }`}
+    // Find current active branch name
+    const activeBranchName = activeBranchId === 'all' 
+        ? 'All Branches' 
+        : (branches.find(b => b.id === activeBranchId)?.name || 'Select Branch');
+
+    return (
+        <div className="sticky top-0 z-10 border-b border-[#D7D0EA] bg-[#F9F6FF]/95 backdrop-blur px-4 py-3 sm:px-6">
+            <div className="mx-auto flex max-w-[1480px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[8px] bg-[#F0EDFA] px-4 text-[#8A84A3] lg:max-w-[620px]">
+                    <Search size={19} />
+                    <input
+                        className="w-full bg-transparent text-sm font-medium text-[#221C34] outline-none placeholder:text-[#756E8B]"
+                        placeholder="Global Search (Projects, Leads, Payouts...)"
+                    />
+                </label>
+
+                <div className="flex flex-wrap items-center gap-3 relative">
+                    {/* Premium Branch Dropdown */}
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsOpen(!isOpen)}
+                            className="flex h-11 items-center gap-2 rounded-[8px] border border-[#C8C2DD] bg-white px-4 text-xs font-bold text-[#211A32] shadow-sm transition hover:bg-[#F9F6FF]"
                         >
-                            {city}
+                            <MapPin size={16} className="text-[#2512D9]" />
+                            <span className="max-w-[140px] truncate">{activeBranchName}</span>
+                            <ChevronDown size={14} className="text-[#756E8B]" />
                         </button>
-                    ))}
+                        {isOpen && (
+                            <div className="absolute right-0 mt-1.5 w-60 z-30 rounded-[8px] border border-[#D7D0EA] bg-white p-1 shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                                <button
+                                    onClick={() => {
+                                        setActiveBranchId('all');
+                                        setIsOpen(false);
+                                    }}
+                                    className={`w-full text-left rounded-[6px] px-3 py-2 text-xs font-bold transition ${
+                                        activeBranchId === 'all' ? 'bg-[#F0EDFA] text-[#2512D9]' : 'text-[#211A32] hover:bg-[#F9F6FF]'
+                                    }`}
+                                >
+                                    All Branches
+                                </button>
+                                {branches.map((branch) => (
+                                    <button
+                                        key={branch.id}
+                                        onClick={() => {
+                                            setActiveBranchId(branch.id);
+                                            setIsOpen(false);
+                                        }}
+                                        className={`w-full text-left rounded-[6px] px-3 py-2 text-xs font-bold transition truncate ${
+                                            activeBranchId === branch.id ? 'bg-[#F0EDFA] text-[#2512D9]' : 'text-[#211A32] hover:bg-[#F9F6FF]'
+                                        }`}
+                                    >
+                                        {branch.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <button className="relative grid h-10 w-10 place-items-center rounded-[8px] text-[#161022] hover:bg-[#F0EDFA]" aria-label="Notifications">
+                        <Bell size={20} />
+                        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#C11111]" />
+                    </button>
+                    <button className="flex h-10 items-center gap-2 rounded-[8px] bg-[#2F1CD9] px-4 text-xs font-extrabold text-white shadow-[0_4px_12px_rgba(47,28,217,0.25)]">
+                        <Plus size={16} /> Quick Add
+                    </button>
                 </div>
-                <button className="relative grid h-10 w-10 place-items-center rounded-[8px] text-[#161022] hover:bg-[#F0EDFA]" aria-label="Notifications">
-                    <Bell size={20} />
-                    <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#C11111]" />
-                </button>
-                <button className="grid h-10 w-10 place-items-center rounded-[8px] text-[#161022] hover:bg-[#F0EDFA]" aria-label="Locations">
-                    <MapPin size={20} />
-                </button>
-                <button className="flex h-10 items-center gap-2 rounded-[8px] bg-[#2F1CD9] px-4 text-xs font-extrabold text-white shadow-[0_4px_12px_rgba(47,28,217,0.25)]">
-                    <Plus size={16} /> Quick Add
-                </button>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const MetricCard = ({ icon: Icon, label, value, tone, children }) => (
     <Panel className="min-h-[174px] p-5">
@@ -171,10 +205,16 @@ const STATUS_TONE_BY_VALUE = {
 };
 
 const SuperHome = () => {
-    const [activeCity, setActiveCity] = useState('All Cities');
+    const dispatch = useDispatch();
+    const { branches } = useSelector((state) => state.branches);
+    const [activeBranchId, setActiveBranchId] = useState('all');
     const [overview, setOverview] = useState(null);
     const [pageLoading, setPageLoading] = useState(true);
     const [pageError, setPageError] = useState('');
+
+    useEffect(() => {
+        dispatch(getBranches());
+    }, [dispatch]);
 
     useEffect(() => {
         let active = true;
@@ -184,7 +224,7 @@ const SuperHome = () => {
             setPageError('');
 
             try {
-                const data = await fetchSuperDashboardOverview({ city: cityToApiValue(activeCity) });
+                const data = await fetchSuperDashboardOverview({ branchId: activeBranchId });
                 if (!active) return;
                 setOverview(data);
             } catch (error) {
@@ -198,7 +238,7 @@ const SuperHome = () => {
         loadOverview();
 
         return () => { active = false; };
-    }, [activeCity]);
+    }, [activeBranchId, dispatch]);
 
     const overviewDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(new Date());
 
@@ -239,7 +279,7 @@ const SuperHome = () => {
 
     return (
         <div className="min-h-screen bg-[#FBF8FF] text-[#15111F]">
-            <TopBar activeCity={activeCity} setActiveCity={setActiveCity} />
+            <TopBar activeBranchId={activeBranchId} setActiveBranchId={setActiveBranchId} branches={branches || []} />
 
             <main className="mx-auto max-w-[1480px] px-4 py-8 sm:px-6">
                 <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">

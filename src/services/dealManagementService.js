@@ -109,6 +109,7 @@ export const normalizeDeal = (deal = {}) => {
     remainingBalance: asNumber(deal.remaining_balance ?? deal.remainingBalance ?? (negotiationPrice - paidAmount)),
     projectId: deal.project_id || deal.projectId,
     unitId: deal.unit_id || deal.unitId,
+    visitId: deal.visit_id || deal.visitId || null,
     payments: Array.isArray(deal.payments) ? deal.payments.map(normalizeDealPayment) : deal.payments,
     documents: Array.isArray(deal.documents) ? deal.documents.map((document) => normalizeDealDocument(document, dealCode)) : deal.documents,
     timeline: Array.isArray(deal.timeline) ? deal.timeline.map(normalizeDealTimelineItem) : deal.timeline,

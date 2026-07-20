@@ -3,10 +3,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
     BellRing, Building2, Calendar, CalendarCheck, CheckCircle2, ChevronRight, Clock,
-    KeyRound, LoaderCircle, PhoneCall, Plus, Save,
+    Eye, KeyRound, LoaderCircle, PhoneCall, Plus, Save,
     Search, ShieldCheck, TrendingUp
 } from 'lucide-react';
-import { addDeal } from '../../store/dealsSlice';
+import { addDeal, setSelectedDeal, updateDealDetails } from '../../store/dealsSlice';
 import { addVisit, addVisitNote, setVisits, updateVisit, updateVisitStatus } from '../../store/visitsSlice';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -14,6 +14,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Header from '../../components/layout/Header';
 import { fetchMasterOptions, fetchProperties, fetchSalesOfficers } from '../../services/commonService';
+import { fetchDealById } from '../../services/dealManagementService';
 import {
     canPersistVisitPayload,
     createVisit,
@@ -21,6 +22,7 @@ import {
     fetchVisits,
     saveVisit,
     saveVisitStatus,
+    convertVisitToDeal,
 } from '../../services/visitManagementService';
 
 const fallbackPurposeOptions = ['BUY', 'RENT', 'SELL'];
@@ -280,6 +282,11 @@ const Visits = () => {
     const [visitStatusOptions, setVisitStatusOptions] = useState(fallbackVisitStatusOptions);
     const [salesOfficerOptions, setSalesOfficerOptions] = useState([]);
     const [propertyLookupOptions, setPropertyLookupOptions] = useState([]);
+    const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+    const [convertExpectPrice, setConvertExpectPrice] = useState('');
+    const [convertNegotiationPrice, setConvertNegotiationPrice] = useState('');
+    const [convertSalesOfficerId, setConvertSalesOfficerId] = useState('');
+    const [convertBookingDate, setConvertBookingDate] = useState('');
 
     useEffect(() => {
         let isMounted = true;
@@ -429,11 +436,9 @@ const Visits = () => {
     const selectedPropertyRow = selectedPropertyRows.find((row) => row.id === selectedVisitRowId) || selectedPropertyRows[0] || null;
     const selectedVisit = selectedPropertyRow?.visit || null;
     const selectedProperty = selectedPropertyRow?.property || selectedVisit?.property || null;
-    const convertedDeal = selectedVisit && selectedProperty
-        ? deals.find((deal) => (
-            deal.sourceVisitId === selectedVisit.id
-            && deal.sourcePropertyName === selectedProperty.name
-        ))
+    const convertedDeal = selectedVisit
+        ? (deals.find((deal) => deal.visitId === selectedVisit.id || (selectedVisit.dealId && deal.id === selectedVisit.dealId))
+           || (selectedVisit.isConvertedToDeal ? { id: selectedVisit.dealId, dealCode: selectedVisit.dealId ? `D-${selectedVisit.dealId.substring(0, 8).toUpperCase()}` : 'Deal' } : null))
         : null;
 
     const handleClientSelect = (clientKey) => {
@@ -647,17 +652,72 @@ const Visits = () => {
         setNewNote('');
     };
 
-    const handleConvertToDeal = () => {
+    const handleOpenConvertModal = () => {
         if (!selectedVisit || !selectedProperty || convertedDeal) return;
 
-        const nextNumber = deals.reduce((max, deal) => {
-            const numericCode = Number(String(deal.dealCode || '').replace(/\D/g, ''));
-            return Number.isFinite(numericCode) ? Math.max(max, numericCode) : max;
-        }, 0) + 1;
+        // Parse property price for expected/negotiation price defaults
+        const expectedPrice = parsePropertyPrice(selectedProperty?.price);
+        const negotiatedPrice = expectedPrice ? Math.round(expectedPrice * 0.97) : 0;
 
-        const dealCode = `D${String(nextNumber).padStart(4, '0')}`;
-        dispatch(addDeal(buildDealFromVisit(selectedVisit, selectedProperty, dealCode)));
-        navigate('/dashboard/deals');
+        setConvertExpectPrice(expectedPrice || '');
+        setConvertNegotiationPrice(negotiatedPrice || '');
+        setConvertSalesOfficerId(selectedVisit.officerId || '');
+        setConvertBookingDate(new Date().toISOString().slice(0, 10));
+        setIsConvertModalOpen(true);
+    };
+
+    const handleConvertSubmit = async (event) => {
+        event.preventDefault();
+        if (!selectedVisit) return;
+
+        try {
+            const payload = {
+                expectPrice: Number(convertExpectPrice || 0),
+                negotiationPrice: Number(convertNegotiationPrice || 0),
+                salesOfficerId: convertSalesOfficerId || undefined,
+                bookingDate: convertBookingDate || undefined,
+            };
+
+            const dealResult = await convertVisitToDeal(selectedVisit.id, payload);
+            if (dealResult) {
+                // Fetch the fully hydrated deal details so Deal Management lists it correctly
+                const fullDeal = await fetchDealById(dealResult.id);
+
+                // Update the visit in local state and Redux
+                dispatch(updateVisit({
+                    id: selectedVisit.id,
+                    changes: {
+                        isConvertedToDeal: true,
+                        dealId: dealResult.id,
+                    }
+                }));
+
+                // Add to deals slice and set as selected for direct view
+                dispatch(addDeal(fullDeal));
+                dispatch(setSelectedDeal(fullDeal));
+
+                setIsConvertModalOpen(false);
+                navigate('/dashboard/deals');
+            }
+        } catch (error) {
+            console.error('Failed to convert visit to deal:', error);
+            alert(error.message || 'Failed to convert visit to deal');
+        }
+    };
+
+    const handleViewExistingDeal = async () => {
+        if (!convertedDeal?.id) return;
+
+        try {
+            const fullDeal = await fetchDealById(convertedDeal.id);
+            dispatch(addDeal(fullDeal));
+            dispatch(setSelectedDeal(fullDeal));
+            navigate('/dashboard/deals');
+        } catch (error) {
+            console.error('Failed to open existing deal:', error);
+            dispatch(setSelectedDeal(convertedDeal));
+            navigate('/dashboard/deals');
+        }
     };
 
     return (
@@ -976,16 +1036,11 @@ const Visits = () => {
 
                                                     <Button
                                                         variant="primary"
-                                                        icon={convertedDeal ? CheckCircle2 : TrendingUp}
-                                                        onClick={handleConvertToDeal}
-                                                        disabled={Boolean(convertedDeal)}
-                                                        className={`w-full justify-center px-2.5 py-2 text-xs shadow-md ${
-                                                            convertedDeal
-                                                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 shadow-none'
-                                                                : 'bg-emerald-600 hover:bg-emerald-700'
-                                                        }`}
+                                                        icon={convertedDeal ? Eye : TrendingUp}
+                                                        onClick={convertedDeal ? handleViewExistingDeal : handleOpenConvertModal}
+                                                        className="w-full justify-center px-2.5 py-2 text-xs shadow-md bg-emerald-600 hover:bg-emerald-700 text-white"
                                                     >
-                                                        {convertedDeal ? `Added to Deal Manager (${convertedDeal.dealCode})` : 'Convert to Deal'}
+                                                        {convertedDeal ? `View Deal (${convertedDeal.dealCode})` : 'Convert to Deal'}
                                                     </Button>
                                                 </>
                                             )}
@@ -1040,6 +1095,71 @@ const Visits = () => {
                     <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
                         <Button variant="secondary" onClick={closeVisitModal}>Cancel</Button>
                         <Button type="submit" icon={Save}>{editingVisitId ? 'Save Changes' : 'Schedule Visit'}</Button>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal isOpen={isConvertModalOpen} onClose={() => setIsConvertModalOpen(false)} title="Convert Visit to Deal">
+                <form onSubmit={handleConvertSubmit} className="space-y-4">
+                    <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4">
+                        <div className="grid gap-2 text-xs font-bold text-gray-700">
+                            <DetailBlock label="Client" value={selectedVisit?.customerName} />
+                            <DetailBlock label="Property" value={selectedProperty?.name} />
+                            <DetailBlock label="Original Officer" value={selectedVisit?.officerName} />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Field
+                            label="Expected Price (Total Value)"
+                            type="number"
+                            value={convertExpectPrice}
+                            onChange={(value) => {
+                                setConvertExpectPrice(value);
+                                if (!convertNegotiationPrice || convertNegotiationPrice === convertExpectPrice) {
+                                    setConvertNegotiationPrice(value);
+                                }
+                            }}
+                            placeholder="e.g. 5000000"
+                        />
+                        <Field
+                            label="Negotiation Price (Deal Value)"
+                            type="number"
+                            value={convertNegotiationPrice}
+                            onChange={(value) => setConvertNegotiationPrice(value)}
+                            placeholder="e.g. 4800000"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Assigned Sales Officer</label>
+                            <select
+                                value={convertSalesOfficerId}
+                                onChange={(event) => setConvertSalesOfficerId(event.target.value)}
+                                className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white"
+                                required
+                            >
+                                <option value="">Select Officer...</option>
+                                {salesOfficerOptions.map((officer) => (
+                                    <option key={officer.id} value={officer.id}>
+                                        {officer.name} ({officer.phone || 'Sales officer'})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <Field
+                            label="Booking Date"
+                            type="date"
+                            value={convertBookingDate}
+                            onChange={(value) => setConvertBookingDate(value)}
+                            required
+                        />
+                    </div>
+
+                    <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+                        <Button variant="secondary" onClick={() => setIsConvertModalOpen(false)}>Cancel</Button>
+                        <Button type="submit" icon={TrendingUp}>Convert to Deal</Button>
                     </div>
                 </form>
             </Modal>

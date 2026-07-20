@@ -109,6 +109,8 @@ export const normalizeVisit = (visit = {}) => {
     officerNote: visit.officer_note || '',
     leadTemperature: visit.lead_temperature || '',
     uploadedPhotos: visit.uploadedPhotos || [],
+    dealId: visit.deal_id || visit.dealId || null,
+    isConvertedToDeal: Boolean(visit.is_converted_to_deal || visit.isConvertedToDeal),
   };
 };
 
@@ -220,3 +222,9 @@ export const fetchOfficerAvailability = async (params = {}) =>
 
 export const searchVisitProjects = async (q) =>
   unwrapData(await apiRequest(`${VISITS_BASE}/projects/search${buildQueryString({ q })}`, { method: 'GET' }));
+
+export const convertVisitToDeal = async (visitId, payload = {}) =>
+  unwrapData(await apiRequest(`${VISITS_BASE}/${visitId}/convert-to-deal`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }));
