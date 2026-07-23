@@ -7,6 +7,7 @@ import {
     Building2,
     Calendar,
     CheckCircle2,
+    Clock,
     Eye,
     FileText,
     
@@ -34,13 +35,16 @@ import propertyHeroImage from '../../assets/login-bg.png';
 import {
     addClientMeeting,
     addClientRequirement,
+    assignPropertyToClient,
     assignUnitsToClient,
+    bookVisitForAssignedProperty,
     convertClientToDeal,
     deleteClientMeeting,
     fetchAvailableOfficers,
     fetchClientHubClients,
     fetchClientProfileBundle,
     fetchTodayVisits,
+    initiateDealForAssignedProperty,
     parseBudgetRange,
     registerClient,
     saveClientNote,
@@ -48,6 +52,7 @@ import {
     updateClientMeeting,
     updateClientProfile,
     updateClientRequirement,
+    fetchOfficerBookedSlots,
 } from '../../services/clientHubService';
 
 const clientFormInitialState = {
@@ -164,6 +169,7 @@ const ClientProfileView = ({
     onScheduleVisit,
     onSaveRequirement,
     onAssignUnits,
+    onAssignProperty,
 }) => {
     const [activeProfileTab, setActiveProfileTab] = useState('Selected Properties');
     const [newNote, setNewNote] = useState('');
@@ -188,6 +194,7 @@ const ClientProfileView = ({
     const [expandedConfigByProject, setExpandedConfigByProject] = useState({});
     const [projectDetails, setProjectDetails] = useState(null);
     const [isScheduleVisitOpen, setIsScheduleVisitOpen] = useState(false);
+    const [officerBookedSlots, setOfficerBookedSlots] = useState([]);
     const [visitForm, setVisitForm] = useState({
         officerId: '',
         officerName: '',
@@ -210,13 +217,96 @@ const ClientProfileView = ({
     });
     const [isEditingRequirement, setIsEditingRequirement] = useState(false);
     const [editRequirementForm, setEditRequirementForm] = useState(null);
+    const [isAssignPropertyOpen, setIsAssignPropertyOpen] = useState(false);
+    const [assignForm, setAssignForm] = useState({
+        projectId: '',
+        unitId: '',
+        targetUnits: '',
+        notes: '',
+    });
+
+    const [filteredOfficerOptions, setFilteredOfficerOptions] = useState([]);
+
+    useEffect(() => {
+        setFilteredOfficerOptions(officerOptions);
+    }, [officerOptions]);
+
+    useEffect(() => {
+        if (!isScheduleVisitOpen) return;
+
+        if (visitForm.date && visitForm.startTime && visitForm.endTime) {
+            const startStr = `${visitForm.date}T${visitForm.startTime}:00`;
+            const endStr = `${visitForm.date}T${visitForm.endTime}:00`;
+            
+            const startD = new Date(startStr);
+            const endD = new Date(endStr);
+            
+            if (!Number.isNaN(startD.getTime()) && !Number.isNaN(endD.getTime())) {
+                fetchAvailableOfficers({ 
+                    slotStart: startD.toISOString(), 
+                    slotEnd: endD.toISOString() 
+                })
+                .then((res) => {
+                    setFilteredOfficerOptions(res);
+                    setVisitForm((f) => {
+                        const stillAvailable = res.some((item) => item.id === f.officerId);
+                        if (!stillAvailable && res.length > 0) {
+                            return {
+                                ...f,
+                                officerId: res[0].id,
+                                officerName: res[0].name,
+                                officerPhone: res[0].phone || '',
+                            };
+                        }
+                        return f;
+                    });
+                })
+                .catch((err) => {
+                    console.error("Failed to query slot-available officers:", err);
+                });
+            }
+        } else {
+            setFilteredOfficerOptions(officerOptions);
+        }
+    }, [visitForm.date, visitForm.startTime, visitForm.endTime, isScheduleVisitOpen, officerOptions]);
+
+    useEffect(() => {
+        if (!isScheduleVisitOpen || !visitForm.officerId || !visitForm.date) {
+            setOfficerBookedSlots([]);
+            return;
+        }
+
+        fetchOfficerBookedSlots(visitForm.officerId, visitForm.date)
+            .then(setOfficerBookedSlots)
+            .catch((err) => console.error("Error fetching officer booked slots:", err));
+    }, [visitForm.officerId, visitForm.date, isScheduleVisitOpen]);
+
+    const handleAssignPropertySubmit = async (e) => {
+        e.preventDefault();
+        if (!assignForm.projectId) return;
+        const selectedProject = projects.find(p => p.id === assignForm.projectId);
+        const payload = {
+            projectId: assignForm.projectId,
+            inventoryUnitId: assignForm.unitId || null,
+            propertyId: selectedProject?.propertyId || selectedProject?.property_id || null,
+            targetUnits: assignForm.targetUnits ? [assignForm.targetUnits] : [],
+            notes: assignForm.notes || null,
+        };
+        try {
+            await onAssignProperty(payload);
+            setIsAssignPropertyOpen(false);
+            setAssignForm({ projectId: '', unitId: '', targetUnits: '', notes: '' });
+        } catch (err) {
+            console.error("Assign property modal error:", err);
+        }
+    };
 
     const tabs = ['Selected Properties', 'Follow-up & Notes', 'Site Visits', 'Meetings'];
-    const clientVisits = visits.filter((visit) => visit.customerName === client.name);
+    const clientVisits = visits;
     const selectedSiteVisit = clientVisits.find((visit) => visit.id === selectedSiteVisitId);
     const assignedSalesOfficer = client.officer?.trim();
     const selectedSalesOfficer = assignedSalesOfficer || assignedOfficer;
-    const schedulableProjects = projects.filter((project) => project.propertyId);
+    const schedulableProjects = projects;
 
     const getProject = (id) => projects.find((project) => project.id === id);
 
@@ -490,6 +580,9 @@ const ClientProfileView = ({
                     <button onClick={openEditRequirement} className="px-3 py-1.5 rounded-lg border border-[#6F4BFF]/30 bg-[#6F4BFF]/5 text-xs font-bold text-[#6F4BFF] hover:bg-[#6F4BFF]/10 transition-all flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5" /> Edit Customer Requirement
                     </button>
+                    <button onClick={() => setIsAssignPropertyOpen(true)} className="px-3 py-1.5 rounded-lg bg-[#6F4BFF] border border-[#6F4BFF] text-xs font-bold text-white hover:bg-[#5936eb] transition-all flex items-center gap-1.5 shadow-md shadow-[#6F4BFF]/20">
+                        <Plus className="w-3.5 h-3.5" /> Assign Property
+                    </button>
                     <button onClick={() => setActiveProfileTab('Follow-up & Notes')} className="p-2 hover:bg-white/60 rounded-lg text-gray-500 transition-colors backdrop-blur-sm border border-gray-200">
                         <MessageSquare className="w-4 h-4" />
                     </button>
@@ -745,57 +838,95 @@ const ClientProfileView = ({
                             </Card>
 
                             {(client.propertyPipeline || []).length > 0 && (
-                                <>
-                                    <div className="mb-3">
-                                        <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest">Already Assigned</h4>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                                <div className="mb-8">
+                                    <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3">Already Assigned Properties</h4>
+                                    <div className="flex gap-4 overflow-x-auto pb-4 snap-x scroll-smooth hide-scrollbar">
                                         {(client.propertyPipeline || []).map((pipelineItem, index) => {
                                             const project = getProject(pipelineItem.projectId);
                                             if (!project) return null;
-                                            const continuedToDeal = Boolean(pipelineItem.continuedToDeal);
+                                            const continuedToDeal = Boolean(pipelineItem.continuedToDeal || pipelineItem.deal);
                                             const isExpanded = expandedProjectId === project.id;
                                             return (
-                                                <Card key={`${pipelineItem.projectId}-assigned-${index}`} noPadding className={`relative border-2 transition-all ${isExpanded ? 'border-purple-400 shadow-lg ring-2 ring-[#6F4BFF]/10 bg-purple-50/10' : continuedToDeal ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-200 hover:border-[#6F4BFF]/50'}`}>
-                                                    {continuedToDeal && <div className="absolute top-3 left-3 z-20"><Badge variant="green">Continued to Deal</Badge></div>}
-                                                    <button type="button" className={`w-full text-left flex gap-4 p-4 items-start ${continuedToDeal ? 'pt-10' : ''}`} onClick={() => openProjectFloorPlan(project)}>
-                                                        <div className="flex-1">
-                                                            <h4 className="font-bold text-gray-900 text-sm capitalize mb-1">{project.name}</h4>
-                                                            <p className="text-[11px] text-gray-500 flex items-start gap-1 mb-1"><MapPin className="w-3 h-3 text-rose-500 shrink-0" /> {project.location}</p>
-                                                            <p className="text-[11px] text-gray-400 mb-1">by {project.builder}</p>
-                                                            <p className="text-xs font-bold text-gray-800">{project.priceRange}</p>
-                                                            <span className="mt-2 inline-block rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-600">{pipelineItem.status}</span>
-                                                        </div>
-                                                        <span className={`rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase shrink-0 ${isExpanded ? 'border-[#6F4BFF] bg-[#6F4BFF] text-white' : 'border-gray-200 bg-white text-gray-500'}`}>
-                                                            Open Plan
-                                                        </span>
-                                                    </button>
-                                                    <div className="px-4 pb-3 flex gap-2">
-                                                        <button type="button" disabled={continuedToDeal}
-                                                            onClick={(e) => { e.stopPropagation(); setPendingDealIndex(index); }}
-                                                            className="flex-1 rounded-lg bg-[#6F4BFF] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#5936eb] disabled:bg-emerald-100 disabled:text-emerald-700">
-                                                            {continuedToDeal ? 'Continued to Deal' : 'Continue to Deal'}
+                                                <div key={`${pipelineItem.projectId}-assigned-${index}`} className="snap-start shrink-0 w-80">
+                                                    <Card noPadding className={`relative border-2 transition-all h-full flex flex-col justify-between ${isExpanded ? 'border-[#6F4BFF] bg-[#6F4BFF]/5 ring-2 ring-[#6F4BFF]/10 shadow-lg' : continuedToDeal ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-200 hover:border-[#6F4BFF]/40 bg-white'}`}>
+                                                        {continuedToDeal && <div className="absolute top-2 left-2 z-10"><Badge variant="green">Deal Closed</Badge></div>}
+                                                        <button type="button" className={`w-full text-left p-4 flex flex-col h-full ${continuedToDeal ? 'pt-10' : ''}`} onClick={() => openProjectFloorPlan(project)}>
+                                                            <h4 className="font-bold text-gray-900 text-sm capitalize truncate mb-1">{project.name}</h4>
+                                                            <p className="text-[10px] text-gray-500 flex items-start gap-1 mb-1 truncate"><MapPin className="w-3 h-3 text-rose-500 shrink-0" /> {project.location}</p>
+                                                            <p className="text-[10px] text-gray-400 mb-1 truncate">by {project.builder}</p>
+                                                            <p className="text-xs font-bold text-gray-800 mb-2">{project.priceRange}</p>
+                                                            <div className="flex items-center gap-1.5 flex-wrap my-1">
+                                                                {pipelineItem.units?.map(u => (
+                                                                    <span key={u} className="rounded-md bg-[#6F4BFF]/10 px-1.5 py-0.5 text-[9px] font-black text-[#6F4BFF]">Unit {u}</span>
+                                                                ))}
+                                                                {(!pipelineItem.units || pipelineItem.units.length === 0) && (
+                                                                    <span className="text-[10px] text-gray-400">No unit specified</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-100">
+                                                                <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[9px] font-black text-gray-600 truncate">{pipelineItem.status}</span>
+                                                                <span className={`text-[9px] font-black uppercase tracking-widest ${isExpanded ? 'text-[#6F4BFF]' : 'text-gray-400'}`}>
+                                                                    {isExpanded ? 'Viewing Plan' : 'Open Plan'}
+                                                                </span>
+                                                            </div>
                                                         </button>
-                                                    </div>
-                                                </Card>
+                                                        <div className="px-4 pb-3 flex gap-2">
+                                                            <button type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const defaultOfficer = officerOptions.find((o) => o.name === client.officer) || officerOptions[0];
+                                                                    setVisitForm((f) => ({
+                                                                        ...f,
+                                                                        customerName: client.name,
+                                                                        customerPhone: client.phone,
+                                                                        officerId: defaultOfficer?.id || '',
+                                                                        officerName: defaultOfficer?.name || client.officer || officers[0] || '',
+                                                                        officerPhone: defaultOfficer?.phone || client.officerPhone || '',
+                                                                        projectId: project.id,
+                                                                        propertyId: project.propertyId || project.property_id || '',
+                                                                        propertyName: project.name || '',
+                                                                        propertyType: project.specs || project.property_type || '',
+                                                                        propertyConfig: project.configuration || (Array.isArray(project.configs) ? project.configs.join(', ') : '') || '',
+                                                                        propertyAddress: project.location || '',
+                                                                        propertyPrice: (pipelineItem.unit?.price ? (typeof pipelineItem.unit.price === 'number' ? `Rs. ${pipelineItem.unit.price.toLocaleString('en-IN')}` : String(pipelineItem.unit.price)) : '') || project.priceRange || project.price_range || '',
+                                                                        assignedPropertyId: pipelineItem.id,
+                                                                    }));
+                                                                    setIsScheduleVisitOpen(true);
+                                                                }}
+                                                                className="flex-1 rounded-lg border border-[#6F4BFF] px-2.5 py-1.5 text-xs font-bold text-[#6F4BFF] bg-white transition hover:bg-[#6F4BFF]/5">
+                                                                Book Visit
+                                                            </button>
+                                                            <button type="button" disabled={continuedToDeal}
+                                                                onClick={(e) => { e.stopPropagation(); setPendingDealIndex(index); }}
+                                                                className="flex-1 rounded-lg bg-[#6F4BFF] px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-[#5936eb] disabled:bg-emerald-100 disabled:text-emerald-700">
+                                                                {continuedToDeal ? 'Deal Closed' : 'Continue to Deal'}
+                                                            </button>
+                                                        </div>
+                                                    </Card>
+                                                </div>
                                             );
                                         })}
                                     </div>
-                                </>
+                                </div>
                             )}
-
-                            <div className="flex justify-between items-end mb-4">
-                                <h4 className="text-lg font-bold text-gray-900">Available Properties</h4>
-                                <span className="text-sm font-bold text-gray-600 bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-sm">Selected Units: <span className="text-[#6F4BFF] text-lg ml-1">{selectedProps.length}</span></span>
-                            </div>
 
                             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] gap-6 items-start">
                                 <div className="space-y-4">
-                                    {projects.map((project) => {
+                                    <div className="flex justify-between items-end mb-1">
+                                        <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest">Available Properties</h4>
+                                        <span className="text-xs font-bold text-gray-600 bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-xs">Selected Units: <span className="text-[#6F4BFF] text-sm ml-1">{selectedProps.length}</span></span>
+                                    </div>
+
+                                    {projects.filter(project => {
+                                        const isAssigned = (client.propertyPipeline || []).some(
+                                            (p) => p.projectId === project.id
+                                        );
+                                        return !isAssigned;
+                                    }).map((project) => {
                                         const isExpanded = expandedProjectId === project.id;
                                         const selectedProjectUnits = selectedProps.filter((assignment) => assignment.projectId === project.id);
                                         return (
-                                            <Card key={project.id} noPadding className={`relative border-2 transition-all ${isExpanded ? 'border-purple-400 shadow-lg ring-2 ring-[#6F4BFF]/10 bg-purple-50/10' : 'border-gray-200 hover:border-[#6F4BFF]/50'}`}>
+                                            <Card key={project.id} noPadding className={`relative border-2 transition-all ${isExpanded ? 'border-purple-400 shadow-lg ring-2 ring-[#6F4BFF]/10 bg-purple-50/10' : 'border-gray-200 hover:border-[#6F4BFF]/50 bg-white'}`}>
                                                 <button type="button" className="w-full text-left flex gap-4 p-4 items-start" onClick={() => openProjectFloorPlan(project)}>
                                                     <div className="flex-1">
                                                         {Number.isFinite(project.matchPercentage) && <div className="mb-1"><Badge variant="green">{project.matchPercentage}% Match</Badge></div>}
@@ -819,7 +950,7 @@ const ClientProfileView = ({
                                                             </span>
                                                         )}
                                                         <span className={`rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${isExpanded ? 'border-[#6F4BFF] bg-[#6F4BFF] text-white' : 'border-gray-200 bg-white text-gray-500'}`}>
-                                                            Open Plan
+                                                            {isExpanded ? 'Viewing Plan' : 'Open Plan'}
                                                         </span>
                                                     </div>
                                                 </button>
@@ -835,7 +966,7 @@ const ClientProfileView = ({
 
                                 <div className="xl:sticky xl:top-6">
                                     <Card noPadding className="overflow-hidden border-[#ded8ff] shadow-xl shadow-[#6F4BFF]/10">
-                                        {activeFloorPlanProject && activeFloorPlanConfig ? (
+                                        {activeFloorPlanProject ? (
                                             <div className="bg-gray-50/80 animate-in fade-in slide-in-from-right-3 duration-200">
                                                 {/* Property Image */}
                                                 <div className="relative h-48 overflow-hidden">
@@ -853,119 +984,148 @@ const ClientProfileView = ({
                                                     </div>
                                                 </div>
 
-                                                <div className="border-b border-gray-100 bg-white p-4">
-                                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                                        <p className="text-[10px] font-black text-[#6F4BFF] uppercase tracking-widest">Floor Plan Workspace</p>
-                                                        <div className="flex flex-wrap items-center gap-2">
-                                                            <Badge variant="gray">{activeFloorPlanConfig.availableUnits} Available</Badge>
-                                                            <Badge variant="purple">{selectedProps.filter((assignment) => assignment.projectId === activeFloorPlanProject.id).length} Selected</Badge>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="p-5">
-                                                    <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-5">
-                                                        {activeFloorPlanInventory.map((config, configIndex) => (
-                                                            <button
-                                                                key={`${activeFloorPlanProject.id}-${config.type}`}
-                                                                type="button"
-                                                                onClick={() => selectProjectConfig(activeFloorPlanProject.id, configIndex)}
-                                                                className={`shrink-0 rounded-xl border px-4 py-3 text-left transition-all ${activeFloorPlanConfigIndex === configIndex ? 'border-[#6F4BFF] bg-white shadow-md text-[#6F4BFF]' : 'border-gray-200 bg-white/70 text-gray-600 hover:border-[#6F4BFF]/40'}`}
-                                                            >
-                                                                <span className="block text-[10px] font-black uppercase tracking-widest">{config.type}</span>
-                                                                <span className="block text-[10px] font-bold mt-1">{config.size} - {config.basePrice}</span>
-                                                            </button>
-                                                        ))}
-                                                    </div>
-
-                                                    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-inner">
-                                                        <div className="mb-5 flex items-center justify-between gap-3">
-                                                            <h5 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
-                                                                <Layers className="w-4 h-4 text-[#6F4BFF]" /> Interactive Unit Grid
-                                                            </h5>
-                                                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{activeFloorPlanConfig.type}</span>
-                                                        </div>
-                                                        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
-                                                            {activeFloorPlanConfig.unitsList.map((unit) => {
-                                                                const isUnitSelected = selectedProps.some((assignment) => assignment.key === unit.id);
-                                                                return (
-                                                                    <button
-                                                                        key={unit.id}
-                                                                        type="button"
-                                                                        disabled={unit.status !== 'Available'}
-                                                                        onClick={() => toggleUnitAssignment(activeFloorPlanProject, activeFloorPlanConfig, unit)}
-                                                                        className={`h-14 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                                                                            unit.status === 'Available' ? 'bg-white border-gray-200 hover:border-[#6F4BFF] hover:shadow-md' : 'bg-rose-50 border-rose-100 text-rose-300 cursor-not-allowed'
-                                                                        } ${isUnitSelected ? 'ring-2 ring-[#6F4BFF] border-[#6F4BFF] shadow-lg shadow-[#6F4BFF]/20 scale-105 z-10 text-[#6F4BFF]' : ''}`}
-                                                                    >
-                                                                        <span className="text-sm font-black">{unit.number}</span>
-                                                                        <span className="text-[8px] font-bold uppercase tracking-tighter opacity-60">{isUnitSelected ? 'Selected' : unit.status}</span>
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Configuration</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanConfig.type}</p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Area</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanConfig.size}</p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Base Price</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanConfig.basePrice}</p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Location</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.location}</p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Builder</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.builder}</p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Type</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.specs}</p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Available Units</p>
-                                                            <p className="mt-1 text-sm font-black text-emerald-600">{activeFloorPlanConfig.availableUnits} / {activeFloorPlanConfig.totalUnits}</p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.status}</p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-gray-100 bg-white p-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Price Range</p>
-                                                            <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.priceRange}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <p className="mt-4 text-[11px] font-bold text-gray-500">Choose the exact unit number to assign. Sold units are locked.</p>
-
-                                                    <div className="mt-4 rounded-2xl border border-[#6F4BFF]/15 bg-white p-4 shadow-sm">
-                                                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                                                            <div>
-                                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Ready to Assign</p>
-                                                                <p className="mt-1 text-sm font-black text-gray-900">
-                                                                    {selectedProps.length} selected unit{selectedProps.length === 1 ? '' : 's'}
-                                                                    {selectedSalesOfficer ? ` for ${selectedSalesOfficer}` : ' - select a sales officer first'}
-                                                                </p>
+                                                {activeFloorPlanConfig ? (
+                                                    <>
+                                                        <div className="border-b border-gray-100 bg-white p-4">
+                                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                <p className="text-[10px] font-black text-[#6F4BFF] uppercase tracking-widest">Floor Plan Workspace</p>
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <Badge variant="gray">{activeFloorPlanConfig.availableUnits} Available</Badge>
+                                                                    <Badge variant="purple">{selectedProps.filter((assignment) => assignment.projectId === activeFloorPlanProject.id).length} Selected</Badge>
+                                                                </div>
                                                             </div>
-                                                            <button
-                                                                onClick={handleAssignSubmit}
-                                                                disabled={selectedProps.length === 0 || !selectedSalesOfficer}
-                                                                className="min-w-40 rounded-xl bg-[#6F4BFF] px-6 py-3 text-sm font-black text-white shadow-md shadow-[#6F4BFF]/20 transition-all hover:bg-[#5936eb] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none flex items-center justify-center gap-2"
-                                                            >
-                                                                <Navigation className="w-4 h-4" /> Assign
-                                                            </button>
+                                                        </div>
+
+                                                        <div className="p-5">
+                                                            <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-5">
+                                                                {activeFloorPlanInventory.map((config, configIndex) => (
+                                                                    <button
+                                                                        key={`${activeFloorPlanProject.id}-${config.type}`}
+                                                                        type="button"
+                                                                        onClick={() => selectProjectConfig(activeFloorPlanProject.id, configIndex)}
+                                                                        className={`shrink-0 rounded-xl border px-4 py-3 text-left transition-all ${activeFloorPlanConfigIndex === configIndex ? 'border-[#6F4BFF] bg-white shadow-md text-[#6F4BFF]' : 'border-gray-200 bg-white/70 text-gray-600 hover:border-[#6F4BFF]/40'}`}
+                                                                    >
+                                                                        <span className="block text-[10px] font-black uppercase tracking-widest">{config.type}</span>
+                                                                        <span className="block text-[10px] font-bold mt-1">{config.size} - {config.basePrice}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+
+                                                            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-inner">
+                                                                <div className="mb-5 flex items-center justify-between gap-3">
+                                                                    <h5 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                                                                        <Layers className="w-4 h-4 text-[#6F4BFF]" /> Interactive Unit Grid
+                                                                    </h5>
+                                                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{activeFloorPlanConfig.type}</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+                                                                    {activeFloorPlanConfig.unitsList.map((unit) => {
+                                                                        const isUnitSelected = selectedProps.some((assignment) => assignment.key === unit.id);
+                                                                        const assignedPipelineItem = client.propertyPipeline?.find(p => p.projectId === activeFloorPlanProject.id);
+                                                                        const assignedUnitCodes = assignedPipelineItem?.units || [];
+                                                                        const isUnitAlreadyAssigned = assignedUnitCodes.includes(unit.number);
+                                                                        return (
+                                                                            <button
+                                                                                key={unit.id}
+                                                                                type="button"
+                                                                                disabled={unit.status !== 'Available' && !isUnitAlreadyAssigned}
+                                                                                onClick={() => toggleUnitAssignment(activeFloorPlanProject, activeFloorPlanConfig, unit)}
+                                                                                className={`h-14 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                                                                                    isUnitAlreadyAssigned
+                                                                                        ? 'bg-purple-100 border-[#6F4BFF] text-[#6F4BFF] ring-2 ring-[#6F4BFF]/30 font-black'
+                                                                                        : unit.status === 'Available'
+                                                                                            ? 'bg-white border-gray-200 hover:border-[#6F4BFF] hover:shadow-md'
+                                                                                            : 'bg-rose-50 border-rose-100 text-rose-300 cursor-not-allowed'
+                                                                                } ${isUnitSelected ? 'ring-2 ring-[#6F4BFF] border-[#6F4BFF] shadow-lg shadow-[#6F4BFF]/20 scale-105 z-10 text-[#6F4BFF]' : ''}`}
+                                                                            >
+                                                                                <span className="text-sm font-black">{unit.number}</span>
+                                                                                <span className="text-[8px] font-bold uppercase tracking-tighter opacity-60">
+                                                                                    {isUnitAlreadyAssigned ? 'Assigned' : isUnitSelected ? 'Selected' : unit.status}
+                                                                                </span>
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                                <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Configuration</p>
+                                                                    <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanConfig.type}</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Area</p>
+                                                                    <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanConfig.size}</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Base Price</p>
+                                                                    <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanConfig.basePrice}</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Location</p>
+                                                                    <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.location}</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Builder</p>
+                                                                    <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.builder}</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Type</p>
+                                                                    <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.specs}</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Available Units</p>
+                                                                    <p className="mt-1 text-sm font-black text-emerald-600">{activeFloorPlanConfig.availableUnits} / {activeFloorPlanConfig.totalUnits}</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status</p>
+                                                                    <p className="mt-1 text-sm font-black text-gray-900">{activeFloorPlanProject.status}</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <p className="mt-4 text-[11px] font-bold text-gray-500">Choose the exact unit number to assign. Sold units are locked.</p>
+
+                                                            <div className="mt-4 rounded-2xl border border-[#6F4BFF]/15 bg-white p-4 shadow-sm">
+                                                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Ready to Assign</p>
+                                                                        <p className="mt-1 text-sm font-black text-gray-900">
+                                                                            {selectedProps.length} selected unit{selectedProps.length === 1 ? '' : 's'}
+                                                                            {selectedSalesOfficer ? ` for ${selectedSalesOfficer}` : ' - select a sales officer first'}
+                                                                        </p>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={handleAssignSubmit}
+                                                                        disabled={selectedProps.length === 0 || !selectedSalesOfficer}
+                                                                        className="min-w-40 rounded-xl bg-[#6F4BFF] px-6 py-3 text-sm font-black text-white shadow-md shadow-[#6F4BFF]/20 transition-all hover:bg-[#5936eb] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none flex items-center justify-center gap-2"
+                                                                    >
+                                                                        <Navigation className="w-4 h-4" /> Assign
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div className="p-8 text-center bg-white flex flex-col items-center justify-center min-h-[340px]">
+                                                        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-500 border border-amber-100 animate-pulse">
+                                                            <Layers className="h-7 w-7" />
+                                                        </div>
+                                                        <p className="text-sm font-black uppercase tracking-widest text-gray-900">No Interactive Grid Defined</p>
+                                                        <p className="mt-2 max-w-sm text-xs font-semibold text-gray-500 leading-relaxed">
+                                                            There are no interactive floor plans or unit configurations defined in this project's workspace yet. You can still assign units manually using the "Assign Property" button on the profile header.
+                                                        </p>
+                                                        <div className="mt-6 grid grid-cols-2 gap-3 w-full max-w-md text-left">
+                                                            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Builder</p>
+                                                                <p className="mt-1 text-xs font-black text-gray-900 truncate">{activeFloorPlanProject.builder}</p>
+                                                            </div>
+                                                            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Type</p>
+                                                                <p className="mt-1 text-xs font-black text-gray-900 truncate">{activeFloorPlanProject.specs}</p>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="flex min-h-[520px] flex-col items-center justify-center bg-gray-50/70 p-10 text-center">
@@ -1090,11 +1250,15 @@ const ClientProfileView = ({
                                             customerPhone: client.phone,
                                             officerId: defaultOfficer?.id || '',
                                             officerName: defaultOfficer?.name || client.officer || officers[0] || '',
-                                            propertyId: firstProject?.propertyId || '',
+                                            officerPhone: defaultOfficer?.phone || client.officerPhone || '',
+                                            projectId: firstProject?.id || '',
+                                            propertyId: firstProject?.propertyId || firstProject?.property_id || '',
                                             propertyName: firstProject?.name || f.propertyName,
-                                            propertyType: firstProject?.specs || f.propertyType,
+                                            propertyType: firstProject?.specs || firstProject?.property_type || f.propertyType,
+                                            propertyConfig: firstProject?.configuration || (Array.isArray(firstProject?.configs) ? firstProject.configs.join(', ') : '') || '',
                                             propertyAddress: firstProject?.location || f.propertyAddress,
-                                            propertyPrice: firstProject?.priceRange || f.propertyPrice,
+                                            propertyPrice: firstProject?.priceRange || firstProject?.price_range || f.propertyPrice,
+                                            assignedPropertyId: '',
                                         }));
                                         setIsScheduleVisitOpen(true);
                                     }}>Schedule New Visit</Button>
@@ -1576,6 +1740,8 @@ const ClientProfileView = ({
                             time: `${visitForm.startTime} - ${visitForm.endTime}`,
                             status: 'Scheduled',
                             propertyId: visitForm.propertyId,
+                            projectId: visitForm.projectId,
+                            assignedPropertyId: visitForm.assignedPropertyId,
                             property: {
                                 name: visitForm.propertyName.trim(),
                                 type: visitForm.propertyType,
@@ -1602,15 +1768,16 @@ const ClientProfileView = ({
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Officer Name</label>
                             <select required value={visitForm.officerId} onChange={(e) => {
-                                const officer = officerOptions.find((item) => item.id === e.target.value);
+                                const officer = filteredOfficerOptions.find((item) => item.id === e.target.value);
                                 setVisitForm((f) => ({
                                     ...f,
                                     officerId: officer?.id || '',
                                     officerName: officer?.name || '',
+                                    officerPhone: officer?.phone || '',
                                 }));
                             }} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
                                 <option value="">Select available officer</option>
-                                {officerOptions.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}
+                                {filteredOfficerOptions.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}
                             </select>
                         </div>
                         <div>
@@ -1638,23 +1805,43 @@ const ClientProfileView = ({
                             <input required type="time" value={visitForm.endTime} onChange={(e) => setVisitForm((f) => ({ ...f, endTime: e.target.value }))} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold" />
                         </div>
                     </div>
+                    {visitForm.officerId && visitForm.date && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 text-xs text-amber-800">
+                            <span className="font-bold block mb-1">
+                                ⚠️ Booked slots for {visitForm.officerName || 'Selected Officer'} on {new Date(visitForm.date).toLocaleDateString('en-IN')}:
+                            </span>
+                            {officerBookedSlots.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 mt-1.5">
+                                    {officerBookedSlots.map((b) => (
+                                        <span key={b.id} className="bg-amber-100 border border-amber-300 rounded px-2.5 py-1 font-bold text-amber-900">
+                                            {b.slot}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <span className="text-emerald-700 font-medium">No bookings yet - officer is fully available.</span>
+                            )}
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property Name</label>
-                            <select required value={visitForm.propertyId} onChange={(e) => setVisitForm((f) => {
-                                const project = projects.find((item) => item.propertyId === e.target.value);
+                            <select required value={visitForm.projectId || ''} onChange={(e) => setVisitForm((f) => {
+                                const project = projects.find((item) => item.id === e.target.value);
                                 return {
                                     ...f,
-                                    propertyId: project?.propertyId || '',
+                                    projectId: project?.id || '',
+                                    propertyId: project?.propertyId || project?.property_id || '',
                                     propertyName: project?.name || '',
-                                    propertyType: project?.specs || f.propertyType,
+                                    propertyType: project?.specs || project?.property_type || f.propertyType,
+                                    propertyConfig: project?.configuration || (Array.isArray(project?.configs) ? project.configs.join(', ') : '') || '',
                                     propertyAddress: project?.location || f.propertyAddress,
-                                    propertyPrice: project?.priceRange || f.propertyPrice,
+                                    propertyPrice: project?.priceRange || project?.price_range || f.propertyPrice,
                                 };
                             })} className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white">
                                 <option value="">Select property</option>
                                 {schedulableProjects.map((project) => (
-                                    <option key={project.id} value={project.propertyId}>
+                                    <option key={project.id} value={project.id}>
                                         {project.name}
                                     </option>
                                 ))}
@@ -1694,6 +1881,99 @@ const ClientProfileView = ({
                     </div>
                 </form>
             </Modal>
+
+            {isAssignPropertyOpen && (
+                <Modal isOpen={isAssignPropertyOpen} onClose={() => setIsAssignPropertyOpen(false)} title="Assign Property" size="md">
+                    <form onSubmit={handleAssignPropertySubmit} className="space-y-4">
+                        <div>
+                            <label className="mb-2 block text-xs font-black text-[#6F4BFF] uppercase tracking-wider">Select Project</label>
+                            <select
+                                required
+                                value={assignForm.projectId}
+                                onChange={(e) => {
+                                    setAssignForm({
+                                        projectId: e.target.value,
+                                        unitId: '',
+                                        targetUnits: '',
+                                        notes: ''
+                                    });
+                                }}
+                                className="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30"
+                            >
+                                <option value="">Choose Project...</option>
+                                {projects.map((p) => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {assignForm.projectId && (
+                            <div>
+                                <label className="mb-2 block text-xs font-black text-[#6F4BFF] uppercase tracking-wider">Select Unit (Optional)</label>
+                                <select
+                                    value={assignForm.unitId}
+                                    onChange={(e) => {
+                                        const unitId = e.target.value;
+                                        const selectedProject = projects.find(p => p.id === assignForm.projectId);
+                                        const projectInventory = selectedProject ? buildInventoryWithUnits(selectedProject) : [];
+                                        const availableUnits = projectInventory.reduce((acc, config) => {
+                                            const units = config.unitsList?.filter(u => u.status === 'Available') || [];
+                                            return [...acc, ...units];
+                                        }, []);
+                                        const unit = availableUnits.find(u => u.id === unitId);
+                                        setAssignForm(prev => ({
+                                            ...prev,
+                                            unitId,
+                                            targetUnits: unit ? unit.number : ''
+                                        }));
+                                    }}
+                                    className="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30"
+                                >
+                                    <option value="">Select a specific unit...</option>
+                                    {(() => {
+                                        const selectedProject = projects.find(p => p.id === assignForm.projectId);
+                                        const projectInventory = selectedProject ? buildInventoryWithUnits(selectedProject) : [];
+                                        const availableUnits = projectInventory.reduce((acc, config) => {
+                                            const units = config.unitsList?.filter(u => u.status === 'Available') || [];
+                                            return [...acc, ...units];
+                                        }, []);
+                                        return availableUnits.map((u) => (
+                                            <option key={u.id} value={u.id}>{u.number} ({u.configType} - {u.size})</option>
+                                        ));
+                                    })()}
+                                </select>
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="mb-2 block text-xs font-black text-gray-700 uppercase tracking-wider">Target Units / Unit Number (Optional)</label>
+                            <input
+                                type="text"
+                                value={assignForm.targetUnits}
+                                onChange={(e) => setAssignForm(prev => ({ ...prev, targetUnits: e.target.value }))}
+                                placeholder="e.g. UNIT-101"
+                                className="w-full rounded-lg border border-gray-300 p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#6F4BFF]/30 font-bold"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-xs font-black text-gray-700 uppercase tracking-wider">Notes (Optional)</label>
+                            <textarea
+                                rows="3"
+                                value={assignForm.notes}
+                                onChange={(e) => setAssignForm(prev => ({ ...prev, notes: e.target.value }))}
+                                placeholder="Client preferences or internal remarks..."
+                                className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 text-sm font-medium"
+                            />
+                        </div>
+
+                        <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+                            <Button variant="secondary" type="button" onClick={() => setIsAssignPropertyOpen(false)}>Cancel</Button>
+                            <Button type="submit" icon={Plus}>Assign Property</Button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
         </div>
     );
 };
@@ -2061,17 +2341,50 @@ const Clients = () => {
     };
 
     const handleAssignUnits = async (assignments) => {
-        const assignmentsByProject = assignments.reduce((acc, assignment) => {
-            acc[assignment.projectId] = acc[assignment.projectId] || [];
-            acc[assignment.projectId].push(assignment.unitNumber);
-            return acc;
-        }, {});
+        try {
+            // New flow: Save to assigned_properties for the end-to-end Assigned Property flow
+            await Promise.all(assignments.map(async (assignment) => {
+                const selectedProject = selectedProjects.find(p => p.id === assignment.projectId);
+                const payload = {
+                    projectId: assignment.projectId,
+                    inventoryUnitId: assignment.key, // unit database ID
+                    propertyId: selectedProject?.propertyId || selectedProject?.property_id || null,
+                    targetUnits: [assignment.unitNumber],
+                    notes: 'Assigned from interactive unit grid.'
+                };
+                return assignPropertyToClient(selectedClientId, payload);
+            }));
 
-        await Promise.all(Object.entries(assignmentsByProject).map(([projectId, unitCodes]) => (
-            assignUnitsToClient(selectedClientId, projectId, unitCodes)
-        )));
-        await refreshSelectedClient();
-        await fetchClientList();
+            // Legacy fallback: Save to client_property_pipeline for backwards compatibility
+            const assignmentsByProject = assignments.reduce((acc, assignment) => {
+                acc[assignment.projectId] = acc[assignment.projectId] || [];
+                acc[assignment.projectId].push(assignment.unitNumber);
+                return acc;
+            }, {});
+
+            await Promise.all(Object.entries(assignmentsByProject).map(([projectId, unitCodes]) => (
+                assignUnitsToClient(selectedClientId, projectId, unitCodes).catch(err => console.warn('Legacy assignment fallback failed:', err))
+            )));
+
+            await refreshSelectedClient();
+            await fetchClientList();
+            setPageError('');
+        } catch (error) {
+            console.error('Failed to assign units:', error);
+            setPageError(error.message || 'Failed to assign units.');
+        }
+    };
+
+    const handleAssignProperty = async (payload) => {
+        try {
+            await assignPropertyToClient(selectedClientId, payload);
+            await refreshSelectedClient();
+            await fetchClientList();
+            setPageError('');
+        } catch (error) {
+            console.error('Failed to assign property:', error);
+            setPageError(error.message || 'Failed to assign property.');
+        }
     };
 
     const handleAddMeeting = async (meeting) => {
@@ -2098,18 +2411,6 @@ const Clients = () => {
             throw new Error(message);
         }
 
-        const project = selectedProjects.find((item) => (
-            item.propertyId === visit.propertyId
-            || item.property_id === visit.propertyId
-            || normalizeLookup(item.name) === normalizeLookup(visit.property?.name)
-        ));
-        const propertyId = visit.propertyId || project?.propertyId || project?.property_id;
-        if (!propertyId) {
-            const message = 'Select a property with a valid property record before scheduling the visit.';
-            setPageError(message);
-            throw new Error(message);
-        }
-
         const slot = buildVisitSlotRange(visit.date, visit.time);
         if (!slot) {
             const message = 'Use a visit time like "10:00 - 11:00 AM" so the slot can be scheduled.';
@@ -2117,12 +2418,37 @@ const Clients = () => {
             throw new Error(message);
         }
 
-        await scheduleClientVisit(selectedClientId, {
-            property_id: propertyId,
-            officer_id: officerId,
-            ...slot,
-            note: visit.notes || `Scheduled from Client Hub for ${project?.name || visit.property?.name || 'property visit'}.`,
-        });
+        if (visit.assignedPropertyId) {
+            // New flow: book visit linked to assigned property
+            await bookVisitForAssignedProperty(visit.assignedPropertyId, {
+                officerId,
+                slotStart: slot.slot_start,
+                slotEnd: slot.slot_end,
+                userNote: visit.notes || 'Morning preference',
+                officerNote: visit.officerNote || 'Scheduled site visit'
+            });
+        } else {
+            // Fallback legacy flow
+            const project = selectedProjects.find((item) => (
+                item.propertyId === visit.propertyId
+                || item.property_id === visit.propertyId
+                || normalizeLookup(item.name) === normalizeLookup(visit.property?.name)
+            ));
+            const propertyId = visit.propertyId || project?.propertyId || project?.property_id;
+            if (!propertyId) {
+                const message = 'Select a property with a valid property record before scheduling the visit.';
+                setPageError(message);
+                throw new Error(message);
+            }
+
+            await scheduleClientVisit(selectedClientId, {
+                property_id: propertyId,
+                officer_id: officerId,
+                ...slot,
+                note: visit.notes || `Scheduled from Client Hub for ${project?.name || visit.property?.name || 'property visit'}.`,
+            });
+        }
+
         await refreshSelectedClient();
         await fetchClientList();
         setPageError('');
@@ -2137,20 +2463,44 @@ const Clients = () => {
             || visit?.property_id;
         const dealValue = pickDealValue(project?.priceRange, visit?.property?.price, selectedClient?.budget);
 
-        if (!propertyId || !dealValue) {
-            const message = 'Could not resolve property ID and deal value for this conversion.';
-            setPageError(message);
-            throw new Error(message);
+        if (pipelineItem?.id) {
+            try {
+                await initiateDealForAssignedProperty(pipelineItem.id, {
+                    bookingDate: new Date().toISOString().slice(0, 10),
+                    dealValue: dealValue,
+                    tokenAmount: 0,
+                    receivedAmount: 0,
+                    pendingAmount: dealValue
+                });
+                await refreshSelectedClient();
+                await fetchClientList();
+                setPageError('');
+            } catch (error) {
+                console.error('Failed to initiate deal for assigned property:', error);
+                setPageError(error.message || 'Failed to initiate deal for assigned property.');
+                throw error;
+            }
+        } else {
+            if (!propertyId || !dealValue) {
+                const message = 'Could not resolve property ID and deal value for this conversion.';
+                setPageError(message);
+                throw new Error(message);
+            }
+            try {
+                await convertClientToDeal(selectedClientId, {
+                    property_id: propertyId,
+                    deal_value: dealValue,
+                    booking_date: new Date().toISOString().slice(0, 10),
+                });
+                await refreshSelectedClient();
+                await fetchClientList();
+                setPageError('');
+            } catch (error) {
+                console.error('Failed to continue visit to deal:', error);
+                setPageError(error.message || 'Failed to continue visit to deal.');
+                throw error;
+            }
         }
-
-        await convertClientToDeal(selectedClientId, {
-            property_id: propertyId,
-            deal_value: dealValue,
-            booking_date: new Date().toISOString().slice(0, 10),
-        });
-        await refreshSelectedClient();
-        await fetchClientList();
-        setPageError('');
     };
 
     if (selectedClient) {
@@ -2180,6 +2530,7 @@ const Clients = () => {
                         onScheduleVisit={handleScheduleVisit}
                         onSaveRequirement={handleSaveRequirement}
                         onAssignUnits={handleAssignUnits}
+                        onAssignProperty={handleAssignProperty}
                     />
                     {isLoadingProfile && (
                         <p className="mt-4 text-center text-xs font-bold uppercase tracking-widest text-gray-400">Refreshing client data...</p>
@@ -2215,7 +2566,12 @@ const Clients = () => {
                                         <div className="flex justify-between items-start mb-2">
                                             <div>
                                                 <h4 className="font-bold text-gray-900 group-hover:text-emerald-600 transition-colors flex items-center gap-2">{visit.name} <Badge variant="green">{visit.displayCode}</Badge></h4>
-                                                <p className="text-xs font-medium text-gray-500 flex items-center gap-1 mt-1"><PhoneCall className="w-3 h-3" /> {visit.phone}</p>
+                                                <div className="flex items-center gap-3 flex-wrap">
+                                                    <p className="text-xs font-medium text-gray-500 flex items-center gap-1 mt-1"><PhoneCall className="w-3 h-3 text-gray-400" /> {visit.phone}</p>
+                                                    {visit.time && (
+                                                        <p className="text-xs font-bold text-[#6F4BFF] flex items-center gap-1 mt-1"><Clock className="w-3 h-3 text-[#6F4BFF]" /> {visit.time}</p>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
                                                 <ArrowUpRight className="w-4 h-4 group-hover:scale-110 transition-transform" />

@@ -17,6 +17,27 @@ const buildQueryString = (params = {}) => {
   return queryString ? `?${queryString}` : '';
 };
 
+const formatSinglePrice = (value) => {
+  const num = Number(value);
+  if (Number.isNaN(num)) return String(value).trim();
+  if (num >= 10000000) return `${(num / 10000000).toFixed(1).replace(/\.0$/, '')} Cr`;
+  if (num >= 100000) return `${(num / 100000).toFixed(1).replace(/\.0$/, '')} L`;
+  return num.toLocaleString('en-IN');
+};
+
+const formatPrice = (price) => {
+  if (!price) return 'Price on request';
+  const str = String(price).trim();
+  if (str.includes('-')) {
+    const parts = str.split('-').map(formatSinglePrice);
+    return `Rs. ${parts.join(' - ')}`;
+  }
+  const num = Number(str);
+  if (Number.isNaN(num)) return str;
+  const formatted = formatSinglePrice(str);
+  return `Rs. ${formatted}`;
+};
+
 const toDisplayDate = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -91,7 +112,7 @@ export const normalizeVisit = (visit = {}) => {
       type: visit.property_type || visit.property?.type || 'Property',
       config: visit.property_config || visit.property?.config || '',
       address: visit.property_address || visit.property?.address || '',
-      price: visit.property_price || visit.property?.price || '',
+      price: formatPrice(visit.property_price || visit.property?.price),
     },
     date: toDisplayDate(slotStart || visit.date),
     time: slotStart && slotEnd

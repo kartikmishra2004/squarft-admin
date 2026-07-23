@@ -214,19 +214,35 @@ const fetchClientsFromLeads = async (params = {}) => {
   };
 };
 
-const normalizePipelineItem = (item = {}) => ({
-  id: item.pipeline_id || item.assignment_id,
-  projectId: item.project_id,
-  propertyId: item.property_id || item.propertyId || null,
-  projectName: item.project_name,
-  status: toTitleCase(item.status || item.assignment_status || 'Shortlisted'),
-  units: String(item.target_units || '')
-    .split(',')
-    .map((unit) => unit.trim())
-    .filter(Boolean),
-  visitedOn: null,
-  notes: item.latest_update || 'Assigned to client.',
-});
+const normalizePipelineItem = (item = {}) => {
+  const projId = item.project_id || item.projectId || item.project?.id;
+  const propId = item.property_id || item.propertyId || item.property?.id || null;
+  const projName = item.project_name || item.projectName || item.project?.name || 'Project';
+  const unitCodes = item.target_units
+    ? String(item.target_units).split(',').map(u => u.trim()).filter(Boolean)
+    : (item.unit?.unit_code ? [item.unit.unit_code] : []);
+
+  return {
+    id: item.assigned_property_id || item.pipeline_id || item.assignment_id || item.id,
+    projectId: projId,
+    propertyId: propId,
+    projectName: projName,
+    status: toTitleCase(item.status || item.assignment_status || 'Shortlisted'),
+    units: unitCodes,
+    visitedOn: null,
+    notes: item.notes || item.latest_update || 'Assigned to client.',
+    unit: item.unit ? {
+      id: item.unit.id,
+      unitCode: item.unit.unit_code || item.unit.unitCode,
+      configuration: item.unit.configuration,
+      areaSqft: item.unit.area_sqft || item.unit.areaSqft,
+      price: item.unit.price,
+      status: item.unit.status
+    } : null,
+    siteVisit: item.site_visit || null,
+    deal: item.deal || null
+  };
+};
 
 export const mergeClientProfile = (summary = {}, overview = {}) => {
   const header = overview.header || {};
@@ -244,6 +260,7 @@ export const mergeClientProfile = (summary = {}, overview = {}) => {
     budget: header.approved_budget || summary.budget,
     status: normalizeClientStatus(header.status || summary.status),
     officer: header.officer_name || summary.officer,
+    officerPhone: header.officer_phone || summary.officerPhone || '',
     listingKind: inferCategory(propertyType),
     propType: propertyType,
     req: {
@@ -321,9 +338,9 @@ export const normalizeClientVisit = (visit = {}, client = {}) => {
   const formatTime = (date) => date?.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) || '';
 
   return {
-    id: visit.id,
-    customerName: client.name || visit.customer_name || 'Client',
-    customerPhone: client.phone || visit.customer_phone || '',
+    id: visit.id || visit.visit_id,
+    customerName: visit.customer_name || client.name || 'Client',
+    customerPhone: visit.customer_phone || client.phone || '',
     officerName: visit.officer || visit.officer_name || 'Unassigned',
     property: {
       name: visit.property || visit.property_name || 'Property visit',
@@ -451,11 +468,13 @@ export const fetchTodayVisits = async () => {
   return (data || []).map(normalizeTodayVisit);
 };
 
-export const fetchAvailableOfficers = async () => {
-  const data = unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/officers/available`, { method: 'GET' }));
+export const fetchAvailableOfficers = async (params = {}) => {
+  const query = buildQueryString(params);
+  const data = unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/officers/available${query}`, { method: 'GET' }));
   return (data || []).map((officer) => ({
     id: officer.id,
     name: officer.name || 'Officer',
+    phone: officer.phone || '',
   }));
 };
 
@@ -549,11 +568,46 @@ export const fetchClientProfileBundle = async (clientId, summary = {}) => {
 
   const overview = overviewResult.status === 'fulfilled' ? overviewResult.value : {};
   const timelineData = timelineResult.status === 'fulfilled' ? timelineResult.value : {};
+
+  const assigned = assignedResult.status === 'fulfilled' ? assignedResult.value : [];
+  let recommended = projectsResult.status === 'fulfilled' ? projectsResult.value : [];
+
+  // Fetch missing assigned projects workspace & details
+  const recommendedIds = new Set(recommended.map((p) => p.id));
+  const missingProjectIds = Array.from(new Set(
+    assigned
+      .map((a) => a.projectId)
+      .filter((id) => id && !recommendedIds.has(id))
+  ));
+
+  if (missingProjectIds.length > 0) {
+    const propertyMap = await fetchPropertyProjectMap();
+    const missingProjects = await Promise.all(
+      missingProjectIds.map(async (projectId) => {
+        try {
+          const [workspaceResult, detailsResult] = await Promise.allSettled([
+            fetchProjectWorkspace(projectId),
+            fetchProjectDetails(projectId),
+          ]);
+          const propertyId = propertyMap.get(projectId) || null;
+          return normalizeProject(
+            { id: projectId, property_id: propertyId },
+            workspaceResult.status === 'fulfilled' ? workspaceResult.value : {},
+            detailsResult.status === 'fulfilled' ? detailsResult.value : {}
+          );
+        } catch (err) {
+          console.error(`Failed to load missing assigned project ${projectId}:`, err);
+          return null;
+        }
+      })
+    );
+
+    recommended = [...recommended, ...missingProjects.filter(Boolean)];
+  }
+
   const client = {
     ...mergeClientProfile(summary, overview),
-    propertyPipeline: assignedResult.status === 'fulfilled'
-      ? assignedResult.value
-      : mergeClientProfile(summary, overview).propertyPipeline,
+    propertyPipeline: assigned,
     customerRequirements: requirementsResult.status === 'fulfilled' ? requirementsResult.value : [],
     timeline: timelineData.timeline || [],
     notes: timelineData.notes || [],
@@ -565,7 +619,7 @@ export const fetchClientProfileBundle = async (clientId, summary = {}) => {
   return {
     client,
     visits: visitsResult.status === 'fulfilled' ? visitsResult.value : [],
-    projects: projectsResult.status === 'fulfilled' ? projectsResult.value : [],
+    projects: recommended,
     errors: {
       overview: overviewResult.status === 'rejected' ? overviewResult.reason : null,
       assignedProperties: assignedResult.status === 'rejected' ? assignedResult.reason : null,
@@ -582,6 +636,24 @@ export const assignUnitsToClient = async (clientId, projectId, unitCodes = []) =
   unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/clients/${clientId}/projects/${projectId}/assign`, {
     method: 'POST',
     body: JSON.stringify({ unitCodes }),
+  }));
+
+export const assignPropertyToClient = async (clientId, payload = {}) =>
+  unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/clients/${clientId}/assign-property`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }));
+
+export const bookVisitForAssignedProperty = async (assignedPropertyId, payload = {}) =>
+  unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/assigned-properties/${assignedPropertyId}/book-visit`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }));
+
+export const initiateDealForAssignedProperty = async (assignedPropertyId, payload = {}) =>
+  unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/assigned-properties/${assignedPropertyId}/initiate-deal`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   }));
 
 export const addClientRequirement = async (clientId, requirement = {}) =>
@@ -654,3 +726,9 @@ export const updateClientMeeting = async (meetingId, meeting = {}) => {
 
 export const deleteClientMeeting = async (meetingId) =>
   unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/meetings/${meetingId}`, { method: 'DELETE' }));
+
+export const fetchOfficerBookedSlots = async (officerId, date) => {
+  const data = unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/officers/booked-slots?officerId=${officerId}&date=${date}`, { method: 'GET' }));
+  return data || [];
+};
+

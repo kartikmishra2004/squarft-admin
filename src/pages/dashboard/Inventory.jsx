@@ -46,7 +46,7 @@ const getStatusBadge = (status) => {
 };
 
 const getMinimumPriceInLacs = (priceRange = '') => {
-    const priceStr = priceRange.toLowerCase();
+    const priceStr = (priceRange || '').toLowerCase();
     const match = priceStr.match(/(\d+\.?\d*)\s*(cr|l|lacs?)/i);
 
     if (!match) return 0;
@@ -59,12 +59,15 @@ const getMinimumPriceInLacs = (priceRange = '') => {
 
 const matchesProjectFilters = (project, filters) => {
     const search = filters.search?.toLowerCase() || '';
+    const name = project.name || '';
+    const builder = project.builder || '';
+    const location = project.location || '';
     const matchesSearch = search === '' ||
-        project.name.toLowerCase().includes(search) ||
-        project.builder.toLowerCase().includes(search) ||
-        project.location.toLowerCase().includes(search);
+        name.toLowerCase().includes(search) ||
+        builder.toLowerCase().includes(search) ||
+        location.toLowerCase().includes(search);
 
-    const minPrice = getMinimumPriceInLacs(project.priceRange);
+    const minPrice = getMinimumPriceInLacs(project.priceRange || '');
     let matchesPriceRange = true;
 
     switch (filters.priceRange) {
@@ -85,7 +88,7 @@ const matchesProjectFilters = (project, filters) => {
     }
 
     const matchesLocation = filters.location === 'all' ||
-        project.location.toLowerCase().includes(filters.location.toLowerCase());
+        location.toLowerCase().includes(filters.location.toLowerCase());
 
     return matchesSearch && matchesPriceRange && matchesLocation;
 };
@@ -1182,7 +1185,11 @@ const mapDetailsToForm = (d) => {
 };
 
 const getOnboardingForm = (project) => {
-    const matched = projectOnboardingList.find(p => p.projectName.toLowerCase() === project.name.toLowerCase() || p.projectName.toLowerCase().includes(project.name.toLowerCase()));
+    const matched = projectOnboardingList.find(p => {
+        const pName = p.projectName || '';
+        const projName = project.name || '';
+        return pName.toLowerCase() === projName.toLowerCase() || pName.toLowerCase().includes(projName.toLowerCase());
+    });
     if (matched) return matched.form;
 
     const city = (project.location || '').split(',').pop()?.trim() || 'Mumbai';
@@ -1737,7 +1744,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                                 </div>
 
                                 <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {localProjectData.inventory.map((row, i) => {
+                                    {(localProjectData.inventory || []).map((row, i) => {
                                         const hierarchy = inferInventoryHierarchy(localProjectData, row);
                                         const totalCount = row.unitsList ? row.unitsList.length : (row.totalUnits || 0);
                                         const availableCount = row.unitsList ? row.unitsList.filter(u => u.status === 'Available' || u.status === 'available').length : (row.availableUnits || 0);
@@ -2174,19 +2181,23 @@ const BuilderProjectsView = ({ builder, onBack, profileType = 'builder' }) => {
     const profileIconClass = isBrokerProfile ? 'text-amber-600' : 'text-[#6F4BFF]';
 
     // Get unique locations from this profile's projects
-    const uniqueLocations = [...new Set((builder.projects || []).map(p => p.location.split(',').pop().trim()))];
+    const uniqueLocations = [...new Set((builder.projects || []).map(p => (p.location || '').split(',').pop()?.trim()))].filter(Boolean);
 
     // Filter projects based on local filters
     const filteredBuilderProjects = (builder.projects || []).filter(project => {
+        const name = project.name || '';
+        const location = project.location || '';
+        const priceRange = project.priceRange || '';
+
         // Search filter
         const matchesSearch = localFilters.search === '' || 
-                             project.name.toLowerCase().includes(localFilters.search.toLowerCase()) || 
-                             project.location.toLowerCase().includes(localFilters.search.toLowerCase());
+                             name.toLowerCase().includes(localFilters.search.toLowerCase()) || 
+                             location.toLowerCase().includes(localFilters.search.toLowerCase());
         
         // Price range filter
         let matchesPriceRange = true;
         if (localFilters.priceRange !== 'all') {
-            const priceStr = project.priceRange.toLowerCase();
+            const priceStr = priceRange.toLowerCase();
             let minPrice = 0;
             
             if (priceStr.includes('cr')) {
@@ -2216,14 +2227,14 @@ const BuilderProjectsView = ({ builder, onBack, profileType = 'builder' }) => {
         // Location filter
         let matchesLocation = true;
         if (localFilters.location !== 'all') {
-            matchesLocation = project.location.toLowerCase().includes(localFilters.location.toLowerCase());
+            matchesLocation = location.toLowerCase().includes(localFilters.location.toLowerCase());
         }
         
         return matchesSearch && matchesPriceRange && matchesLocation;
     });
 
     const handleProjectClick = (project) => {
-        dispatch(setSelectedProject(project));
+        dispatch(getProjectById(project.id));
     };
 
     const handleProjectBack = () => {
