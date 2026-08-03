@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
     AlertCircle, Briefcase, Edit2, Globe, Loader2, Mail, Phone, Plus,
-    Save, Sparkles, User, Users
+    Save, Search, ShieldCheck, Sparkles, User, UserCog, Users
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
 import Card from '../../components/ui/Card';
@@ -14,9 +14,12 @@ import {
     createNewBranch,
     updateExistingBranch,
     getBranchTeam,
+    getBranchAdmin,
+    replaceBranchAdmin,
     clearError,
     clearSuccess,
     clearBranchTeam,
+    clearBranchAdmin,
 } from '../../store/branchesSlice';
 import { fetchCities, fetchCommonUsers, fetchMasterOptions } from '../../services/commonService';
 
@@ -59,8 +62,11 @@ const initialFormState = {
 
 const Branches = () => {
     const dispatch = useDispatch();
-    const { branches, loading, error, successMessage, branchTeam } = useSelector((state) => state.branches);
-    
+    const {
+        branches, loading, error, successMessage, branchTeam,
+        branchAdmin, branchAdminLoading, branchAdminError,
+    } = useSelector((state) => state.branches);
+
     const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
     const [editingBranchId, setEditingBranchId] = useState(null);
     const [formState, setFormState] = useState(initialFormState);
@@ -71,6 +77,15 @@ const Branches = () => {
     const [branchStatusOptions, setBranchStatusOptions] = useState(fallbackBranchStatuses);
     const [cityOptions, setCityOptions] = useState([]);
     const [managerOptions, setManagerOptions] = useState([]);
+
+    // Replace Admin dialog state
+    const [selectedAdminBranch, setSelectedAdminBranch] = useState(null);
+    const [adminSearch, setAdminSearch] = useState('');
+    const [adminCandidates, setAdminCandidates] = useState([]);
+    const [isSearchingAdmins, setIsSearchingAdmins] = useState(false);
+    const [selectedNewAdminId, setSelectedNewAdminId] = useState('');
+    const [isReplacingAdmin, setIsReplacingAdmin] = useState(false);
+    const [replaceAdminError, setReplaceAdminError] = useState(null);
 
     // Fetch branches on mount
     useEffect(() => {
@@ -170,7 +185,7 @@ const Branches = () => {
         setFormState({
             name: branch.name,
             type: findOptionLabel(branchTypeOptions, branch.typeValue || branch.type, typeDisplayMap[branch.typeValue || branch.type] || 'Regional Branch'),
-            head: (branch.head === '-' || !branch.head) ? '' : branch.head,
+            head: branch.managerId || '',
             status: findOptionLabel(branchStatusOptions, branch.statusValue || branch.status, statusDisplayMap[branch.statusValue || branch.status] || 'Active'),
             city: branch.city || '',
             state: branch.state || '',
@@ -231,6 +246,7 @@ const Branches = () => {
                 type: mappedType,
                 status: mappedStatus,
                 city: cleanCity,
+                managerId: formState.head || null,
                 activeDeals: Math.max(0, Number(formState.activeDeals) || 0),
                 revenue: Math.max(0, Number(formState.revenue) || 0),
                 target: Math.min(100, Math.max(0, Number(formState.target) || 0)),
@@ -280,6 +296,74 @@ const Branches = () => {
     const closeTeamModal = () => {
         setSelectedTeamBranch(null);
         dispatch(clearBranchTeam());
+    };
+
+    const openReplaceAdmin = (branch) => {
+        setSelectedAdminBranch(branch);
+        setAdminSearch('');
+        setAdminCandidates([]);
+        setSelectedNewAdminId('');
+        setReplaceAdminError(null);
+        dispatch(getBranchAdmin(branch.id));
+    };
+
+    const closeReplaceAdmin = () => {
+        setSelectedAdminBranch(null);
+        setAdminSearch('');
+        setAdminCandidates([]);
+        setSelectedNewAdminId('');
+        setReplaceAdminError(null);
+        dispatch(clearBranchAdmin());
+    };
+
+    // Debounced search for eligible admin-role, active-status users
+    useEffect(() => {
+        if (!selectedAdminBranch) return;
+
+        let isMounted = true;
+        setIsSearchingAdmins(true);
+
+        const timer = setTimeout(async () => {
+            try {
+                const result = await fetchCommonUsers({
+                    userType: 'ADMIN',
+                    status: 'ACTIVE',
+                    search: adminSearch || undefined,
+                    limit: 20,
+                });
+                if (isMounted) setAdminCandidates(result?.users || []);
+            } catch (searchError) {
+                console.error('Error searching eligible admins:', searchError);
+                if (isMounted) setAdminCandidates([]);
+            } finally {
+                if (isMounted) setIsSearchingAdmins(false);
+            }
+        }, 300);
+
+        return () => {
+            isMounted = false;
+            clearTimeout(timer);
+        };
+    }, [selectedAdminBranch, adminSearch]);
+
+    const handleConfirmReplaceAdmin = async () => {
+        if (!selectedAdminBranch || !selectedNewAdminId) return;
+
+        setIsReplacingAdmin(true);
+        setReplaceAdminError(null);
+
+        try {
+            await dispatch(replaceBranchAdmin({
+                branchId: selectedAdminBranch.id,
+                newAdminId: selectedNewAdminId,
+            })).unwrap();
+
+            closeReplaceAdmin();
+        } catch (replaceError) {
+            setReplaceAdminError(replaceError?.message || 'Failed to replace branch admin');
+        } finally {
+            setIsReplacingAdmin(false);
+        }
     };
 
     return (
@@ -392,6 +476,7 @@ const Branches = () => {
                                     <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
                                         <Button variant="secondary" className="flex-1 font-bold text-xs" icon={Edit2} onClick={() => openEditBranch(branch)}>Edit Branch</Button>
                                         <Button variant="secondary" className="flex-1 font-bold text-xs" icon={Users} onClick={() => handleViewTeam(branch)}>View Team</Button>
+                                        <Button variant="secondary" className="flex-1 font-bold text-xs" icon={UserCog} onClick={() => openReplaceAdmin(branch)}>Replace Admin</Button>
                                     </div>
                                 </Card>
                             ))}
@@ -486,10 +571,9 @@ const Branches = () => {
                         >
                             <option value="">No Manager Assigned</option>
                             {managerOptions.map((manager) => (
-                                <option key={manager.id} value={manager.name}>{manager.name}</option>
+                                <option key={manager.id} value={manager.id}>{manager.name}</option>
                             ))}
                         </select>
-                        <p className="text-xs text-gray-500 mt-1">Manager assignment requires backend user UUID integration</p>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                         <div>
@@ -608,6 +692,150 @@ const Branches = () => {
                                 <span className="text-sm font-black text-gray-800">Total Branch Deals</span>
                             </div>
                             <span className="text-lg font-black text-[#6F4BFF]">{selectedTeamBranch.activeDeals}</span>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Replace Admin Modal */}
+            <Modal
+                isOpen={!!selectedAdminBranch}
+                onClose={closeReplaceAdmin}
+                title={selectedAdminBranch ? `Replace Admin - ${selectedAdminBranch.name}` : 'Replace Admin'}
+            >
+                {selectedAdminBranch && (
+                    <div className="space-y-5">
+                        {/* Current Admin */}
+                        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Current Admin</p>
+                            {branchAdminLoading && !branchAdmin && (
+                                <div className="flex items-center gap-2 text-gray-500 font-medium text-sm">
+                                    <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+                                </div>
+                            )}
+                            {!branchAdminLoading && branchAdmin && branchAdmin.currentAdmin && (
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-[#6F4BFF]/10 text-[#6F4BFF] flex items-center justify-center font-black shrink-0">
+                                        {(branchAdmin.currentAdmin.name || '?').charAt(0)}
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-gray-900">{branchAdmin.currentAdmin.name || 'Unnamed Admin'}</p>
+                                        <p className="text-xs font-bold text-gray-500 flex items-center gap-3">
+                                            {branchAdmin.currentAdmin.email && (
+                                                <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {branchAdmin.currentAdmin.email}</span>
+                                            )}
+                                            {branchAdmin.currentAdmin.phone && (
+                                                <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {branchAdmin.currentAdmin.phone}</span>
+                                            )}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                            {!branchAdminLoading && branchAdmin && !branchAdmin.currentAdmin && (
+                                <p className="text-gray-500 font-medium text-sm">No admin currently assigned to this branch.</p>
+                            )}
+                            {!branchAdminLoading && branchAdminError && (
+                                <p className="text-red-600 font-medium text-sm">{branchAdminError}</p>
+                            )}
+                        </div>
+
+                        {/* Pending Workload Summary */}
+                        {branchAdmin?.workloadSummary && (
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Pending Workload (Branch-wide)</p>
+                                <div className="grid grid-cols-4 gap-3">
+                                    <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
+                                        <p className="text-lg font-black text-blue-600">{branchAdmin.workloadSummary.activeDeals}</p>
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Active Deals</p>
+                                    </div>
+                                    <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
+                                        <p className="text-lg font-black text-amber-600">{branchAdmin.workloadSummary.openLeads}</p>
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Open Leads</p>
+                                    </div>
+                                    <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
+                                        <p className="text-lg font-black text-purple-600">{branchAdmin.workloadSummary.pendingVisits}</p>
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Pending Visits</p>
+                                    </div>
+                                    <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
+                                        <p className="text-lg font-black text-emerald-600">{branchAdmin.workloadSummary.activeProjects}</p>
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Active Projects</p>
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-gray-400 font-medium mt-2">
+                                    These figures belong to the branch, not the admin - they carry over automatically and nothing needs to be transferred when the admin changes.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Search eligible admins */}
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Search Eligible Admins</label>
+                            <div className="relative mt-2">
+                                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    value={adminSearch}
+                                    onChange={(event) => setAdminSearch(event.target.value)}
+                                    placeholder="Search by name or email"
+                                    className="w-full border border-gray-300 rounded-lg p-3 pl-9 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="max-h-64 overflow-y-auto space-y-2 custom-scrollbar">
+                            {isSearchingAdmins && (
+                                <div className="flex items-center justify-center py-6">
+                                    <Loader2 className="w-6 h-6 text-[#6F4BFF] animate-spin" />
+                                </div>
+                            )}
+                            {!isSearchingAdmins && adminCandidates.length === 0 && (
+                                <p className="text-center text-gray-500 font-medium text-sm py-6">No eligible admin users found.</p>
+                            )}
+                            {!isSearchingAdmins && adminCandidates.map((candidate) => {
+                                const isCurrent = branchAdmin?.currentAdmin?.id === candidate.id;
+                                const isSelected = selectedNewAdminId === candidate.id;
+                                return (
+                                    <button
+                                        type="button"
+                                        key={candidate.id}
+                                        onClick={() => !isCurrent && setSelectedNewAdminId(candidate.id)}
+                                        disabled={isCurrent}
+                                        className={`w-full text-left border rounded-xl p-3 flex items-center justify-between gap-3 transition-colors ${
+                                            isSelected ? 'border-[#6F4BFF] bg-[#6F4BFF]/5' : 'border-gray-100 hover:border-[#6F4BFF]/30'
+                                        } ${isCurrent ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        <div>
+                                            <p className="font-bold text-gray-900 text-sm">{candidate.name}</p>
+                                            <p className="text-xs text-gray-500">{candidate.email || candidate.phone}</p>
+                                            {candidate.branchName && (
+                                                <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mt-1">
+                                                    Currently admin of {candidate.branchName}
+                                                </p>
+                                            )}
+                                        </div>
+                                        {isCurrent && <Badge variant="green">Current</Badge>}
+                                        {isSelected && !isCurrent && <ShieldCheck className="w-5 h-5 text-[#6F4BFF] shrink-0" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {replaceAdminError && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                                <p className="font-bold text-red-900 text-sm">{replaceAdminError}</p>
+                            </div>
+                        )}
+
+                        <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+                            <Button variant="secondary" onClick={closeReplaceAdmin} disabled={isReplacingAdmin}>Cancel</Button>
+                            <Button
+                                icon={isReplacingAdmin ? Loader2 : ShieldCheck}
+                                onClick={handleConfirmReplaceAdmin}
+                                disabled={isReplacingAdmin || !selectedNewAdminId}
+                            >
+                                {isReplacingAdmin ? 'Replacing...' : 'Confirm Replacement'}
+                            </Button>
                         </div>
                     </div>
                 )}

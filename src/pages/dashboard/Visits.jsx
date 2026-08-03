@@ -12,6 +12,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
+import { useDialog } from '../../components/ui/Dialog';
 import Header from '../../components/layout/Header';
 import { fetchMasterOptions, fetchProperties, fetchSalesOfficers } from '../../services/commonService';
 import { fetchDealById } from '../../services/dealManagementService';
@@ -265,6 +266,7 @@ const buildVisitPayload = (formState) => ({
 const Visits = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const { alert } = useDialog();
     const { visits } = useSelector((state) => state.visits);
     const { deals } = useSelector((state) => state.deals);
     const [selectedClientKey, setSelectedClientKey] = useState(null);
@@ -701,7 +703,7 @@ const Visits = () => {
             }
         } catch (error) {
             console.error('Failed to convert visit to deal:', error);
-            alert(error.message || 'Failed to convert visit to deal');
+            alert(error.message || 'Failed to convert visit to deal', { title: 'Conversion Failed', variant: 'danger' });
         }
     };
 

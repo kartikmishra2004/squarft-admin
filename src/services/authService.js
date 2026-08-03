@@ -3,14 +3,14 @@ import { apiRequest } from '../config/api';
 /**
  * Auth API Service
  * Handles authentication-related API calls
- * 
- * Note: There is no registration form. Users are manually created in the database.
- * This service only handles login functionality.
+ *
+ * Note: There is no registration form. Admin/super_admin accounts are created
+ * by an existing super_admin (see adminService.js). Login is email+password only.
  */
 
 const AUTH_ENDPOINTS = {
-  ADMIN_LOGIN: '/api/v1/auth/admin/login',
-  SUPER_ADMIN_LOGIN: '/api/v1/auth/super-admin/login',
+  ADMIN_LOGIN_PASSWORD: '/api/v1/auth/admin/login-password',
+  SUPER_ADMIN_LOGIN_PASSWORD: '/api/v1/auth/super-admin/login-password',
 };
 
 const storeAuthSession = ({ token, user }, role) => {
@@ -39,65 +39,32 @@ const storeAuthSession = ({ token, user }, role) => {
 };
 
 /**
- * Admin login
- * @param {Object} credentials - Login credentials
- * @param {string} credentials.phone - Phone number
- * @param {string} credentials.password - Password
+ * Email+password login (admin or super_admin).
+ * @param {Object} payload
+ * @param {string} payload.email
+ * @param {string} payload.password
+ * @param {'admin'|'super_admin'} payload.role
  * @returns {Promise<Object>} Login response with token and user data
  */
-export const loginAdmin = async (credentials) => {
+export const loginWithPassword = async ({ email, password, role }) => {
   try {
-    const { phone, password } = credentials;
-
-    if (!phone || !password) {
-      throw {
-        status: 400,
-        message: 'Phone and password are required',
-        errors: [],
-      };
+    if (!email || !password) {
+      throw { status: 400, message: 'Email and password are required', errors: [] };
     }
 
-    const response = await apiRequest(AUTH_ENDPOINTS.ADMIN_LOGIN, {
+    const endpoint = role === 'super_admin'
+      ? AUTH_ENDPOINTS.SUPER_ADMIN_LOGIN_PASSWORD
+      : AUTH_ENDPOINTS.ADMIN_LOGIN_PASSWORD;
+
+    const response = await apiRequest(endpoint, {
       method: 'POST',
       skipAuth: true,
-      body: JSON.stringify({ phone, password }),
+      body: JSON.stringify({ email, password }),
     });
 
-    return storeAuthSession(response, 'admin');
+    return storeAuthSession(response, role);
   } catch (error) {
-    console.error('Admin login error:', error);
-    throw error;
-  }
-};
-
-/**
- * Super Admin login
- * @param {Object} credentials - Login credentials
- * @param {string} credentials.phone - Phone number
- * @param {string} credentials.password - Password
- * @returns {Promise<Object>} Login response with token and user data
- */
-export const loginSuperAdmin = async (credentials) => {
-  try {
-    const { phone, password } = credentials;
-
-    if (!phone || !password) {
-      throw {
-        status: 400,
-        message: 'Phone and password are required',
-        errors: [],
-      };
-    }
-
-    const response = await apiRequest(AUTH_ENDPOINTS.SUPER_ADMIN_LOGIN, {
-      method: 'POST',
-      skipAuth: true,
-      body: JSON.stringify({ phone, password }),
-    });
-
-    return storeAuthSession(response, 'super_admin');
-  } catch (error) {
-    console.error('Super Admin login error:', error);
+    console.error('Password login error:', error);
     throw error;
   }
 };

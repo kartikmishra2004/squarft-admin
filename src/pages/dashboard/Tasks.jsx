@@ -13,6 +13,7 @@ import Badge from '../../components/ui/Badge';
 import Header from '../../components/layout/Header';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
+import { useDialog } from '../../components/ui/Dialog';
 
 const getStatusBadge = (status) => {
     if (!status) return null;
@@ -32,6 +33,7 @@ const getStatusBadge = (status) => {
 
 const Tasks = () => {
     const dispatch = useDispatch();
+    const { confirm } = useDialog();
     const { tasks } = useSelector((state) => state.tasks);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,8 +48,8 @@ const Tasks = () => {
         setIsModalOpen(false);
     };
 
-    const handleDeleteTask = (id) => {
-        if (window.confirm('Delete this task?')) {
+    const handleDeleteTask = async (id) => {
+        if (await confirm('Delete this task?', { title: 'Delete Task', confirmText: 'Delete', danger: true })) {
             dispatch(deleteTask(id));
         }
     };

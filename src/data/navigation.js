@@ -5,20 +5,25 @@ import {
   Briefcase,
   Building2,
   CalendarDays,
+  ClipboardList,
   CreditCard,
   Filter,
+  FileCheck,
   GitBranch,
   Headphones,
   LayoutDashboard,
   PanelsTopLeft,
   ShieldCheck,
   UserCheck,
+  UserCog,
   UserPlus,
 } from 'lucide-react';
 
 export const superAdminLinks = [
   { icon: LayoutDashboard, label: 'Super Admin Dashboard', path: '/dashboard' },
   { icon: GitBranch, label: 'Branch management', path: '/dashboard/branches' },
+  { icon: UserCog, label: 'Admins', path: '/dashboard/admins' },
+  { icon: ClipboardList, label: 'Audit Log', path: '/dashboard/audit-log' },
 ];
 
 export const adminLinks = [
@@ -31,6 +36,7 @@ export const adminLinks = [
   { icon: Briefcase, label: 'Deal Management', path: '/dashboard/deals' },
   { icon: CreditCard, label: 'Payment Milestones', path: '/dashboard/payment-milestones' },
   { icon: UserPlus, label: 'App user list', path: '/dashboard/users' },
+  { icon: FileCheck, label: 'Consumer ID Verification', path: '/dashboard/user-verification' },
   { icon: Activity, label: 'App activity', path: '/dashboard/user-app-activities' },
   { icon: PanelsTopLeft, label: 'Panel Overview', path: '/dashboard/panel-overview' },
   { icon: BadgeIndianRupee, label: 'Broker', path: '/dashboard/broker-commission' },

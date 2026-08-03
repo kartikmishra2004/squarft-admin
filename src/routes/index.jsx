@@ -13,6 +13,7 @@ import Visits from '../pages/dashboard/Visits';
 import Deals from '../pages/dashboard/Deals';
 import PaymentMilestones from '../pages/dashboard/PaymentMilestones';
 import UserList from '../pages/dashboard/UserList';
+import UserVerification from '../pages/dashboard/UserVerification';
 import UserAppActivities from '../pages/dashboard/UserAppActivities';
 import PanelOverview from '../pages/dashboard/PanelOverview';
 import BrokerCommission from '../pages/dashboard/BrokerCommission';
@@ -20,6 +21,8 @@ import NotificationCenter from '../pages/dashboard/NotificationCenter';
 import Support from '../pages/dashboard/Support';
 import VoiceAgentCall from '../pages/dashboard/VoiceAgentCall';
 import SettingsPage from '../pages/dashboard/Settings';
+import AuditLog from '../pages/dashboard/AuditLog';
+import Admins from '../pages/dashboard/Admins';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user, role } = useSelector((state) => state.auth);
@@ -96,6 +99,16 @@ const AppRoutes = () => {
             <Branches />
           </ProtectedRoute>
         } />
+        <Route path="audit-log" element={
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <AuditLog />
+          </ProtectedRoute>
+        } />
+        <Route path="admins" element={
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <Admins />
+          </ProtectedRoute>
+        } />
 
         {/* Admin Specific */}
         <Route path="leads" element={<Leads />} />
@@ -109,6 +122,11 @@ const AppRoutes = () => {
           </ProtectedRoute>
         } />
         <Route path="users" element={<UserList />} />
+        <Route path="user-verification" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <UserVerification />
+          </ProtectedRoute>
+        } />
         <Route path="user-app-activities" element={<UserAppActivities />} />
         <Route path="panel-overview" element={
           <ProtectedRoute allowedRoles={['admin', 'super_admin']}>

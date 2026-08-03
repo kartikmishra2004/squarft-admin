@@ -3,43 +3,23 @@ import * as authService from '../services/authService';
 
 /**
  * Authentication Redux Slice
- * 
- * Note: No registration functionality is provided.
- * Users are manually created in the database by administrators.
- * This slice only handles login/logout operations.
+ *
+ * Note: No registration form. Admin/super_admin accounts are created by an
+ * existing super_admin. Login is email+password only, one step.
  */
 
 /**
- * Async thunk for admin login
+ * Async thunk - email+password login (admin or super_admin), one step.
  */
-export const loginAdmin = createAsyncThunk(
-  'auth/loginAdmin',
-  async (credentials, { rejectWithValue }) => {
+export const loginWithPassword = createAsyncThunk(
+  'auth/loginWithPassword',
+  async ({ email, password, role }, { rejectWithValue }) => {
     try {
-      const response = await authService.loginAdmin(credentials);
+      const response = await authService.loginWithPassword({ email, password, role });
       return {
         token: response.token,
         user: response.user,
-        role: 'admin',
-      };
-    } catch (error) {
-      return rejectWithValue(error);
-    }
-  }
-);
-
-/**
- * Async thunk for super admin login
- */
-export const loginSuperAdmin = createAsyncThunk(
-  'auth/loginSuperAdmin',
-  async (credentials, { rejectWithValue }) => {
-    try {
-      const response = await authService.loginSuperAdmin(credentials);
-      return {
-        token: response.token,
-        user: response.user,
-        role: 'super_admin',
+        role,
       };
     } catch (error) {
       return rejectWithValue(error);
@@ -80,67 +60,26 @@ const authSlice = createSlice({
       state.error = null;
       state.successMessage = null;
     },
-    // Legacy actions for backward compatibility (can be removed if not used elsewhere)
-    loginStart: (state) => {
-      state.loading = true;
-      state.error = null;
-    },
-    loginSuccess: (state, action) => {
-      state.loading = false;
-      state.isAuthenticated = true;
-      state.user = action.payload;
-    },
-    loginFailure: (state, action) => {
-      state.loading = false;
-      state.error = action.payload;
-    },
   },
   extraReducers: (builder) => {
     builder
-      // Admin Login
-      .addCase(loginAdmin.pending, (state) => {
+      // Email+password login
+      .addCase(loginWithPassword.pending, (state) => {
         state.loading = true;
         state.error = null;
-        state.successMessage = null;
       })
-      .addCase(loginAdmin.fulfilled, (state, action) => {
+      .addCase(loginWithPassword.fulfilled, (state, action) => {
         state.loading = false;
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
-        state.role = action.payload.user?.role || 'admin';
-        state.successMessage = 'Admin login successful';
+        state.role = action.payload.user?.role || action.payload.role;
+        state.successMessage = 'Login successful';
       })
-      .addCase(loginAdmin.rejected, (state, action) => {
+      .addCase(loginWithPassword.rejected, (state, action) => {
         state.loading = false;
         state.isAuthenticated = false;
-        state.user = null;
-        state.token = null;
-        state.role = null;
-        state.error = action.payload?.message || 'Admin login failed';
-      })
-
-      // Super Admin Login
-      .addCase(loginSuperAdmin.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-        state.successMessage = null;
-      })
-      .addCase(loginSuperAdmin.fulfilled, (state, action) => {
-        state.loading = false;
-        state.isAuthenticated = true;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
-        state.role = action.payload.user?.role || 'super_admin';
-        state.successMessage = 'Super Admin login successful';
-      })
-      .addCase(loginSuperAdmin.rejected, (state, action) => {
-        state.loading = false;
-        state.isAuthenticated = false;
-        state.user = null;
-        state.token = null;
-        state.role = null;
-        state.error = action.payload?.message || 'Super Admin login failed';
+        state.error = action.payload?.message || 'Login failed';
       });
   },
 });
@@ -149,9 +88,6 @@ export const {
   clearError,
   clearSuccess,
   logout,
-  loginStart,
-  loginSuccess,
-  loginFailure,
 } = authSlice.actions;
 
 export default authSlice.reducer;

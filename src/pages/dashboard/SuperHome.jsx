@@ -10,6 +10,7 @@ import {
     ChevronDown,
     ClipboardCheck,
     IndianRupee,
+    Landmark,
     MapPin,
     Plus,
     RefreshCw,
@@ -17,13 +18,7 @@ import {
     UsersRound,
 } from 'lucide-react';
 import { fetchSuperDashboardOverview } from '../../services/dashboardService';
-
-const formatMoney = (amount) => {
-    if (!amount) return '0';
-    if (amount >= 10000000) return `${(amount / 10000000).toFixed(amount >= 100000000 ? 1 : 2)} Cr`;
-    if (amount >= 100000) return `${(amount / 100000).toFixed(1)} L`;
-    return amount.toLocaleString('en-IN');
-};
+import { formatMoney, HumanCapitalCard, MetricPanel, SalesVelocityCard } from './DashboardShared';
 
 const formatDateTime = (value) => {
     if (!value) return '';
@@ -262,6 +257,9 @@ const SuperHome = () => {
     const operationalAlerts = overview?.operationalAlerts || [];
     const liveActivity = overview?.liveActivity || [];
     const officerLeaderboards = overview?.officerLeaderboards || { salesOfficers: [], fieldOfficers: [] };
+    const humanCapital = overview?.humanCapital || { total: 0, brokers: 0, salesOfficers: 0, fieldOfficers: 0, growthPercent: 0 };
+    const salesVelocity = overview?.salesVelocity || { series: [], projectedQ3GrowthPercent: 0 };
+    const branchComparison = overview?.branchComparison || [];
 
     const stageByKey = Object.fromEntries(funnel.stages.map((stage) => [stage.key, stage]));
     const closedStage = stageByKey.dealClosed || { value: 0, rate: 0 };
@@ -327,6 +325,66 @@ const SuperHome = () => {
                             <b className="text-base">₹{formatMoney(metrics.financials.commissionPayable)}</b>
                         </div>
                     </MetricCard>
+                </div>
+
+                {/* Super-admin-only: cross-branch financial oversight. Unlike the KPI cards above
+                    (which reflect whatever single branch/"All Branches" filter is selected in the
+                    TopBar), this table always aggregates PER BRANCH so the Super Admin can compare
+                    deal pipeline, collections, overdue payment milestones, and broker withdrawal
+                    queues across every branch side-by-side. */}
+                <div className="mt-8">
+                    <MetricPanel title="Cross-Branch Financial Comparison" icon={Landmark}>
+                        <div className="-mx-1 overflow-x-auto rounded-[8px] border border-[#D8D3E6]">
+                            <table className="w-full min-w-[860px] text-left">
+                                <thead className="bg-[#F2EEFA] text-[12px] uppercase tracking-[0.14em] text-[#171327]">
+                                    <tr>
+                                        <th className="px-6 py-4 font-bold">Branch</th>
+                                        <th className="px-6 py-4 font-bold">Deals</th>
+                                        <th className="px-6 py-4 font-bold">Pipeline Value</th>
+                                        <th className="px-6 py-4 font-bold">Collections Pending</th>
+                                        <th className="px-6 py-4 font-bold">Overdue Milestones</th>
+                                        <th className="px-6 py-4 font-bold">Pending Broker Withdrawals</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#D8D3E6] bg-white">
+                                    {branchComparison.map((branch) => (
+                                        <tr key={branch.branchId} className="align-top">
+                                            <td className="px-6 py-5 text-sm font-bold text-[#15111F]">
+                                                {branch.branchName}
+                                                {branch.city && <p className="mt-0.5 text-xs font-medium text-[#615C71]">{branch.city}</p>}
+                                            </td>
+                                            <td className="px-6 py-5 text-sm">{branch.dealCount}</td>
+                                            <td className="px-6 py-5 text-sm font-bold">₹{formatMoney(branch.pipelineValue)}</td>
+                                            <td className="px-6 py-5 text-sm">₹{formatMoney(branch.collectionsPending)}</td>
+                                            <td className="px-6 py-5 text-sm">
+                                                {branch.overdueMilestones > 0 ? (
+                                                    <StatusPill tone="route">{branch.overdueMilestones} Overdue</StatusPill>
+                                                ) : (
+                                                    <StatusPill tone="confirmed">On Track</StatusPill>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-5 text-sm">
+                                                {branch.pendingWithdrawalCount > 0
+                                                    ? `${branch.pendingWithdrawalCount} • ₹${formatMoney(branch.pendingWithdrawalAmount)}`
+                                                    : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {branchComparison.length === 0 && (
+                                        <tr><td colSpan={6} className="px-6 py-8 text-center text-xs font-bold text-[#615C71]">No branch data available.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </MetricPanel>
+                </div>
+
+                {/* Reused from the admin Home dashboard: super_admin should see everything an
+                    admin sees (Human Capital + Sales Velocity), scoped to the selected branch,
+                    plus the super-admin-only sections below. */}
+                <div className="mt-8 grid gap-6 xl:grid-cols-2">
+                    <HumanCapitalCard humanCapital={humanCapital} className="min-h-[360px]" />
+                    <SalesVelocityCard salesVelocity={salesVelocity} />
                 </div>
 
                 <div className="mt-8 grid gap-6 xl:grid-cols-[0.94fr_1.96fr]">

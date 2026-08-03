@@ -85,10 +85,41 @@ export const getBranchTeam = createAsyncThunk(
   }
 );
 
+/**
+ * Async thunk to fetch a branch's current Admin + pending workload summary
+ */
+export const getBranchAdmin = createAsyncThunk(
+  'branches/getBranchAdmin',
+  async (branchId, { rejectWithValue }) => {
+    try {
+      return await branchService.fetchBranchAdmin(branchId);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+/**
+ * Async thunk to replace a branch's Admin with a different admin-role user
+ */
+export const replaceBranchAdmin = createAsyncThunk(
+  'branches/replaceBranchAdmin',
+  async ({ branchId, newAdminId }, { rejectWithValue }) => {
+    try {
+      return await branchService.replaceBranchAdmin(branchId, newAdminId);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 const initialState = {
   branches: [],
   selectedBranch: null,
   branchTeam: [],
+  branchAdmin: null,
+  branchAdminLoading: false,
+  branchAdminError: null,
   loading: false,
   error: null,
   successMessage: null,
@@ -115,6 +146,10 @@ const branchesSlice = createSlice({
     },
     clearBranchTeam: (state) => {
       state.branchTeam = [];
+    },
+    clearBranchAdmin: (state) => {
+      state.branchAdmin = null;
+      state.branchAdminError = null;
     },
   },
   extraReducers: (builder) => {
@@ -249,9 +284,38 @@ const branchesSlice = createSlice({
       .addCase(getBranchTeam.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.message || 'Failed to fetch branch team';
+      })
+
+      // Get branch admin overview (current admin + workload summary)
+      .addCase(getBranchAdmin.pending, (state) => {
+        state.branchAdminLoading = true;
+        state.branchAdminError = null;
+      })
+      .addCase(getBranchAdmin.fulfilled, (state, action) => {
+        state.branchAdminLoading = false;
+        state.branchAdmin = action.payload?.data || action.payload;
+      })
+      .addCase(getBranchAdmin.rejected, (state, action) => {
+        state.branchAdminLoading = false;
+        state.branchAdminError = action.payload?.message || 'Failed to fetch branch admin';
+      })
+
+      // Replace branch admin
+      .addCase(replaceBranchAdmin.pending, (state) => {
+        state.branchAdminLoading = true;
+        state.branchAdminError = null;
+      })
+      .addCase(replaceBranchAdmin.fulfilled, (state, action) => {
+        state.branchAdminLoading = false;
+        state.branchAdmin = action.payload?.data || action.payload;
+        state.successMessage = 'Branch admin replaced successfully';
+      })
+      .addCase(replaceBranchAdmin.rejected, (state, action) => {
+        state.branchAdminLoading = false;
+        state.branchAdminError = action.payload?.message || 'Failed to replace branch admin';
       });
   },
 });
 
-export const { clearError, clearSuccess, clearSelectedBranch, clearBranchTeam } = branchesSlice.actions;
+export const { clearError, clearSuccess, clearSelectedBranch, clearBranchTeam, clearBranchAdmin } = branchesSlice.actions;
 export default branchesSlice.reducer;

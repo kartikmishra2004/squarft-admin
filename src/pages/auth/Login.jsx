@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Lock, Phone, ArrowRight, Shield, User } from 'lucide-react';
+import { AlertCircle, Mail, Lock, Shield, User } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { loginAdmin, loginSuperAdmin, clearError } from '../../store/authSlice';
+import { loginWithPassword, clearError } from '../../store/authSlice';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import loginBg from '../../assets/login-bg.png';
 import logo from '../../assets/logo.png';
 
 const Login = () => {
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState('admin'); // 'admin' or 'super_admin'
   const [formErrors, setFormErrors] = useState({});
-  
+
   const { loading, error, isAuthenticated } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -42,21 +42,14 @@ const Login = () => {
     }
   }, [error, dispatch]);
 
-  const validateForm = () => {
+  const validate = () => {
     const errors = {};
-
-    if (!phone.trim()) {
-      errors.phone = 'Phone number is required';
-    } else if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
-      errors.phone = 'Please enter a valid 10-digit phone number';
+    if (!email.trim()) {
+      errors.email = 'Email is required';
     }
-
     if (!password) {
       errors.password = 'Password is required';
-    } else if (password.length < 8) {
-      errors.password = 'Password must be at least 8 characters';
     }
-
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -64,34 +57,15 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    if (!validate()) {
       return;
     }
 
     try {
-      // Clean phone number (remove non-digits)
-      const cleanPhone = phone.replace(/\D/g, '');
-
-      const credentials = {
-        phone: cleanPhone,
-        password,
-      };
-
-      if (selectedRole === 'admin') {
-        await dispatch(loginAdmin(credentials)).unwrap();
-      } else {
-        await dispatch(loginSuperAdmin(credentials)).unwrap();
-      }
-
+      await dispatch(loginWithPassword({ email: email.trim(), password, role: selectedRole })).unwrap();
       // Navigation is handled by the useEffect hook
     } catch (err) {
       console.error('Login error:', err);
-      
-      // Show user-friendly message for inactive account
-      if (err?.status === 403 && err?.message?.includes('inactive')) {
-        // Keep the error as-is, it will be displayed from Redux state
-        console.warn('Account is inactive. Please contact your administrator to activate your account.');
-      }
     }
   };
 
@@ -149,18 +123,20 @@ const Login = () => {
 
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-1 font-display">Sign In</h1>
-            <p className="text-gray-500 text-xs">Please select your account type and enter credentials.</p>
+            <p className="text-gray-500 text-xs">
+              Select your account type and enter your email and password.
+            </p>
           </div>
 
           {/* Role Switcher */}
           <div className="flex p-1 bg-gray-100 rounded-xl mb-6 relative">
-            <motion.div 
+            <motion.div
               layoutId="role-bg"
               className="absolute top-1 bottom-1 left-1 right-1 w-[calc(50%-4px)] bg-white rounded-lg shadow-sm z-0"
               animate={{ x: selectedRole === 'admin' ? 0 : '100%' }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
             />
-            <button 
+            <button
               type="button"
               onClick={() => setSelectedRole('admin')}
               disabled={loading}
@@ -169,7 +145,7 @@ const Login = () => {
               <User size={16} />
               Admin
             </button>
-            <button 
+            <button
               type="button"
               onClick={() => setSelectedRole('super_admin')}
               disabled={loading}
@@ -190,20 +166,22 @@ const Login = () => {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[12px] font-semibold text-gray-600 ml-0.5">Phone Number</label>
-              <Input 
-                placeholder="Enter 10-digit mobile number"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                icon={Phone}
-                error={formErrors.phone}
+              <label className="text-[12px] font-semibold text-gray-600 ml-0.5">Email</label>
+              <Input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                icon={Mail}
+                error={formErrors.email}
                 disabled={loading}
+                autoFocus
               />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-[12px] font-semibold text-gray-600 ml-0.5">Password</label>
-              <Input 
+              <Input
                 type="password"
                 placeholder="Enter your password"
                 value={password}
@@ -215,38 +193,8 @@ const Login = () => {
             </div>
 
             <Button type="submit" isLoading={loading} className="w-full mt-2" disabled={loading}>
-              {loading ? 'Signing in...' : `Login as ${selectedRole === 'admin' ? 'Admin' : 'Super Admin'}`}
+              {loading ? 'Signing in...' : `Sign In as ${selectedRole === 'admin' ? 'Admin' : 'Super Admin'}`}
             </Button>
-
-            <div className="relative flex items-center justify-center my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-100"></div>
-              </div>
-              <span className="relative px-4 bg-white text-[10px] font-bold text-gray-400 uppercase tracking-widest">Or continue with</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Button 
-                variant="google" 
-                onClick={() => {}} 
-                className="py-2.5"
-                disabled={loading}
-                type="button"
-              >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
-                <span className="text-[11px]">Google</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => {}} 
-                className="py-2.5"
-                disabled={loading}
-                type="button"
-              >
-                <ArrowRight size={16} className="text-gray-400" />
-                <span className="text-[11px]">SSO</span>
-              </Button>
-            </div>
           </form>
         </div>
       </div>

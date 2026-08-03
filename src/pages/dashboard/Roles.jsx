@@ -93,7 +93,6 @@ const Roles = () => {
     const [roleDescription, setRoleDescription] = useState('');
     const [showLoginFields, setShowLoginFields] = useState(false);
     const [loginPhone, setLoginPhone] = useState('');
-    const [loginPassword, setLoginPassword] = useState('');
     const [loginFullName, setLoginFullName] = useState('');
     const [loginEmail, setLoginEmail] = useState('');
     const [saveFeedback, setSaveFeedback] = useState(false);
@@ -193,7 +192,6 @@ const Roles = () => {
         setRoleDescription('');
         setShowLoginFields(false);
         setLoginPhone('');
-        setLoginPassword('');
         setLoginFullName('');
         setLoginEmail('');
     };
@@ -209,8 +207,8 @@ const Roles = () => {
                 branchId: effectiveBranchId,
                 roleName: trimmedName,
                 description: roleDescription,
-                ...(showLoginFields && loginPhone && loginPassword
-                    ? { phone: loginPhone, password: loginPassword, fullName: loginFullName, email: loginEmail }
+                ...(showLoginFields && loginPhone
+                    ? { phone: loginPhone, fullName: loginFullName, email: loginEmail }
                     : {}),
             })).unwrap();
 
@@ -534,13 +532,6 @@ const Roles = () => {
                                             value={loginEmail}
                                             onChange={(event) => setLoginEmail(event.target.value)}
                                             placeholder="Email (optional)"
-                                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/15"
-                                        />
-                                        <input
-                                            type="password"
-                                            value={loginPassword}
-                                            onChange={(event) => setLoginPassword(event.target.value)}
-                                            placeholder="Password (min 8 chars)"
                                             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/15"
                                         />
                                     </div>

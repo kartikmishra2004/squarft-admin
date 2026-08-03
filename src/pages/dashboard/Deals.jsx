@@ -14,6 +14,7 @@ import Badge from '../../components/ui/Badge';
 import Header from '../../components/layout/Header';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
+import { useDialog } from '../../components/ui/Dialog';
 import { mockProjects } from '../../data/mockData';
 import samplePropertyImage from '../../assets/login-bg.png';
 import {
@@ -27,6 +28,7 @@ import {
     updateDealStatus as updateDealStatusApi,
     updatePaymentMilestone,
     uploadDealDocument,
+    deleteDealDocument,
 } from '../../services/dealManagementService';
 
 const getStatusBadge = (status) => {
@@ -426,6 +428,7 @@ const DealPropertyDetailsModal = ({ deal, projectDetails, propertyNumber, isOpen
 
 const Deals = () => {
     const dispatch = useDispatch();
+    const { confirm } = useDialog();
     const { deals, selectedDeal } = useSelector((state) => state.deals);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeDealFilter, setActiveDealFilter] = useState('all');
@@ -488,7 +491,7 @@ const Deals = () => {
 
     const handleDeleteDeal = async (deal) => {
         const dealCode = deal.dealCode;
-        if (window.confirm(`Are you sure you want to delete deal ${dealCode}?`)) {
+        if (await confirm(`Are you sure you want to delete deal ${dealCode}?`, { title: 'Delete Deal', confirmText: 'Delete', danger: true })) {
             const dealId = getApiDealId(deal);
             if (dealId) {
                 try {
@@ -614,6 +617,7 @@ const Deals = () => {
 
 const DealDetailView = ({ deal, onBack }) => {
     const dispatch = useDispatch();
+    const { alert } = useDialog();
     const [activeTab, setActiveTab] = useState('Payment Schedule');
     const [isProjectDetailsOpen, setIsProjectDetailsOpen] = useState(false);
     const [meetingForm, setMeetingForm] = useState({ date: '', time: '', remarks: '' });
@@ -908,6 +912,23 @@ const DealDetailView = ({ deal, onBack }) => {
         ]);
         setAdminDocumentForm({ name: '', category: 'AGREEMENT DOCUMENTS', file: null });
         event.currentTarget.reset();
+    };
+
+    // Delete an admin-shared document. Role-based edit/delete restriction is enforced
+    // server-side (role_tab_permissions.can_delete for the deal_management tab), so any
+    // user without delete rights simply gets a 403 back from the API.
+    const handleDeleteAdminDocument = async (documentId) => {
+        const dealId = getApiDealId(deal);
+        if (dealId) {
+            try {
+                await deleteDealDocument(dealId, documentId);
+            } catch (error) {
+                console.error('Failed to delete deal document:', error);
+                alert(error.message || 'You do not have permission to delete this document.', { title: 'Delete Failed', variant: 'danger' });
+                return;
+            }
+        }
+        updateDocuments(dealDocuments.filter((document) => document.id !== documentId));
     };
 
     return (
@@ -1470,14 +1491,24 @@ const DealDetailView = ({ deal, onBack }) => {
                                                             </div>
                                                             <p className="mt-1 text-[11px] font-bold text-gray-500 break-words">{document.category} - {document.meta}</p>
                                                         </div>
-                                                        <a
-                                                            href={document.fileUrl}
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                            className="h-8 px-3 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-black uppercase tracking-widest text-gray-700 hover:border-[#6F4BFF] hover:text-[#6F4BFF]"
-                                                        >
-                                                            View PDF
-                                                        </a>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <a
+                                                                href={document.fileUrl}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="h-8 px-3 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-black uppercase tracking-widest text-gray-700 hover:border-[#6F4BFF] hover:text-[#6F4BFF]"
+                                                            >
+                                                                View PDF
+                                                            </a>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteAdminDocument(document.id)}
+                                                                title="Delete document"
+                                                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-rose-500 hover:bg-rose-50 hover:border-rose-200"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ))}
                                                 {adminDocuments.length === 0 && (

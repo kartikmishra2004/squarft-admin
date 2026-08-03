@@ -23,6 +23,7 @@ import {
     Loader2
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
+import { useDialog } from '../../components/ui/Dialog';
 import {
     fetchPanelStats,
     fetchBuilderKycList,
@@ -43,6 +44,9 @@ import {
     fetchAllBranchFieldTasks,
     completeFieldTask,
     deleteFieldTask,
+    assignBuilderLeadToOfficer,
+    rejectBuilderLeadOnboarding,
+    rejectBuilderLeadDocument,
 } from '../../services/panelOverviewService';
 
 const formatNumber = (value) => {
@@ -692,6 +696,7 @@ const OnboardingDetailViewer = ({ data, activeStep, setActiveStep, onApprove, on
 };
 
 const PanelOverview = () => {
+    const { alert, prompt } = useDialog();
     // API-driven stats
     const [stats, setStats] = useState({ pending_kyc: 0, active_panel_users: 0, in_onboarding: 0, field_meetings: 0 });
     const [statsLoading, setStatsLoading] = useState(true);
@@ -729,6 +734,10 @@ const PanelOverview = () => {
 
     const selectedOfficer = officerDetails;
     const selectedLead = selectedLeadDetails;
+
+    // Builder lead admin actions (assign / send-back-for-correction / reject a document)
+    const [leadAssignOfficerId, setLeadAssignOfficerId] = useState('');
+    const [leadActionBusy, setLeadActionBusy] = useState(false);
 
     const [activeActivityTab, setActiveActivityTab] = useState('meetings');
 
@@ -892,6 +901,69 @@ const PanelOverview = () => {
             console.error('Failed to load lead details', e);
         }
     }, []);
+
+    // Assign the currently selected builder lead to a field officer.
+    const handleAssignLeadToOfficer = async () => {
+        if (!selectedLead?.id || !leadAssignOfficerId) return;
+        try {
+            setLeadActionBusy(true);
+            await assignBuilderLeadToOfficer(selectedLead.id, leadAssignOfficerId);
+            await loadLeadDetails(selectedLead.id);
+            alert('Lead assigned to field officer successfully.', { title: 'Success' });
+        } catch (e) {
+            console.error('Failed to assign lead', e);
+            alert(e?.message || 'Failed to assign lead to field officer.', { title: 'Assignment Failed', variant: 'danger' });
+        } finally {
+            setLeadActionBusy(false);
+        }
+    };
+
+    // Send an in-review lead back to the field officer for correction.
+    const handleRejectLeadOnboarding = async () => {
+        if (!selectedLead?.id) return;
+        const reason = await prompt('Reason for sending this project back for correction:', { title: 'Send Back for Correction' });
+        if (!reason || !reason.trim()) return;
+        const rejectedSectionName = await prompt('Which section needs correction? (e.g. "Legal Details")', { title: 'Send Back for Correction' });
+        if (!rejectedSectionName || !rejectedSectionName.trim()) return;
+        const rejectedSectionKey = await prompt('Section key for that section (e.g. "legal_details")', { title: 'Send Back for Correction', defaultValue: rejectedSectionName.trim().toLowerCase().replace(/\s+/g, '_') });
+        if (!rejectedSectionKey || !rejectedSectionKey.trim()) return;
+
+        try {
+            setLeadActionBusy(true);
+            await rejectBuilderLeadOnboarding(selectedLead.id, {
+                reason: reason.trim(),
+                rejected_section_key: rejectedSectionKey.trim(),
+                rejected_section_name: rejectedSectionName.trim(),
+            });
+            await loadLeadDetails(selectedLead.id);
+            alert('Project sent back to the field officer for correction.', { title: 'Success' });
+        } catch (e) {
+            console.error('Failed to send lead back for correction', e);
+            alert(e?.message || 'Failed to send this project back for correction.', { title: 'Failed', variant: 'danger' });
+        } finally {
+            setLeadActionBusy(false);
+        }
+    };
+
+    // Reject a single uploaded document/media row for this lead's project.
+    const handleRejectLeadDocument = async () => {
+        if (!selectedLead?.id) return;
+        const documentId = await prompt('Document ID to reject:', { title: 'Reject Document' });
+        if (!documentId || !documentId.trim()) return;
+        const reason = await prompt('Reason for rejecting this document:', { title: 'Reject Document' });
+        if (!reason || !reason.trim()) return;
+
+        try {
+            setLeadActionBusy(true);
+            await rejectBuilderLeadDocument(selectedLead.id, documentId.trim(), reason.trim());
+            alert('Document rejected successfully.', { title: 'Success' });
+        } catch (e) {
+            console.error('Failed to reject document', e);
+            alert(e?.message || 'Failed to reject this document.', { title: 'Failed', variant: 'danger' });
+        } finally {
+            setLeadActionBusy(false);
+        }
+    };
 
     const loadOnboardingProjects = useCallback(async (tab = projectOnboardTab) => {
         try {
@@ -1404,7 +1476,7 @@ const PanelOverview = () => {
     };
 
     const handleRejectProject = async (id) => {
-        const reason = window.prompt('Enter rejection reason for this project onboarding');
+        const reason = await prompt('Enter rejection reason for this project onboarding', { title: 'Reject Project' });
         if (!reason?.trim()) return;
         try {
             await decideProjectOnboarding(id, { action: 'reject', reason });
@@ -1430,7 +1502,7 @@ const PanelOverview = () => {
     };
 
     const handleRejectKycBuilder = async (id) => {
-        const reason = window.prompt('Enter rejection reason for this builder KYC');
+        const reason = await prompt('Enter rejection reason for this builder KYC', { title: 'Reject KYC' });
         if (!reason?.trim()) return;
         try {
             await updateBuilderKycStatus(id, { document_status: 'rejected', rejection_reason: reason.trim() });
@@ -1457,7 +1529,7 @@ const PanelOverview = () => {
     };
 
     const handleRejectOfficer = async (id) => {
-        const reason = window.prompt('Enter rejection reason for this officer project onboarding');
+        const reason = await prompt('Enter rejection reason for this officer project onboarding', { title: 'Reject Officer Project' });
         if (!reason?.trim()) return;
         try {
             await decideProjectOnboarding(id, { action: 'reject', reason });
@@ -2950,6 +3022,48 @@ const PanelOverview = () => {
                                                             <p className="text-xs font-bold text-[#171327]">{selectedLead.contactPerson}</p>
                                                             <p className="text-[10px] text-[#5E5A71] mt-0.5">{selectedLead.phoneNumber}</p>
                                                         </div>
+                                                    </div>
+
+                                                    {/* Admin Actions: assign / send back for correction / reject a document */}
+                                                    <div className="mt-3 flex flex-wrap items-center gap-2 pt-3 border-t border-[#EFEAF8]">
+                                                        <select
+                                                            value={leadAssignOfficerId}
+                                                            onChange={(e) => setLeadAssignOfficerId(e.target.value)}
+                                                            className="h-8 rounded-[6px] border border-[#D8D2EB] bg-white px-2 text-[10px] font-bold text-[#171327] focus:border-[#2717D7] focus:outline-none"
+                                                        >
+                                                            <option value="">Assign to field officer...</option>
+                                                            {fieldOfficers.map((fo) => (
+                                                                <option key={fo.id} value={fo.id}>{fo.name}</option>
+                                                            ))}
+                                                        </select>
+                                                        <button
+                                                            type="button"
+                                                            disabled={!leadAssignOfficerId || leadActionBusy}
+                                                            onClick={handleAssignLeadToOfficer}
+                                                            className="h-8 px-3 rounded-[6px] bg-[#2717D7] text-white text-[10px] font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                                        >
+                                                            Assign
+                                                        </button>
+
+                                                        {selectedLead.leadStatus === 'in_review' && (
+                                                            <button
+                                                                type="button"
+                                                                disabled={leadActionBusy}
+                                                                onClick={handleRejectLeadOnboarding}
+                                                                className="h-8 px-3 rounded-[6px] border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                                            >
+                                                                Send Back for Correction
+                                                            </button>
+                                                        )}
+
+                                                        <button
+                                                            type="button"
+                                                            disabled={leadActionBusy}
+                                                            onClick={handleRejectLeadDocument}
+                                                            className="h-8 px-3 rounded-[6px] border border-rose-200 bg-rose-50 text-rose-700 text-[10px] font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                                        >
+                                                            Reject a Document
+                                                        </button>
                                                     </div>
                                                 </div>
 

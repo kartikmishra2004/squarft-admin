@@ -67,6 +67,27 @@ export const fetchOfficerBuilderLeads = (officerId) =>
 export const fetchBuilderLeadDetails = (leadId) =>
   apiRequest(`${BASE}/field-officers/leads/${leadId}`);
 
+// Builder Lead Admin Actions (assign / send-back-for-correction / reject a document)
+const BUILDER_LEADS_BASE = '/api/admin/builder-leads';
+
+export const assignBuilderLeadToOfficer = (leadId, officerId) =>
+  apiRequest(`${BUILDER_LEADS_BASE}/${leadId}/assign`, {
+    method: 'PATCH',
+    body: JSON.stringify({ officerId }),
+  });
+
+export const rejectBuilderLeadOnboarding = (leadId, body) =>
+  apiRequest(`${BUILDER_LEADS_BASE}/${leadId}/reject-onboarding`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+
+export const rejectBuilderLeadDocument = (leadId, documentId, reason) =>
+  apiRequest(`${BUILDER_LEADS_BASE}/${leadId}/documents/${documentId}/reject`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reason }),
+  });
+
 // Tasks
 export const assignFieldTask = (body) =>
   apiRequest(`${BASE}/field-officers/tasks`, {

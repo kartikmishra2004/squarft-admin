@@ -106,9 +106,8 @@ export const createBranchRole = async (roleData = {}) => {
     description: roleData.description?.trim() || '',
   };
 
-  if (roleData.phone && roleData.password) {
+  if (roleData.phone) {
     body.phone = roleData.phone.trim();
-    body.password = roleData.password;
     body.fullName = roleData.fullName?.trim() || '';
     body.email = roleData.email?.trim() || undefined;
   }

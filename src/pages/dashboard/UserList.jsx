@@ -21,6 +21,7 @@ import Badge from '../../components/ui/Badge';
 import Header from '../../components/layout/Header';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
+import { useDialog } from '../../components/ui/Dialog';
 import { uploadCommonFile } from '../../services/commonService';
 
 const emptyUserForm = {
@@ -332,6 +333,7 @@ const UserList = () => {
 
 const UserEditView = ({ onBack }) => {
     const dispatch = useDispatch();
+    const { confirm } = useDialog();
     const { selectedUserDetails, detailLoading, saving } = useSelector((s) => s.users);
     const fileInputRefs = useRef({});
     const [uploadingDocKey, setUploadingDocKey] = useState(null);
@@ -434,7 +436,7 @@ const UserEditView = ({ onBack }) => {
     const docStatus = formState.document_status?.toLowerCase();
 
     const handleDeleteUser = async () => {
-        if (window.confirm(`Are you sure you want to delete ${profile.full_name}?`)) {
+        if (await confirm(`Are you sure you want to delete ${profile.full_name}?`, { title: 'Delete User', confirmText: 'Delete', danger: true })) {
             try {
                 await dispatch(removeAppUser(profile.id)).unwrap();
                 onBack();

@@ -26,6 +26,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Header from '../../components/layout/Header';
+import { useDialog } from '../../components/ui/Dialog';
 
 const getStatusBadge = (status) => {
     if (!status) return null;
@@ -1336,6 +1337,7 @@ const getDocumentNumberForFile = (docName, project) => {
 
 const ProjectDetailView = ({ project, onBack }) => {
     const dispatch = useDispatch();
+    const { alert } = useDialog();
     const [activeTab, setActiveTab] = useState('inventory');
     const [detailsActiveStep, setDetailsActiveStep] = useState(1);
     const [expandedConfigIndex, setExpandedConfigIndex] = useState(null);
@@ -1432,7 +1434,7 @@ const ProjectDetailView = ({ project, onBack }) => {
             });
             await loadDocuments();
         } catch (err) {
-            alert("File upload failed: " + (err.message || err));
+            alert("File upload failed: " + (err.message || err), { title: 'Upload Failed', variant: 'danger' });
         } finally {
             setDocsLoading(false);
         }
@@ -1445,7 +1447,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                 window.open(result.downloadUrl, '_blank');
             }
         } catch (err) {
-            alert("Failed to download document: " + (err.message || err));
+            alert("Failed to download document: " + (err.message || err), { title: 'Download Failed', variant: 'danger' });
         }
     };
 
@@ -1456,7 +1458,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                 window.open(result.downloadUrl, '_blank');
             }
         } catch (err) {
-            alert("Brochure download error: " + (err.message || err));
+            alert("Brochure download error: " + (err.message || err), { title: 'Download Failed', variant: 'danger' });
         }
     };
 

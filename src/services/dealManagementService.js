@@ -200,3 +200,8 @@ export const uploadDealDocument = async (dealId, { file, type }) =>
       type,
     }),
   }));
+
+export const deleteDealDocument = async (dealId, documentId) =>
+  unwrapData(await apiRequest(`${DEALS_BASE}/${dealId}/documents/${documentId}`, {
+    method: 'DELETE',
+  }));

@@ -10,6 +10,7 @@ const BRANCH_ENDPOINTS = {
   BY_ID: (branchId) => `/api/admin/branches/${branchId}`,
   STATUS: (branchId) => `/api/admin/branches/${branchId}/status`,
   TEAM: (branchId) => `/api/admin/branches/${branchId}/team`,
+  ADMIN: (branchId) => `/api/admin/branches/${branchId}/admin`,
 };
 
 /**
@@ -191,6 +192,69 @@ export const fetchBranchTeam = async (branchId) => {
     return response.data;
   } catch (error) {
     console.error('Fetch branch team error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch the branch's current Admin plus a pending workload summary
+ * (open leads / active deals / pending visits) for the Replace Admin dialog.
+ * @param {string} branchId - Branch ID
+ * @returns {Promise<Object>} { branch, currentAdmin, workloadSummary }
+ */
+export const fetchBranchAdmin = async (branchId) => {
+  try {
+    if (!branchId) {
+      throw {
+        status: 400,
+        message: 'Branch ID is required',
+        errors: [],
+      };
+    }
+
+    const response = await apiRequest(BRANCH_ENDPOINTS.ADMIN(branchId), {
+      method: 'GET',
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Fetch branch admin error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Replace a branch's Admin with a different admin-role user.
+ * @param {string} branchId - Branch ID
+ * @param {string} newAdminId - User ID of the new admin (must have the admin role)
+ * @returns {Promise<Object>} { branch, currentAdmin, workloadSummary }
+ */
+export const replaceBranchAdmin = async (branchId, newAdminId) => {
+  try {
+    if (!branchId) {
+      throw {
+        status: 400,
+        message: 'Branch ID is required',
+        errors: [],
+      };
+    }
+
+    if (!newAdminId) {
+      throw {
+        status: 400,
+        message: 'newAdminId is required',
+        errors: [],
+      };
+    }
+
+    const response = await apiRequest(BRANCH_ENDPOINTS.ADMIN(branchId), {
+      method: 'PATCH',
+      body: JSON.stringify({ newAdminId }),
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Replace branch admin error:', error);
     throw error;
   }
 };
