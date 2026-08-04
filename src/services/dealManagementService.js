@@ -121,6 +121,30 @@ export const normalizeDeal = (deal = {}) => {
 export const fetchDealMetrics = async () =>
   unwrapData(await apiRequest(`${DEALS_BASE}/metrics`, { method: 'GET' }));
 
+export const searchDealCustomers = async (q) => {
+  const data = unwrapData(await apiRequest(`${DEALS_BASE}/customers/search?q=${encodeURIComponent(q)}`, { method: 'GET' }));
+  return data?.customers || [];
+};
+
+export const createDeal = async (payload = {}) =>
+  normalizeDeal(unwrapData(await apiRequest(DEALS_BASE, {
+    method: 'POST',
+    body: JSON.stringify({
+      customerId: payload.customerId,
+      projectId: payload.projectId,
+      unitId: payload.unitId || undefined,
+      salesOfficerId: payload.salesOfficerId,
+      brokerId: payload.brokerId || undefined,
+      expectPrice: payload.expectPrice,
+      negotiationPrice: payload.negotiationPrice,
+      propType: payload.propType || undefined,
+      address: payload.address || undefined,
+      prefLocation: payload.prefLocation || undefined,
+      khasra: payload.khasra || undefined,
+      branchId: payload.branchId || undefined,
+    }),
+  })));
+
 export const fetchDeals = async (params = {}) => {
   const data = unwrapData(await apiRequest(`${DEALS_BASE}${buildQueryString(params)}`, { method: 'GET' }));
   return {

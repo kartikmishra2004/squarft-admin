@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { 
+import {
     Eye, Trash2, ArrowRight, PhoneCall, Check, X,
-    FileText, MoreVertical, Building2, MapPin, CreditCard, 
+    FileText, MoreVertical, Building2, MapPin, CreditCard,
     History, MessageSquare, Calendar, User, ClipboardList,
     Settings, Search, IndianRupee, Briefcase, Clock,
-    Edit2, CheckCircle2
+    Edit2, CheckCircle2, Plus
 } from 'lucide-react';
 import { setDeals, setSelectedDeal, deleteDeal, updateDealStatus, updateDealDetails } from '../../store/dealsSlice';
 import Card from '../../components/ui/Card';
@@ -21,15 +21,18 @@ import {
     addDealMeeting,
     addDealNote,
     addPaymentMilestone,
+    createDeal,
     fetchDealById,
     fetchDeals,
     markPaymentReceived,
     removeDeal,
+    searchDealCustomers,
     updateDealStatus as updateDealStatusApi,
     updatePaymentMilestone,
     uploadDealDocument,
     deleteDealDocument,
 } from '../../services/dealManagementService';
+import { fetchProperties, fetchSalesOfficers, fetchBrokers } from '../../services/commonService';
 
 const getStatusBadge = (status) => {
     if (!status) return null;
@@ -433,6 +436,23 @@ const Deals = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeDealFilter, setActiveDealFilter] = useState('all');
 
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [creatingDeal, setCreatingDeal] = useState(false);
+    const [createError, setCreateError] = useState('');
+    const [customerQuery, setCustomerQuery] = useState('');
+    const [customerResults, setCustomerResults] = useState([]);
+    const [selectedCustomer, setSelectedCustomer] = useState(null);
+    const [propertyQuery, setPropertyQuery] = useState('');
+    const [propertyResults, setPropertyResults] = useState([]);
+    const [selectedProperty, setSelectedProperty] = useState(null);
+    const [propertyUnits, setPropertyUnits] = useState([]);
+    const [createForm, setCreateForm] = useState({
+        unitId: '', salesOfficerId: '', brokerId: '', expectPrice: '', negotiationPrice: '',
+        propType: '', address: '', prefLocation: '', khasra: '',
+    });
+    const [salesOfficerOptions, setSalesOfficerOptions] = useState([]);
+    const [brokerOptions, setBrokerOptions] = useState([]);
+
     useEffect(() => {
         let isMounted = true;
 
@@ -453,6 +473,104 @@ const Deals = () => {
             isMounted = false;
         };
     }, [dispatch]);
+
+    useEffect(() => {
+        if (!isCreateModalOpen) return;
+
+        Promise.all([
+            fetchSalesOfficers({ status: 'ACTIVE', limit: 50 }).catch(() => ({ salesOfficers: [] })),
+            fetchBrokers({ status: 'ACTIVE', limit: 50 }).catch(() => ({ brokers: [] })),
+        ]).then(([officersRes, brokersRes]) => {
+            setSalesOfficerOptions(officersRes?.salesOfficers || officersRes?.items || []);
+            setBrokerOptions(brokersRes?.brokers || brokersRes?.items || []);
+        });
+    }, [isCreateModalOpen]);
+
+    useEffect(() => {
+        if (!isCreateModalOpen || customerQuery.trim().length < 2) {
+            setCustomerResults([]);
+            return;
+        }
+        const timer = setTimeout(() => {
+            searchDealCustomers(customerQuery.trim())
+                .then((customers) => setCustomerResults(customers))
+                .catch(() => setCustomerResults([]));
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [customerQuery, isCreateModalOpen]);
+
+    useEffect(() => {
+        if (!isCreateModalOpen || propertyQuery.trim().length < 2) {
+            setPropertyResults([]);
+            return;
+        }
+        const timer = setTimeout(() => {
+            fetchProperties({ search: propertyQuery.trim(), limit: 10 })
+                .then((res) => setPropertyResults(res.properties || res.items || []))
+                .catch(() => setPropertyResults([]));
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [propertyQuery, isCreateModalOpen]);
+
+    useEffect(() => {
+        if (!selectedProperty) {
+            setPropertyUnits([]);
+            return;
+        }
+        fetchProperties({ propertyId: selectedProperty.id, includeUnits: true, limit: 1 })
+            .then((res) => setPropertyUnits(res.units || []))
+            .catch(() => setPropertyUnits([]));
+    }, [selectedProperty]);
+
+    const resetCreateForm = () => {
+        setCustomerQuery('');
+        setCustomerResults([]);
+        setSelectedCustomer(null);
+        setPropertyQuery('');
+        setPropertyResults([]);
+        setSelectedProperty(null);
+        setCreateForm({
+            unitId: '', salesOfficerId: '', brokerId: '', expectPrice: '', negotiationPrice: '',
+            propType: '', address: '', prefLocation: '', khasra: '',
+        });
+        setCreateError('');
+    };
+
+    const handleCreateDeal = async (event) => {
+        event.preventDefault();
+        setCreateError('');
+
+        if (!selectedCustomer || !selectedProperty || !createForm.salesOfficerId) {
+            setCreateError('Customer, property, and sales officer are required.');
+            return;
+        }
+
+        setCreatingDeal(true);
+        try {
+            await createDeal({
+                customerId: selectedCustomer.id,
+                projectId: selectedProperty.id,
+                unitId: createForm.unitId || undefined,
+                salesOfficerId: createForm.salesOfficerId,
+                brokerId: createForm.brokerId || undefined,
+                expectPrice: createForm.expectPrice,
+                negotiationPrice: createForm.negotiationPrice || createForm.expectPrice,
+                propType: createForm.propType,
+                address: createForm.address,
+                prefLocation: createForm.prefLocation,
+                khasra: createForm.khasra,
+            });
+
+            setIsCreateModalOpen(false);
+            resetCreateForm();
+            const result = await fetchDeals({ page: 1, pageSize: 100 });
+            dispatch(setDeals(result.items));
+        } catch (error) {
+            setCreateError(error?.message || 'Failed to create deal.');
+        } finally {
+            setCreatingDeal(false);
+        }
+    };
 
     const dealFilters = useMemo(() => ([
         { id: 'all', label: 'All', icon: ClipboardList },
@@ -521,9 +639,14 @@ const Deals = () => {
                 <div className="max-w-[1600px] mx-auto space-y-6">
                     
                     <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-800">Customer List</h2>
-                            <p className="text-sm text-gray-500 mt-1">Manage and track all finalized deals and property owners.</p>
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-800">Customer List</h2>
+                                <p className="text-sm text-gray-500 mt-1">Manage and track all finalized deals and property owners.</p>
+                            </div>
+                            <Button icon={Plus} onClick={() => setIsCreateModalOpen(true)}>
+                                Create Deal
+                            </Button>
                         </div>
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                             <div className="relative flex-1 sm:w-80">
@@ -611,6 +734,208 @@ const Deals = () => {
                     </Card>
                 </div>
             </main>
+
+            <Modal
+                isOpen={isCreateModalOpen}
+                onClose={() => { setIsCreateModalOpen(false); resetCreateForm(); }}
+                title="Create Deal"
+                size="lg"
+            >
+                <form onSubmit={handleCreateDeal} className="space-y-4">
+                    {createError && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm font-bold text-red-700">
+                            {createError}
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</label>
+                        {selectedCustomer ? (
+                            <div className="mt-2 flex items-center justify-between rounded-lg border border-[#6F4BFF]/30 bg-[#6F4BFF]/5 px-3 py-2">
+                                <div>
+                                    <p className="text-sm font-bold text-gray-800">{selectedCustomer.first_name} {selectedCustomer.last_name}</p>
+                                    <p className="text-xs text-gray-500">{selectedCustomer.phone}</p>
+                                </div>
+                                <button type="button" onClick={() => setSelectedCustomer(null)} className="text-xs font-bold text-[#6F4BFF]">Change</button>
+                            </div>
+                        ) : (
+                            <div className="relative mt-2">
+                                <input
+                                    type="text"
+                                    value={customerQuery}
+                                    onChange={(e) => setCustomerQuery(e.target.value)}
+                                    placeholder="Search customer by name or phone"
+                                    className="w-full border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                                />
+                                {customerResults.length > 0 && (
+                                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                                        {customerResults.map((customer) => (
+                                            <button
+                                                key={customer.id}
+                                                type="button"
+                                                onClick={() => { setSelectedCustomer(customer); setCustomerQuery(''); setCustomerResults([]); }}
+                                                className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-0"
+                                            >
+                                                <p className="font-bold text-gray-800">{customer.first_name} {customer.last_name}</p>
+                                                <p className="text-xs text-gray-500">{customer.phone}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property</label>
+                        {selectedProperty ? (
+                            <div className="mt-2 flex items-center justify-between rounded-lg border border-[#6F4BFF]/30 bg-[#6F4BFF]/5 px-3 py-2">
+                                <div>
+                                    <p className="text-sm font-bold text-gray-800">{selectedProperty.title}</p>
+                                    <p className="text-xs text-gray-500">{selectedProperty.city}</p>
+                                </div>
+                                <button type="button" onClick={() => setSelectedProperty(null)} className="text-xs font-bold text-[#6F4BFF]">Change</button>
+                            </div>
+                        ) : (
+                            <div className="relative mt-2">
+                                <input
+                                    type="text"
+                                    value={propertyQuery}
+                                    onChange={(e) => setPropertyQuery(e.target.value)}
+                                    placeholder="Search property by title or city"
+                                    className="w-full border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                                />
+                                {propertyResults.length > 0 && (
+                                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                                        {propertyResults.map((property) => (
+                                            <button
+                                                key={property.id}
+                                                type="button"
+                                                onClick={() => { setSelectedProperty(property); setPropertyQuery(''); setPropertyResults([]); }}
+                                                className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-0"
+                                            >
+                                                <p className="font-bold text-gray-800">{property.title}</p>
+                                                <p className="text-xs text-gray-500">{property.city}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedProperty && propertyUnits.length > 0 && (
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Unit (optional)</label>
+                            <select
+                                value={createForm.unitId}
+                                onChange={(e) => setCreateForm((f) => ({ ...f, unitId: e.target.value }))}
+                                className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                            >
+                                <option value="">No specific unit</option>
+                                {propertyUnits.map((unit) => (
+                                    <option key={unit.id} value={unit.id}>
+                                        {unit.title || unit.unitCode} {unit.status ? `(${unit.status})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sales Officer</label>
+                            <select
+                                value={createForm.salesOfficerId}
+                                onChange={(e) => setCreateForm((f) => ({ ...f, salesOfficerId: e.target.value }))}
+                                className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                            >
+                                <option value="">Select officer...</option>
+                                {salesOfficerOptions.map((officer) => (
+                                    <option key={officer.id} value={officer.id}>{officer.name} ({officer.phone})</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Broker (optional)</label>
+                            <select
+                                value={createForm.brokerId}
+                                onChange={(e) => setCreateForm((f) => ({ ...f, brokerId: e.target.value }))}
+                                className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                            >
+                                <option value="">No broker</option>
+                                {brokerOptions.map((broker) => (
+                                    <option key={broker.id} value={broker.id}>{broker.name} ({broker.phone})</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Expected Price</label>
+                            <input
+                                type="number"
+                                value={createForm.expectPrice}
+                                onChange={(e) => setCreateForm((f) => ({ ...f, expectPrice: e.target.value }))}
+                                placeholder="e.g. 5000000"
+                                className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Negotiation Price</label>
+                            <input
+                                type="number"
+                                value={createForm.negotiationPrice}
+                                onChange={(e) => setCreateForm((f) => ({ ...f, negotiationPrice: e.target.value }))}
+                                placeholder="Defaults to expected price"
+                                className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Property Type</label>
+                            <input
+                                type="text"
+                                value={createForm.propType}
+                                onChange={(e) => setCreateForm((f) => ({ ...f, propType: e.target.value }))}
+                                placeholder="e.g. 3BHK Apartment"
+                                className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Preferred Location</label>
+                            <input
+                                type="text"
+                                value={createForm.prefLocation}
+                                onChange={(e) => setCreateForm((f) => ({ ...f, prefLocation: e.target.value }))}
+                                className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Address</label>
+                        <input
+                            type="text"
+                            value={createForm.address}
+                            onChange={(e) => setCreateForm((f) => ({ ...f, address: e.target.value }))}
+                            className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                        />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                        <Button type="button" variant="secondary" onClick={() => { setIsCreateModalOpen(false); resetCreateForm(); }} disabled={creatingDeal}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={creatingDeal}>
+                            {creatingDeal ? 'Creating...' : 'Create Deal'}
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 };
