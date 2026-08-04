@@ -95,6 +95,7 @@ const Roles = () => {
     const [loginPhone, setLoginPhone] = useState('');
     const [loginFullName, setLoginFullName] = useState('');
     const [loginEmail, setLoginEmail] = useState('');
+    const [loginPassword, setLoginPassword] = useState('');
     const [saveFeedback, setSaveFeedback] = useState(false);
     const [pendingDeleteRoleId, setPendingDeleteRoleId] = useState(null);
 
@@ -194,6 +195,7 @@ const Roles = () => {
         setLoginPhone('');
         setLoginFullName('');
         setLoginEmail('');
+        setLoginPassword('');
     };
 
     const handleCreateRole = async (event) => {
@@ -202,13 +204,19 @@ const Roles = () => {
         const trimmedName = roleName.trim();
         if (!trimmedName || !effectiveBranchId) return;
 
+        // Login is email+password only for admin accounts now, so both are
+        // required once the "create a login" section is filled in.
+        if (showLoginFields && loginPhone && (!loginEmail.trim() || loginPassword.length < 8)) {
+            return;
+        }
+
         try {
             await dispatch(createNewBranchRole({
                 branchId: effectiveBranchId,
                 roleName: trimmedName,
                 description: roleDescription,
                 ...(showLoginFields && loginPhone
-                    ? { phone: loginPhone, fullName: loginFullName, email: loginEmail }
+                    ? { phone: loginPhone, fullName: loginFullName, email: loginEmail, password: loginPassword }
                     : {}),
             })).unwrap();
 
@@ -529,11 +537,22 @@ const Roles = () => {
                                             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/15"
                                         />
                                         <input
+                                            type="email"
                                             value={loginEmail}
                                             onChange={(event) => setLoginEmail(event.target.value)}
-                                            placeholder="Email (optional)"
+                                            placeholder="Email (required to sign in)"
                                             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/15"
                                         />
+                                        <input
+                                            type="text"
+                                            value={loginPassword}
+                                            onChange={(event) => setLoginPassword(event.target.value)}
+                                            placeholder="Password (at least 8 characters)"
+                                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/15"
+                                        />
+                                        <p className="text-[10px] text-gray-400 font-medium">
+                                            Login is email + password only — share these credentials with the person directly.
+                                        </p>
                                     </div>
                                 )}
                             </form>

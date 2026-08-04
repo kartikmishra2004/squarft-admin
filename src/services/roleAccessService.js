@@ -110,6 +110,7 @@ export const createBranchRole = async (roleData = {}) => {
     body.phone = roleData.phone.trim();
     body.fullName = roleData.fullName?.trim() || '';
     body.email = roleData.email?.trim() || undefined;
+    body.password = roleData.password || undefined;
   }
 
   const response = await apiRequest(ROLE_ACCESS_ENDPOINTS.ROLES, {
