@@ -489,7 +489,12 @@ export const fetchClientOverview = async (clientId) =>
 
 export const fetchClientAssignedProperties = async (clientId) => {
   const data = unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/clients/${clientId}/assigned-properties`, { method: 'GET' }));
-  const assignments = (data || []).map(normalizePipelineItem);
+  // 'Dropped' (unassignProperty) is terminal — treat it as removed rather
+  // than showing it as a still-pipelined property, so the project correctly
+  // reappears in "Available Properties" for reassignment.
+  const assignments = (data || [])
+    .filter((item) => toTitleCase(item.status || item.assignment_status) !== 'Dropped')
+    .map(normalizePipelineItem);
   const propertyMap = await fetchPropertyProjectMap();
 
   return assignments.map((assignment) => {
@@ -642,6 +647,16 @@ export const assignPropertyToClient = async (clientId, payload = {}) =>
   unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/clients/${clientId}/assign-property`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  }));
+
+// Backend has no separate delete — an assignment is "removed" by moving it
+// to the terminal 'Dropped' status via the existing generic status-update
+// endpoint (updateAssignedPropertyStatus already accepted this status; the
+// UI just never called it for this purpose).
+export const unassignProperty = async (assignedPropertyId, notes) =>
+  unwrapData(await apiRequest(`${CLIENT_HUB_BASE}/assigned-properties/${assignedPropertyId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'Dropped', notes }),
   }));
 
 export const bookVisitForAssignedProperty = async (assignedPropertyId, payload = {}) =>

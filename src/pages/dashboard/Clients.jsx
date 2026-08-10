@@ -36,8 +36,8 @@ import {
     addClientMeeting,
     addClientRequirement,
     assignPropertyToClient,
-    assignUnitsToClient,
     bookVisitForAssignedProperty,
+    unassignProperty,
     convertClientToDeal,
     deleteClientMeeting,
     fetchAvailableOfficers,
@@ -871,6 +871,13 @@ const ClientProfileView = ({
                                                             </div>
                                                         </button>
                                                         <div className="px-4 pb-3 flex gap-2">
+                                                            {!continuedToDeal && (
+                                                                <button type="button" title="Remove assignment"
+                                                                    onClick={(e) => { e.stopPropagation(); handleUnassignProperty(pipelineItem.id); }}
+                                                                    className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-bold text-rose-600 bg-white transition hover:bg-rose-50">
+                                                                    Remove
+                                                                </button>
+                                                            )}
                                                             <button type="button"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -2340,9 +2347,30 @@ const Clients = () => {
         await fetchClientList();
     };
 
+    const handleUnassignProperty = async (assignedPropertyId) => {
+        if (!assignedPropertyId) return;
+        if (!window.confirm('Remove this property assignment? The client will lose access to it and the unit becomes available for reassignment.')) return;
+
+        try {
+            await unassignProperty(assignedPropertyId);
+            await refreshSelectedClient();
+            await fetchClientList();
+            setPageError('');
+        } catch (error) {
+            console.error('Failed to unassign property:', error);
+            setPageError(error.message || 'Failed to remove this property assignment.');
+        }
+    };
+
     const handleAssignUnits = async (assignments) => {
         try {
-            // New flow: Save to assigned_properties for the end-to-end Assigned Property flow
+            // assignPropertyToClient (assigned_properties table) already writes its
+            // own client_property_pipeline + lead_timeline rows server-side (see
+            // clientHubController.js), so calling the legacy assignUnitsToClient
+            // endpoint here too was pure duplication — it inserted a second,
+            // near-identical client_property_pipeline row per assignment and its
+            // own error was silently swallowed. Removed rather than patched: there
+            // is only one write path now, so the two tables can no longer diverge.
             await Promise.all(assignments.map(async (assignment) => {
                 const selectedProject = selectedProjects.find(p => p.id === assignment.projectId);
                 const payload = {
@@ -2354,17 +2382,6 @@ const Clients = () => {
                 };
                 return assignPropertyToClient(selectedClientId, payload);
             }));
-
-            // Legacy fallback: Save to client_property_pipeline for backwards compatibility
-            const assignmentsByProject = assignments.reduce((acc, assignment) => {
-                acc[assignment.projectId] = acc[assignment.projectId] || [];
-                acc[assignment.projectId].push(assignment.unitNumber);
-                return acc;
-            }, {});
-
-            await Promise.all(Object.entries(assignmentsByProject).map(([projectId, unitCodes]) => (
-                assignUnitsToClient(selectedClientId, projectId, unitCodes).catch(err => console.warn('Legacy assignment fallback failed:', err))
-            )));
 
             await refreshSelectedClient();
             await fetchClientList();

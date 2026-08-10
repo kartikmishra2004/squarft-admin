@@ -20,14 +20,19 @@ import samplePropertyImage from '../../assets/login-bg.png';
 import {
     addDealMeeting,
     addDealNote,
+    addNegotiation,
     addPaymentMilestone,
+    collectTokenPayment,
     createDeal,
+    deletePaymentMilestone,
     fetchDealById,
     fetchDeals,
     markPaymentReceived,
     removeDeal,
+    saveTokenPayment,
     searchDealCustomers,
     updateDealStatus as updateDealStatusApi,
+    updateDocumentStatus,
     updatePaymentMilestone,
     uploadDealDocument,
     deleteDealDocument,
@@ -183,31 +188,6 @@ const dealStatusMatchers = {
     },
 };
 
-const requiredUserDealDocuments = [
-    {
-        id: 'kyc_aadhaar',
-        name: 'Aadhaar Card',
-        category: 'IDENTITY & KYC',
-        source: 'user',
-        uploadedBy: 'user',
-        status: 'pending',
-        meta: 'Uploaded from user app',
-        visibleToUser: true,
-        fileUrl: '/documents/sample-deal-document.pdf',
-    },
-    {
-        id: 'kyc_address',
-        name: 'Address Proof',
-        category: 'IDENTITY & KYC',
-        source: 'user',
-        uploadedBy: 'user',
-        status: 'required',
-        meta: 'Required in user app',
-        visibleToUser: true,
-        fileUrl: '/documents/sample-deal-document.pdf',
-    },
-];
-
 const normalizeDocumentStatus = (status = '') => String(status).trim().toLowerCase();
 
 const getDocumentName = (document) => document.name || document.title || document.fileName || 'Document';
@@ -221,51 +201,22 @@ const getDocumentBadge = (status) => {
     return <Badge variant="gray">{status || 'Not set'}</Badge>;
 };
 
+// Real documents only — no fabricated/placeholder rows. A deal with nothing
+// uploaded yet renders an explicit empty state (see the documents panel below).
 const getDealDocumentsForAdmin = (deal) => {
     const existingDocuments = deal.documents || [];
-    const seededDocuments = existingDocuments.length ? existingDocuments : [
-        ...requiredUserDealDocuments.map((document) => ({
-            ...document,
-            id: `${deal.dealCode}-${document.id}`,
-            uploadedAt: document.status === 'pending' ? todayDate() : '',
-        })),
-        {
-            id: `${deal.dealCode}-sale-agreement`,
-            name: 'Sale Agreement',
-            category: 'AGREEMENT DOCUMENTS',
-            source: 'admin',
-            uploadedBy: 'admin',
-            status: 'verified',
-            meta: 'Shared by admin',
-            visibleToUser: true,
-            uploadedAt: deal.createdOn || todayDate(),
-            fileUrl: '/documents/sample-deal-document.pdf',
-        },
-        {
-            id: `${deal.dealCode}-allotment-letter`,
-            name: 'Allotment Letter',
-            category: 'AGREEMENT DOCUMENTS',
-            source: 'user',
-            uploadedBy: 'user',
-            status: 'pending',
-            meta: 'Uploaded from user app',
-            visibleToUser: true,
-            uploadedAt: todayDate(),
-            fileUrl: '/documents/sample-deal-document.pdf',
-        },
-    ];
 
-    return seededDocuments.map((document) => ({
+    return existingDocuments.map((document) => ({
         ...document,
         id: document.id || `${deal.dealCode}-${getDocumentName(document).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
         name: getDocumentName(document),
         category: document.category || 'DOCUMENTS',
-        source: document.source || document.uploadedBy || 'user',
-        uploadedBy: document.uploadedBy || document.source || 'user',
+        source: document.source || document.uploadedBy || 'admin',
+        uploadedBy: document.uploadedBy || document.source || 'admin',
         status: normalizeDocumentStatus(document.status || 'pending'),
         visibleToUser: document.visibleToUser !== false,
         meta: document.meta || document.fileType || document.type || 'PDF',
-        fileUrl: document.fileUrl || document.file_url || document.url || '/documents/sample-deal-document.pdf',
+        fileUrl: document.fileUrl || document.file_url || document.url || '',
     }));
 };
 
@@ -1017,14 +968,25 @@ const DealDetailView = ({ deal, onBack }) => {
         setMeetingForm({ date: '', time: '', remarks: '' });
     };
 
-    const handleAddNegotiation = (event) => {
+    const handleAddNegotiation = async (event) => {
         event.preventDefault();
         if (!negotiationForm.expectedAmount || !negotiationForm.customerOffer || !negotiationForm.finalOffer || !negotiationForm.finalDeal) return;
-        const nextNegotiation = {
-            id: Date.now(),
-            ...negotiationForm,
-            createdOn: todayDate(),
-        };
+        const dealId = getApiDealId(deal);
+        if (!dealId) return;
+
+        let nextNegotiation;
+        try {
+            nextNegotiation = await addNegotiation(dealId, {
+                expectedAmount: toAmount(negotiationForm.expectedAmount),
+                customerOffer: toAmount(negotiationForm.customerOffer),
+                finalOffer: toAmount(negotiationForm.finalOffer),
+                finalDeal: toAmount(negotiationForm.finalDeal),
+            });
+        } catch (error) {
+            console.error('Failed to add negotiation:', error);
+            return;
+        }
+
         updateDeal({
             negotiations: [nextNegotiation, ...(deal.negotiations || [])],
             finalDeal: toAmount(negotiationForm.finalDeal),
@@ -1054,28 +1016,41 @@ const DealDetailView = ({ deal, onBack }) => {
         setNoteText('');
     };
 
-    const handleSaveToken = (event) => {
+    const handleSaveToken = async (event) => {
         event.preventDefault();
         if (!tokenForm.amount) return;
-        updateDeal({
-            tokenPayment: {
-                id: deal.tokenPayment?.id || Date.now(),
-                ...tokenForm,
+        const dealId = getApiDealId(deal);
+        if (!dealId) return;
+
+        let tokenPayment;
+        try {
+            tokenPayment = await saveTokenPayment(dealId, {
                 amount: toAmount(tokenForm.amount),
-                status: deal.tokenPayment?.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
-            },
-        });
+                dueDate: tokenForm.dueDate,
+                mode: tokenForm.mode,
+            });
+        } catch (error) {
+            console.error('Failed to save token payment:', error);
+            return;
+        }
+
+        updateDeal({ tokenPayment });
     };
 
-    const handleCollectToken = () => {
+    const handleCollectToken = async () => {
         if (!deal.tokenPayment) return;
-        updateDeal({
-            tokenPayment: {
-                ...deal.tokenPayment,
-                status: 'COMPLETED',
-                collectedOn: todayDate(),
-            },
-        });
+        const dealId = getApiDealId(deal);
+        if (!dealId) return;
+
+        let tokenPayment;
+        try {
+            tokenPayment = await collectTokenPayment(dealId);
+        } catch (error) {
+            console.error('Failed to collect token payment:', error);
+            return;
+        }
+
+        updateDeal({ tokenPayment });
     };
 
     const handleSavePayment = async (event) => {
@@ -1146,7 +1121,17 @@ const DealDetailView = ({ deal, onBack }) => {
         setEditingPaymentId(payment.id);
     };
 
-    const handleDeletePayment = (paymentId) => {
+    const handleDeletePayment = async (paymentId) => {
+        const dealId = getApiDealId(deal);
+        if (dealId) {
+            try {
+                await deletePaymentMilestone(dealId, paymentId);
+            } catch (error) {
+                console.error('Failed to delete payment milestone:', error);
+                return;
+            }
+        }
+
         updateDeal({ payments: (deal.payments || []).filter((payment) => payment.id !== paymentId) });
     };
 
@@ -1178,7 +1163,17 @@ const DealDetailView = ({ deal, onBack }) => {
         updateDeal({ documents });
     };
 
-    const handleDocumentStatus = (documentId, status) => {
+    const handleDocumentStatus = async (documentId, status) => {
+        const dealId = getApiDealId(deal);
+        if (!dealId) return;
+
+        try {
+            await updateDocumentStatus(dealId, documentId, status);
+        } catch (error) {
+            console.error('Failed to update document status:', error);
+            return;
+        }
+
         updateDocuments(dealDocuments.map((document) => (
             document.id === documentId
                 ? {
@@ -1723,8 +1718,13 @@ const DealDetailView = ({ deal, onBack }) => {
                                         <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
                                             <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/70">
                                                 <p className="text-xs font-black text-gray-800">Fetched from user app</p>
-                                                <p className="text-[11px] font-bold text-gray-500">Open the dummy PDF and approve uploaded documents.</p>
+                                                <p className="text-[11px] font-bold text-gray-500">Open and approve documents the customer uploaded.</p>
                                             </div>
+                                            {userDocuments.length === 0 && (
+                                                <div className="p-6 text-center">
+                                                    <p className="text-xs font-bold text-gray-400">No documents uploaded yet.</p>
+                                                </div>
+                                            )}
                                             <div className="divide-y divide-gray-100">
                                                 {userDocuments.map((document) => {
                                                     const status = normalizeDocumentStatus(document.status);

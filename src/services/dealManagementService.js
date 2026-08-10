@@ -43,13 +43,36 @@ export const normalizeDealDocument = (document = {}, dealCode = '') => ({
   name: document.name || document.title || 'Document',
   category: document.category || document.type || 'DOCUMENTS',
   type: document.type || document.category || 'DOCUMENT',
-  source: document.uploaded_by ? 'user' : document.source || 'admin',
-  uploadedBy: document.uploaded_by ? 'user' : document.uploadedBy || document.source || 'admin',
-  status: document.status || 'verified',
+  source: document.source || 'admin',
+  uploadedBy: document.source || document.uploadedBy || 'admin',
+  status: document.status || 'pending',
   meta: document.fileType || document.type || 'PDF',
   visibleToUser: document.visibleToUser !== false,
+  reviewedAt: formatDate(document.reviewed_at || document.reviewedAt),
+  reviewedBy: document.reviewed_by || document.reviewedBy,
   uploadedAt: formatDate(document.uploaded_at || document.uploadedAt),
-  fileUrl: document.fileUrl || document.file_url || document.url || '/documents/sample-deal-document.pdf',
+  fileUrl: document.fileUrl || document.file_url || document.url || '',
+});
+
+export const normalizeTokenPayment = (payment) => {
+  if (!payment) return null;
+  return {
+    id: payment.id,
+    amount: asNumber(payment.amount),
+    dueDate: formatDate(payment.due_date || payment.dueDate),
+    mode: payment.mode || 'Cash',
+    status: payment.status || 'PENDING',
+    collectedOn: formatDate(payment.paid_on || payment.collectedOn),
+  };
+};
+
+export const normalizeDealNegotiation = (negotiation = {}) => ({
+  id: negotiation.id,
+  expectedAmount: asNumber(negotiation.expected_amount ?? negotiation.expectedAmount),
+  customerOffer: asNumber(negotiation.customer_offer ?? negotiation.customerOffer),
+  finalOffer: asNumber(negotiation.final_offer ?? negotiation.finalOffer),
+  finalDeal: asNumber(negotiation.final_deal ?? negotiation.finalDeal),
+  createdOn: formatDate(negotiation.created_at || negotiation.createdOn),
 });
 
 export const normalizeDealTimelineItem = (item = {}) => ({
@@ -111,6 +134,8 @@ export const normalizeDeal = (deal = {}) => {
     unitId: deal.unit_id || deal.unitId,
     visitId: deal.visit_id || deal.visitId || null,
     payments: Array.isArray(deal.payments) ? deal.payments.map(normalizeDealPayment) : deal.payments,
+    tokenPayment: normalizeTokenPayment(deal.tokenPayment || deal.token_payment),
+    negotiations: Array.isArray(deal.negotiations) ? deal.negotiations.map(normalizeDealNegotiation) : deal.negotiations,
     documents: Array.isArray(deal.documents) ? deal.documents.map((document) => normalizeDealDocument(document, dealCode)) : deal.documents,
     timeline: Array.isArray(deal.timeline) ? deal.timeline.map(normalizeDealTimelineItem) : deal.timeline,
     notes: Array.isArray(deal.notes) ? deal.notes.map(normalizeDealNote) : deal.notes,
@@ -205,6 +230,41 @@ export const updatePaymentMilestone = async (dealId, paymentId, payment) =>
       status: payment.status,
     }),
   })));
+
+export const deletePaymentMilestone = async (dealId, paymentId) =>
+  apiRequest(`${DEALS_BASE}/${dealId}/payments/${paymentId}`, { method: 'DELETE' });
+
+export const saveTokenPayment = async (dealId, payment) =>
+  normalizeTokenPayment(unwrapData(await apiRequest(`${DEALS_BASE}/${dealId}/token-payment`, {
+    method: 'POST',
+    body: JSON.stringify({
+      amount: payment.amount,
+      dueDate: payment.dueDate,
+      mode: payment.mode,
+    }),
+  })));
+
+export const collectTokenPayment = async (dealId) =>
+  normalizeTokenPayment(unwrapData(await apiRequest(`${DEALS_BASE}/${dealId}/token-payment/status`, {
+    method: 'PATCH',
+  })));
+
+export const addNegotiation = async (dealId, negotiation) =>
+  normalizeDealNegotiation(unwrapData(await apiRequest(`${DEALS_BASE}/${dealId}/negotiations`, {
+    method: 'POST',
+    body: JSON.stringify({
+      expectedAmount: negotiation.expectedAmount,
+      customerOffer: negotiation.customerOffer,
+      finalOffer: negotiation.finalOffer,
+      finalDeal: negotiation.finalDeal,
+    }),
+  })));
+
+export const updateDocumentStatus = async (dealId, documentId, status) =>
+  normalizeDealDocument(unwrapData(await apiRequest(`${DEALS_BASE}/${dealId}/documents/${documentId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })), dealId);
 
 export const markPaymentReceived = async (dealId, paymentId, payload = {}) =>
   unwrapData(await apiRequest(`${DEALS_BASE}/${dealId}/payments/${paymentId}/status`, {

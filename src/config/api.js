@@ -38,6 +38,21 @@ export const handleApiError = async (response) => {
   };
 };
 
+// Session-expiry handling — same intent as the pattern already correct in
+// squarft-project-panel/services/api.js:67-76 (clear the stored session on a
+// 401), adapted for this app's plain-fetch client instead of an axios
+// interceptor. A hard redirect (not a router navigate call, which isn't
+// reachable from a plain module function) guarantees Redux/localStorage
+// state is fully reset rather than left half-cleared.
+const handleSessionExpiry = () => {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('userRole');
+  localStorage.removeItem('userData');
+  if (window.location.pathname !== '/auth/login') {
+    window.location.href = '/auth/login';
+  }
+};
+
 export const apiRequest = async (endpoint, options = {}) => {
   const { skipAuth = false, ...fetchOptions } = options;
   const url = `${API_BASE_URL}${endpoint}`;
@@ -50,6 +65,11 @@ export const apiRequest = async (endpoint, options = {}) => {
         ...fetchOptions.headers,
       },
     });
+
+    if (response.status === 401 && !skipAuth) {
+      handleSessionExpiry();
+      throw { status: 401, message: 'Session expired. Please log in again.', errors: [] };
+    }
 
     if (!response.ok) {
       throw await handleApiError(response);

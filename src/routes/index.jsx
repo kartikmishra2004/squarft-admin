@@ -90,8 +90,16 @@ const AppRoutes = () => {
             <Home />
           </ProtectedRoute>
         } />
-        <Route path="roles" element={<Roles />} />
-        <Route path="settings" element={<SettingsPage />} />
+        <Route path="roles" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <Roles />
+          </ProtectedRoute>
+        } />
+        <Route path="settings" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <SettingsPage />
+          </ProtectedRoute>
+        } />
 
         {/* Super Admin Specific */}
         <Route path="branches" element={
@@ -111,23 +119,51 @@ const AppRoutes = () => {
         } />
 
         {/* Admin Specific */}
-        <Route path="leads" element={<Leads />} />
-        <Route path="clients" element={<Clients />} />
-        <Route path="inventory" element={<Inventory />} />
-        <Route path="visits" element={<Visits />} />
-        <Route path="deals" element={<Deals />} />
+        <Route path="leads" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <Leads />
+          </ProtectedRoute>
+        } />
+        <Route path="clients" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <Clients />
+          </ProtectedRoute>
+        } />
+        <Route path="inventory" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <Inventory />
+          </ProtectedRoute>
+        } />
+        <Route path="visits" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <Visits />
+          </ProtectedRoute>
+        } />
+        <Route path="deals" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <Deals />
+          </ProtectedRoute>
+        } />
         <Route path="payment-milestones" element={
           <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
             <PaymentMilestones />
           </ProtectedRoute>
         } />
-        <Route path="users" element={<UserList />} />
+        <Route path="users" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <UserList />
+          </ProtectedRoute>
+        } />
         <Route path="user-verification" element={
           <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
             <UserVerification />
           </ProtectedRoute>
         } />
-        <Route path="user-app-activities" element={<UserAppActivities />} />
+        <Route path="user-app-activities" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <UserAppActivities />
+          </ProtectedRoute>
+        } />
         <Route path="panel-overview" element={
           <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
             <PanelOverview />

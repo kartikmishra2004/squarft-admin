@@ -19,7 +19,6 @@ import {
     getProjectById,
     getConfigurationUnits
 } from '../../store/inventorySlice';
-import { projectOnboardingList } from '../../data/mockData';
 import * as inventoryService from '../../services/inventoryService';
 import { fetchProjectOnboardingDetails } from '../../services/panelOverviewService';
 import Card from '../../components/ui/Card';
@@ -1185,93 +1184,6 @@ const mapDetailsToForm = (d) => {
     return { step1, step2, step3, step4, step5, step6 };
 };
 
-const getOnboardingForm = (project) => {
-    const matched = projectOnboardingList.find(p => {
-        const pName = p.projectName || '';
-        const projName = project.name || '';
-        return pName.toLowerCase() === projName.toLowerCase() || pName.toLowerCase().includes(projName.toLowerCase());
-    });
-    if (matched) return matched.form;
-
-    const city = (project.location || '').split(',').pop()?.trim() || 'Mumbai';
-    return {
-        step1: {
-            projectName: project.name,
-            location: project.location,
-            city: city,
-            state: city === 'Mumbai' ? 'Maharashtra' : city === 'Delhi' ? 'Delhi' : city === 'Bangalore' ? 'Karnataka' : city === 'Chennai' ? 'Tamil Nadu' : 'Madhya Pradesh',
-            pincode: '400001',
-            salesOfficerName: project.officer || 'Rahul Sharma',
-            salesOfficerContact: '9820011223',
-            responsiblePersonName: project.builderProfile?.fullName || 'Arjun Mehra',
-            responsiblePersonContact: project.builderProfile?.phone || '9823144001'
-        },
-        step2: {
-            selectedTypes: (project.configs || []).map(config => {
-                const mainType = (project.specs || '').includes('Commercial') ? 'Commercial' : 'Residential';
-                return {
-                    id: `${mainType.toLowerCase()}-${config.toLowerCase()}`,
-                    mainType,
-                    subType: config
-                };
-            })
-        },
-        step3: {
-            unitConfigs: {
-                default: (project.inventory || []).map(inv => ({
-                    tower: 'Tower A',
-                    floor: '5',
-                    bhk: inv.type,
-                    area: inv.size.replace(/[^\d]/g, ''),
-                    price: inv.basePrice,
-                    propertyNumber: 'A-501'
-                }))
-            }
-        },
-        step4: {
-            possessionStatus: project.possession || 'Possession Pending',
-            expectedPossessionDate: '2027-12-31',
-            projectLaunchStatus: 'Already Launched',
-            projectLaunchDate: '2024-01-15',
-            developmentCompletionPercentage: project.progress || '65',
-            currentDevelopmentStage: ['Boundary wall completed', 'Work in progress'],
-            approvals: {
-                rera: { status: 'Yes', registrationNumber: project.builderProfile?.reraNumber || project.reraNumber || 'MHRERA-P51800044791' },
-                tncp: { status: 'Yes', registrationNumber: 'TNCP-MUM-2024-1882' },
-                buildingPermission: { status: 'Yes', registrationNumber: 'BP-MUM-2024-098' },
-                developmentPermission: { status: 'Yes', registrationNumber: 'DP-MUM-2024-012' }
-            }
-        },
-        step5: {
-            guidelineValueAmount: '8000',
-            guidelineValueUnit: 'Per Sq. Ft.',
-            propertyJurisdictionArea: `${city} Municipal Corporation`,
-            guidelineYear: '2026',
-            registryChargesAvailable: 'Yes',
-            registryChargesMaleBuyer: '7.5%',
-            registryChargesFemaleBuyer: '5.5%',
-            otherGovernmentCharges: '1.0% stamp duty',
-            loanAvailable: 'Yes',
-            tieUpBankName: 'SBI, HDFC, ICICI',
-            maximumLoanPercentage: '80%',
-            loanApprovalStatus: 'Approved',
-            requiredLoanDocuments: 'PAN Card, Aadhaar Card, 3 Months Salary Slip, 2 Years ITR',
-            ownershipType: 'Outright Ownership',
-            titleVerificationStatus: 'Clear Title',
-            jvLandOwnerName: '',
-            jvDeveloperBuilderName: project.builder,
-            jvRevenueAreaSharingDetails: ''
-        },
-        step6: {
-            images: (project.projectImages || []).map((img, idx) => ({
-                uri: img,
-                fileName: `project-image-${idx + 1}.png`
-            })),
-            agreed: true
-        }
-    };
-};
-
 const getAmenityConfig = (amenityName) => {
     const name = amenityName.toLowerCase();
     if (name.includes('gym') || name.includes('fitness')) return { icon: Dumbbell, color: 'text-rose-500 bg-rose-50 border-rose-100' };
@@ -1369,13 +1281,15 @@ const ProjectDetailView = ({ project, onBack }) => {
         loadOnboard();
     }, [project]);
 
+    // No fallback to fabricated/mock onboarding data here — every field below
+    // is read via optional chaining (form?.stepX?.field) and DetailField
+    // already renders a "[Pending]" badge for anything missing, so a project
+    // with no real onboarding submission yet correctly shows as not-submitted
+    // instead of displaying invented RERA numbers, bank tie-ups, etc.
     const projectForm = useMemo(() => {
-        if (onboardDetails) {
-            return mapDetailsToForm(onboardDetails);
-        }
-        if (!localProjectData) return null;
-        return getOnboardingForm(localProjectData);
-    }, [onboardDetails, localProjectData]);
+        if (!onboardDetails) return null;
+        return mapDetailsToForm(onboardDetails);
+    }, [onboardDetails]);
 
     const dynamicHierarchy = useMemo(() => {
         if (!localProjectData?.inventory?.length) return [];
