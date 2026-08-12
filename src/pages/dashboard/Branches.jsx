@@ -55,6 +55,8 @@ const initialFormState = {
     city: '',
     state: '',
     address: '',
+    latitude: '',
+    longitude: '',
     activeDeals: '0',
     revenue: '0',
     target: '0',
@@ -190,6 +192,8 @@ const Branches = () => {
             city: branch.city || '',
             state: branch.state || '',
             address: branch.address || '',
+            latitude: branch.latitude !== undefined && branch.latitude !== null ? String(branch.latitude) : '',
+            longitude: branch.longitude !== undefined && branch.longitude !== null ? String(branch.longitude) : '',
             activeDeals: String(branch.activeDeals ?? 0),
             revenue: String(branch.revenueValue ?? 0),
             target: String(branch.target ?? 0),
@@ -226,20 +230,12 @@ const Branches = () => {
             const cleanState = formState.state.trim();
             const cleanAddress = formState.address.trim();
 
-            console.log('=== BRANCH SUBMIT DEBUG ===');
-            console.log('Form State:', formState);
-            console.log('Form Type:', formState.type);
-            console.log('Form Status:', formState.status);
-
             // Map frontend display values to backend constants
             const typeMap = Object.fromEntries(branchTypeOptions.map((option) => [option.label, option.value]));
             const statusMap = Object.fromEntries(branchStatusOptions.map((option) => [option.label, option.value]));
 
             const mappedType = typeMap[formState.type] || 'REGIONAL_BRANCH';
             const mappedStatus = statusMap[formState.status] || 'ACTIVE';
-
-            console.log('Mapped Type:', mappedType);
-            console.log('Mapped Status:', mappedStatus);
 
             const branchData = {
                 name: cleanName,
@@ -261,13 +257,28 @@ const Branches = () => {
                 branchData.address = cleanAddress;
             }
 
-            console.log('Branch Data to send:', JSON.stringify(branchData, null, 2));
+            // Latitude/longitude: optional, but clamp to valid geographic ranges when provided
+            // (mirrors the Math.max/Math.min clamping pattern used for activeDeals/revenue/target above).
+            // NOTE(QA-D7): no Maps API key is configured in this project, so there is no interactive
+            // map picker yet — these are plain numeric inputs. See Complete Address / City / State
+            // fields nearby for the rest of the location data captured on this form.
+            if (formState.latitude !== '' && formState.latitude !== null && formState.latitude !== undefined) {
+                const parsedLatitude = Number(formState.latitude);
+                if (!Number.isNaN(parsedLatitude)) {
+                    branchData.latitude = Math.min(90, Math.max(-90, parsedLatitude));
+                }
+            }
+
+            if (formState.longitude !== '' && formState.longitude !== null && formState.longitude !== undefined) {
+                const parsedLongitude = Number(formState.longitude);
+                if (!Number.isNaN(parsedLongitude)) {
+                    branchData.longitude = Math.min(180, Math.max(-180, parsedLongitude));
+                }
+            }
 
             if (editingBranchId) {
-                console.log('UPDATE branch with ID:', editingBranchId);
                 await dispatch(updateExistingBranch({ branchId: editingBranchId, branchData })).unwrap();
             } else {
-                console.log('CREATE new branch');
                 await dispatch(createNewBranch(branchData)).unwrap();
             }
 
@@ -529,6 +540,36 @@ const Branches = () => {
                                 onChange={(event) => handleChange('state', event.target.value)}
                                 className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
                                 placeholder="e.g. Maharashtra"
+                                disabled={isSubmitting}
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Latitude</label>
+                            <input
+                                type="number"
+                                step="any"
+                                min="-90"
+                                max="90"
+                                value={formState.latitude}
+                                onChange={(event) => handleChange('latitude', event.target.value)}
+                                className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
+                                placeholder="e.g. 22.7196 (range -90 to 90)"
+                                disabled={isSubmitting}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Longitude</label>
+                            <input
+                                type="number"
+                                step="any"
+                                min="-180"
+                                max="180"
+                                value={formState.longitude}
+                                onChange={(event) => handleChange('longitude', event.target.value)}
+                                className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
+                                placeholder="e.g. 75.8577 (range -180 to 180)"
                                 disabled={isSubmitting}
                             />
                         </div>

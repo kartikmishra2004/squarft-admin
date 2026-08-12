@@ -139,6 +139,25 @@ const formatActiveTime = (minutes) => {
     return `${hours}h ${mins}m`;
 };
 
+// App-open/session-duration tracking for the User App has not been built on
+// the backend yet: `active_minutes_today` / `total_active_minutes` /
+// `sessions_today` columns exist (migrations/043_add_app_user_admin_activity.js)
+// and are read by GET /api/v1/app-users (appUserController.js), but nothing in
+// the codebase ever writes to them — there is no session-start/session-end/
+// heartbeat endpoint the User App or Broker App call. So every account reads
+// 0m, which looks like "confirmed zero usage" but is really "never measured".
+// Until that tracking pipeline is built, show an honest "Not tracked yet"
+// label instead of a misleading 0m/0 for these specific real-data fields.
+// TODO(backend): build App Open -> Session Start -> Activity Tracking ->
+// Session Duration -> Backend -> DB write path (QA spec Part F item 12).
+const formatTrackedActiveTime = (minutes) => (
+    minutes > 0 ? formatActiveTime(minutes) : 'Not tracked yet'
+);
+
+const formatTrackedSessions = (sessions) => (
+    sessions > 0 ? sessions : 'Not tracked yet'
+);
+
 const UserAppActivities = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
@@ -474,7 +493,7 @@ const UserAppActivities = () => {
         return [
             { title: 'Total Users', value: totalUsers, icon: User, color: 'text-[#2717D7]', bg: 'bg-[#2717D7]/10' },
             { title: 'Active Users', value: activeUsers, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { title: 'Active Time Today', value: formatActiveTime(totalActiveMinutes), icon: Clock, color: 'text-[#6F4BFF]', bg: 'bg-[#6F4BFF]/10' },
+            { title: 'Active Time Today', value: formatTrackedActiveTime(totalActiveMinutes), icon: Clock, color: 'text-[#6F4BFF]', bg: 'bg-[#6F4BFF]/10' },
             { title: 'Saved Properties', value: savedCount, icon: Heart, color: 'text-rose-500', bg: 'bg-rose-50' },
             { title: 'Contacted Properties', value: contactedCount, icon: PhoneCall, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { title: 'Booked Visits', value: visitCount, icon: CalendarDays, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -812,6 +831,16 @@ const UserAppActivities = () => {
                         </Card>
                     )}
 
+                    {activeApp === 'userApp' && (
+                        <Card className="border-l-4 border-l-amber-400 bg-amber-50">
+                            <p className="text-sm font-bold text-amber-800">
+                                Session duration tracking is not implemented on the backend yet — "Not tracked yet" means usage
+                                time was never measured for that user, not that they had zero activity. See TODO(backend) in
+                                UserAppActivities.jsx / appUserController.js for the pipeline that still needs to be built.
+                            </p>
+                        </Card>
+                    )}
+
                     <div className="flex flex-wrap gap-2 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
                         {appTabs.map((tab) => (
                             <button
@@ -956,9 +985,9 @@ const UserAppActivities = () => {
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
-                                            <ProfileMetric icon={Clock} label="Today" value={formatActiveTime(selectedUser.activeMinutesToday)} />
-                                            <ProfileMetric icon={Smartphone} label="Sessions" value={selectedUser.sessionsToday} />
-                                            <ProfileMetric icon={Zap} label="Total" value={formatActiveTime(selectedUser.totalActiveMinutes)} />
+                                            <ProfileMetric icon={Clock} label="Today" value={formatTrackedActiveTime(selectedUser.activeMinutesToday)} />
+                                            <ProfileMetric icon={Smartphone} label="Sessions" value={formatTrackedSessions(selectedUser.sessionsToday)} />
+                                            <ProfileMetric icon={Zap} label="Total" value={formatTrackedActiveTime(selectedUser.totalActiveMinutes)} />
                                         </div>
                                     </div>
 

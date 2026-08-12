@@ -368,6 +368,15 @@ const ClientProfileView = ({
                 return { ...current, propertyCategory: value, propertyType: nextPropertyType, configuration: 'N/A' };
             }
             if (field === 'propertyType') return { ...current, propertyType: value, configuration: 'N/A' };
+            // NOTE(QA-P1): Placeholder/non-functional OTP verification — intentional per current UI copy.
+            // Any 4-digit string is accepted as "verified" here; there is no real send-OTP/verify-OTP API
+            // call anywhere in this flow (contrast with visitManagementService.sendVisitOtp/verifyVisitOtp,
+            // which are real but unused elsewhere — see Visits.jsx OTP TODO). `contact_verified` is
+            // persisted to the backend (customer_requirements.contact_verified) but, as of this check, is
+            // only ever stored/returned by clientHubController.js — nothing downstream (deal creation,
+            // document/KYC gating, compliance checks) reads or enforces it, so this fake verification is
+            // currently cosmetic only. Re-audit this note if `contact_verified` starts being used to gate
+            // anything compliance-sensitive in the future.
             if (field === 'otp') return { ...current, otp: value, contactVerified: value.length === 4 };
             if (field === 'contactNumber') return { ...current, contactNumber: value, contactVerified: false, otp: '' };
             return { ...current, [field]: value };

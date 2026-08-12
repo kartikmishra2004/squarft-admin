@@ -595,6 +595,9 @@ const Visits = () => {
 
     const handleSubmitVisit = async (event) => {
         event.preventDefault();
+        // TODO(QA-P0): see the OTP-gate note near the "Status" SelectField in the Edit Visit modal below —
+        // this handler persists any status (including "Completed") via saveVisit()/saveVisitStatus() with
+        // no OTP check. sendVisitOtp/verifyVisitOtp exist in visitManagementService.js but are unused.
         let payload = buildVisitPayload(visitForm);
 
         if (editingVisitId) {
@@ -1089,6 +1092,21 @@ const Visits = () => {
                         <Field label="Price" value={visitForm.propertyPrice} onChange={(value) => updateVisitForm('propertyPrice', value)} placeholder="1.85 Cr" />
                     </div>
                     <Field label="Property Address" value={visitForm.propertyAddress} onChange={(value) => updateVisitForm('propertyAddress', value)} />
+                    {/*
+                        TODO(QA-P0): No OTP verification gate before a visit can be set to "Completed" here.
+                        This dropdown lets an admin freely select "Completed" and submit — saveVisit()/handleSubmitVisit
+                        below persists it immediately with zero OTP check, even though the backend already exposes
+                        OTP endpoints for this exact purpose:
+                          - sendVisitOtp(visitId)   in ../../services/visitManagementService.js (line ~232)
+                          - verifyVisitOtp(visitId, otp) in ../../services/visitManagementService.js (line ~235)
+                        Both are currently unused dead code — never imported/called anywhere in this app.
+                        Needs a product/UX decision before wiring: e.g. (a) when status is changed to "Completed",
+                        block submit and show an OTP-entry step that calls sendVisitOtp() then verifyVisitOtp()
+                        before allowing saveVisit()/saveVisitStatus() to persist "completed"; or (b) if admin
+                        completion is meant to be an authorized override of the officer/customer OTP flow that
+                        happens elsewhere, delete the dead exports and document that explicitly. Do not wire this
+                        up without confirming which of those is intended — see QA_AUDIT_FINDINGS.md BUG-008.
+                    */}
                     <SelectField label="Status" value={visitForm.status} onChange={(value) => updateVisitForm('status', value)} options={visitStatusOptions} />
                     <div>
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Notes</label>

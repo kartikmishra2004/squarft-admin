@@ -77,6 +77,8 @@ export const fetchBranchById = async (branchId) => {
  * @param {string} branchData.head - Branch manager
  * @param {string} branchData.status - Branch status
  * @param {string} branchData.address - Branch address
+ * @param {number} [branchData.latitude] - Branch location latitude (-90 to 90)
+ * @param {number} [branchData.longitude] - Branch location longitude (-180 to 180)
  * @returns {Promise<Object>} Created branch data
  */
 export const createBranch = async (branchData) => {

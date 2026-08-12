@@ -165,7 +165,12 @@ const getInventoryCounts = (project) => {
     const total = typeof project.units === 'number' ? project.units : (project.inventory || []).reduce((sum, item) => sum + (item.totalUnits || 0), 0);
     const available = typeof project.available === 'number' ? project.available : (project.inventory || []).reduce((sum, item) => sum + (item.availableUnits || 0), 0);
     const sold = typeof project.sold === 'number' ? project.sold : Math.max(total - available, 0);
-    const booked = typeof project.booked === 'number' ? project.booked : Math.max(Math.round(sold * 0.25), 0);
+    // Previously fell back to `Math.round(sold * 0.25)` when the backend
+    // didn't send a real "booked/reserved" count — that invented a number
+    // out of thin air and displayed it next to real Total/Available/Sold
+    // figures with no visual distinction. Show `null` (rendered as "—")
+    // instead so a missing backend count reads as missing, not as data.
+    const booked = typeof project.booked === 'number' ? project.booked : null;
 
     return { total, available, sold, booked };
 };
@@ -266,7 +271,7 @@ const ProjectInventoryCard = ({ project, onOpen }) => {
                         ['Total', counts.total],
                         ['Avail', counts.available],
                         ['Sold', counts.sold],
-                        ['Booked', counts.booked],
+                        ['Booked', counts.booked ?? '—'],
                     ].map(([label, value]) => (
                         <div key={label} className="rounded-lg border border-gray-100 bg-gray-50 px-2 py-2 text-center">
                             <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</p>
@@ -1384,35 +1389,35 @@ const ProjectDetailView = ({ project, onBack }) => {
         ? Math.round((inventoryCounts.sold / inventoryCounts.total) * 100)
         : 0;
 
-    const generateMockUnits = (proj, config) => {
+    // NOTE: This used to be `generateMockUnits` and fabricated per-unit sold
+    // status, sold dates, and a fake "customer" (name/phone/email/bookingId)
+    // whenever the backend hadn't returned real per-unit data yet. That
+    // invented data was indistinguishable from a real sale/customer record,
+    // which is misleading in an admin panel. It's been replaced with an
+    // honest placeholder: units are shown as "Not Synced" and no sold/
+    // customer details are fabricated. Only real backend `unitsList` data
+    // (see `configUnits` above) ever populates sold/customer information.
+    const generatePlaceholderUnits = (proj, config) => {
         const units = [];
         const displayUnits = Math.min(config.totalUnits || 24, 24);
         for (let i = 1; i <= displayUnits; i++) {
             const floor = Math.ceil(i / 4);
             const num = `${floor}${i % 4 === 0 ? '04' : `0${i % 4}`}`;
-            const isAvailable = i <= Math.ceil(((config.availableUnits || 0) / (config.totalUnits || 1)) * displayUnits);
-            const soldByUs = !isAvailable && i % 3 === 0;
             units.push({
                 id: `U${num}`,
                 number: num,
                 floor: floor,
-                status: isAvailable ? 'Available' : 'Sold',
-                facing: i % 2 === 0 ? 'East Facing' : 'West Facing',
+                status: 'Not Synced',
+                facing: null,
                 price: config.basePrice || config.price || 'Price on request',
-                notes: '',
-                paymentPlan: 'Standard (Construction Linked)',
-                soldBy: isAvailable ? null : soldByUs ? 'us' : 'project',
-                soldByLabel: isAvailable ? null : soldByUs ? 'Sold by us' : 'Sold by project',
-                soldDate: isAvailable ? null : soldByUs ? '14 Jun 2026' : '08 Jun 2026',
-                soldValue: isAvailable ? null : config.basePrice || config.price,
-                soldByUser: isAvailable ? null : soldByUs ? 'SquarFT Sales Desk' : proj.builder,
-                customer: soldByUs ? {
-                    name: 'Amit Sharma',
-                    phone: '+91 98765 22310',
-                    email: 'amit.sharma@example.com',
-                    leadSource: 'SquarFT App',
-                    bookingId: `SQ-${proj.id}-${num}`,
-                } : null,
+                notes: 'Per-unit data not yet available from backend for this configuration.',
+                paymentPlan: null,
+                soldBy: null,
+                soldByLabel: null,
+                soldDate: null,
+                soldValue: null,
+                soldByUser: null,
+                customer: null,
             });
         }
         return units;
@@ -1453,7 +1458,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                     } : null
                 }));
             }
-            return generateMockUnits(localProjectData, config);
+            return generatePlaceholderUnits(localProjectData, config);
         })()
         : [];
 
@@ -1536,7 +1541,7 @@ const ProjectDetailView = ({ project, onBack }) => {
                                                 ['Total Units', inventoryCounts.total],
                                                 ['Available', inventoryCounts.available],
                                                 ['Sold', inventoryCounts.sold],
-                                                ['Booked', inventoryCounts.booked],
+                                                ['Booked', inventoryCounts.booked ?? '—'],
                                             ].map(([label, value]) => (
                                                 <div key={label} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</p>

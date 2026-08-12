@@ -44,3 +44,20 @@ export const createAppUser = async (body) => {
 export const deleteAppUser = async (userId) => {
   return apiRequest(`${BASE}/${userId}`, { method: 'DELETE' });
 };
+
+// TODO(backend): No backend endpoint exists yet for "Request Document From User"
+// (QA spec Part F, item 6: /dashboard/teams -> Request Document -> User App -> upload -> Super Admin).
+// This POST targets a route that has not been built. It needs:
+//   1. A route + controller, e.g. POST /api/admin/app-users/:userId/document-requests
+//      that creates a document-request row (user_id, document_type, note, requested_by, status, created_at).
+//   2. Storage for pending requests (new table, e.g. document_requests).
+//   3. A User App endpoint/screen so the user can see pending requests and upload against them
+//      (which should then flow back into the existing verification/document tables admins already see).
+// Until backend work lands, calling this will fail (404/network error) — that failure is expected
+// and should be surfaced to the admin as a real error, not swallowed or faked as success.
+export const requestUserDocument = async (userId, documentType, note = '') => {
+  return apiRequest(`${BASE}/${userId}/document-requests`, {
+    method: 'POST',
+    body: JSON.stringify({ document_type: documentType, note }),
+  });
+};
