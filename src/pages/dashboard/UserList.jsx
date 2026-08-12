@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import {
     Search, Plus, Edit2, Trash2, Eye, CheckCircle2, XCircle,
     Image as ImageIcon, Save, Shield, Smartphone, FileCheck, Upload, UserPlus,
-    ChevronLeft, ChevronRight, Loader2
+    ChevronLeft, ChevronRight, Loader2, Send, MessageSquarePlus
 } from 'lucide-react';
 import {
     setSelectedUser,
@@ -23,6 +23,7 @@ import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
 import { useDialog } from '../../components/ui/Dialog';
 import { uploadCommonFile } from '../../services/commonService';
+import { requestUserDocument } from '../../services/userAppService';
 
 const emptyUserForm = {
     full_name: '',
@@ -35,6 +36,20 @@ const documentFields = [
     { key: 'aadhaar_front', title: 'Aadhaar Card (Front)' },
     { key: 'pan_card', title: 'PAN Card' },
     { key: 'profile_photo', title: 'Profile Photo / Selfie' },
+];
+
+// Reuses the same KYC document-type vocabulary as the Consumer ID
+// Verification screen (documentTypeLabels in UserVerification.jsx), so the
+// "Request Document" type dropdown stays consistent with what the app
+// already recognizes elsewhere.
+const requestableDocumentTypes = [
+    { value: 'aadhaar_front', label: 'Aadhaar Card (Front)' },
+    { value: 'aadhaar_back', label: 'Aadhaar Card (Back)' },
+    { value: 'pan_card', label: 'PAN Card' },
+    { value: 'driving_license_front', label: 'Driving License (Front)' },
+    { value: 'driving_license_back', label: 'Driving License (Back)' },
+    { value: 'passport', label: 'Passport' },
+    { value: 'profile_photo', label: 'Profile Photo' },
 ];
 
 const getDocBadgeVariant = (status) => {
@@ -333,13 +348,21 @@ const UserList = () => {
 
 const UserEditView = ({ onBack }) => {
     const dispatch = useDispatch();
-    const { confirm } = useDialog();
+    const { confirm, alert } = useDialog();
     const { selectedUserDetails, detailLoading, saving } = useSelector((s) => s.users);
     const fileInputRefs = useRef({});
     const [uploadingDocKey, setUploadingDocKey] = useState(null);
     const [uploadError, setUploadError] = useState('');
     const [previewDoc, setPreviewDoc] = useState(null);
     const [saveError, setSaveError] = useState('');
+
+    // Request Document (QA spec Part F, item 6) — see TODO(backend) in
+    // services/userAppService.js: the endpoint this calls does not exist yet.
+    const [isRequestDocOpen, setIsRequestDocOpen] = useState(false);
+    const [requestDocType, setRequestDocType] = useState(requestableDocumentTypes[0].value);
+    const [requestDocNote, setRequestDocNote] = useState('');
+    const [requestDocSending, setRequestDocSending] = useState(false);
+    const [requestDocError, setRequestDocError] = useState('');
 
     const profile = selectedUserDetails?.profile || {};
     const documents = selectedUserDetails?.documents || {};
@@ -418,6 +441,32 @@ const UserEditView = ({ onBack }) => {
         } finally {
             setUploadingDocKey(null);
             if (fileInputRefs.current[docKey]) fileInputRefs.current[docKey].value = '';
+        }
+    };
+
+    const openRequestDocModal = () => {
+        setRequestDocType(requestableDocumentTypes[0].value);
+        setRequestDocNote('');
+        setRequestDocError('');
+        setIsRequestDocOpen(true);
+    };
+
+    const handleSendDocumentRequest = async () => {
+        setRequestDocSending(true);
+        setRequestDocError('');
+        try {
+            await requestUserDocument(profile.id, requestDocType, requestDocNote.trim());
+            setIsRequestDocOpen(false);
+            await alert('Document request sent to the user.', { title: 'Request Sent', variant: 'info' });
+        } catch (err) {
+            // Do NOT fake success here — the backend endpoint for document
+            // requests doesn't exist yet (see TODO(backend) in userAppService.js).
+            // Surface the real failure so it's obvious this is pending backend work.
+            setRequestDocError(
+                err?.message || err || 'Failed to send document request. The backend endpoint for document requests has not been built yet.'
+            );
+        } finally {
+            setRequestDocSending(false);
         }
     };
 
@@ -536,9 +585,19 @@ const UserEditView = ({ onBack }) => {
                         </div>
 
                         <div className="border-t border-gray-100 pt-10 mt-10">
-                            <h3 className="text-lg font-black text-gray-800 mb-8 uppercase tracking-tight flex items-center gap-3">
-                                <FileCheck className="w-5 h-5 text-[#6F4BFF]" /> KYC Documents & Verification
-                            </h3>
+                            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+                                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tight flex items-center gap-3">
+                                    <FileCheck className="w-5 h-5 text-[#6F4BFF]" /> KYC Documents & Verification
+                                </h3>
+                                <Button
+                                    variant="secondary"
+                                    icon={MessageSquarePlus}
+                                    onClick={openRequestDocModal}
+                                    className="font-black uppercase tracking-widest text-[10px] h-10 px-5"
+                                >
+                                    Request Document
+                                </Button>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {documentFields.map((doc) => {
                                     const fileUrl = documents[doc.key];
@@ -608,6 +667,53 @@ const UserEditView = ({ onBack }) => {
                         <img src={previewDoc.url} alt={previewDoc.title} className="w-full rounded-xl border border-gray-100" />
                     </div>
                 )}
+            </Modal>
+
+            {/* Request Document Modal — see TODO(backend) in services/userAppService.js:
+                the endpoint this Send button calls has not been built yet. */}
+            <Modal isOpen={isRequestDocOpen} onClose={() => setIsRequestDocOpen(false)} title="Request Document">
+                <div className="space-y-5">
+                    <p className="text-sm font-bold text-gray-700">
+                        Ask <span className="text-gray-900">{profile.full_name}</span> to upload a document from their app.
+                    </p>
+                    <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Document Type</label>
+                        <select
+                            value={requestDocType}
+                            onChange={(e) => setRequestDocType(e.target.value)}
+                            className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-gray-900 bg-gray-50"
+                        >
+                            {requestableDocumentTypes.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Note (optional)</label>
+                        <textarea
+                            rows={3}
+                            value={requestDocNote}
+                            onChange={(e) => setRequestDocNote(e.target.value)}
+                            placeholder="e.g. Please re-upload a clearer photo of your PAN card."
+                            className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-bold text-gray-900 bg-gray-50 resize-none"
+                        />
+                    </div>
+                    {requestDocError && (
+                        <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm font-bold px-4 py-3 rounded-xl">
+                            {requestDocError}
+                        </div>
+                    )}
+                    <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                        <Button variant="secondary" onClick={() => setIsRequestDocOpen(false)}>Cancel</Button>
+                        <Button
+                            icon={requestDocSending ? Loader2 : Send}
+                            onClick={handleSendDocumentRequest}
+                            disabled={requestDocSending}
+                        >
+                            {requestDocSending ? 'Sending...' : 'Send Request'}
+                        </Button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

@@ -23,19 +23,24 @@ import VoiceAgentCall from '../pages/dashboard/VoiceAgentCall';
 import SettingsPage from '../pages/dashboard/Settings';
 import AuditLog from '../pages/dashboard/AuditLog';
 import Admins from '../pages/dashboard/Admins';
+import AccessDenied from '../pages/dashboard/AccessDenied';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user, role } = useSelector((state) => state.auth);
-  
+
   if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
-  
+
   // Use role from auth state (stored separately) instead of user.role
   const userRole = role || user?.role;
-  
+
+  // QA_REQUIREMENTS_SPEC.md Part F item 1: role-mismatched direct URL
+  // navigation (e.g. admin -> /dashboard/branches, super_admin ->
+  // /dashboard/admin) must show a proper Access Denied state, not silently
+  // redirect back to the dashboard.
   if (allowedRoles && !allowedRoles.includes(userRole)) {
-    return <Navigate to="/dashboard" replace />;
+    return <AccessDenied />;
   }
-  
+
   return children;
 };
 
@@ -85,8 +90,16 @@ const AppRoutes = () => {
         <Route index element={<DashboardRedirect />} />
         
         {/* Shared Pages */}
+        {/*
+          QA_REQUIREMENTS_SPEC.md Part F item 1: "Super Admin must not access
+          the Admin Dashboard." Home.jsx is the plain admin dashboard;
+          SuperHome.jsx (rendered at the /dashboard index for super_admin via
+          DashboardRedirect below) is the super-admin equivalent. Only
+          'admin' may view this route directly — super_admin is intentionally
+          excluded here (previously included, which was the bug).
+        */}
         <Route path="admin" element={
-          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+          <ProtectedRoute allowedRoles={['admin']}>
             <Home />
           </ProtectedRoute>
         } />

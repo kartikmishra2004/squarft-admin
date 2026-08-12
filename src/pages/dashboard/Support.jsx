@@ -1,3 +1,32 @@
+/*
+ * ============================================================================
+ * NON-FUNCTIONAL MOCK PAGE — DO NOT TREAT AS A WORKING SUPPORT MODULE
+ * ============================================================================
+ * Everything below (`supportApps`, `supportTickets`, `channels`, the SLA
+ * timeline numbers, and the ticket queue/App Coverage panels that render
+ * them) is 100% static hardcoded fixture data. There is NO backend call
+ * anywhere in this file:
+ *   - No fetch of real support tickets (ticket list, counts, ages, sentiment,
+ *     SLA metrics are all fabricated literals below).
+ *   - "Resolve" (`handleResolveTicket`) only mutates local React `useState`
+ *     — it is lost on refresh and never reaches a server. No ticket is ever
+ *     actually resolved.
+ *   - App Coverage (`supportApps`) user/open/today/resolution numbers are
+ *     invented, not queried per-app.
+ *
+ * Backend check performed: searched squarFT_backend/src/routes for any
+ * ticket/support endpoints — none exist (only an unrelated string match in
+ * profileRoutes.js: "Only JPEG, PNG, and WEBP profile pictures are
+ * supported"). This page cannot be wired to a real backend until a support
+ * ticket system (routes + DB table) is actually built server-side.
+ *
+ * See QA_REQUIREMENTS_SPEC.md Part D §20 and QA_AUDIT_FINDINGS.md for the
+ * product requirements this page is expected to eventually satisfy
+ * (ticket creation, assignment, reply/update, resolution + audit logging).
+ * Until that backend work lands, treat every number and ticket on this page
+ * as a design placeholder, not real support data.
+ * ============================================================================
+ */
 import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';

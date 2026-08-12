@@ -31,12 +31,14 @@ const Sidebar = () => {
     navigate('/auth/login');
   };
 
+  // QA_REQUIREMENTS_SPEC.md Part F item 1: Super Admin must not access the
+  // plain Admin Dashboard (Home.jsx / '/dashboard/admin'). Previously this
+  // spread in an "Admin Dashboard" link pointing at that route for
+  // super_admin, which the route guard now also blocks (see
+  // src/routes/index.jsx) — removed here too so the sidebar doesn't offer a
+  // link that leads to Access Denied.
   const links = user?.role === 'super_admin'
-    ? [
-        ...superAdminLinks,
-        { ...adminLinks[0], label: 'Admin Dashboard', path: '/dashboard/admin' },
-        ...adminLinks.slice(1),
-      ]
+    ? [...superAdminLinks, ...adminLinks.slice(1)]
     : adminLinks;
 
   return (
