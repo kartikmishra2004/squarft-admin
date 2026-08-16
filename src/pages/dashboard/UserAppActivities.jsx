@@ -24,6 +24,7 @@ import {
     fetchAppUserActivityBundle,
     fetchAppUserMetrics,
     fetchAppUsers,
+    fetchProjectPanelUsers,
 } from '../../services/appUserActivityService';
 
 const tabs = [
@@ -33,79 +34,6 @@ const tabs = [
     { id: 'screenEvents', label: 'Activity Log', icon: Activity },
     { id: 'userComplaints', label: 'Complaints', icon: ShieldAlert },
     { id: 'dealManagement', label: 'Deal Manager', icon: CreditCard },
-];
-
-const projectPanelAccounts = [
-    {
-        id: 'PP-B-001',
-        type: 'builders',
-        name: 'Apex Buildcon',
-        contactPerson: 'Arjun Mehra',
-        phone: '+91 98231 44001',
-        email: 'arjun@apexbuildcon.in',
-        city: 'Mumbai',
-        status: 'Online',
-        activeMinutesToday: 138,
-        totalActiveMinutes: 2480,
-        sessionsToday: 8,
-        lastActive: '4 min ago',
-    },
-    {
-        id: 'PP-B-002',
-        type: 'builders',
-        name: 'CityScape Developers',
-        contactPerson: 'Raghav Bansal',
-        phone: '+91 98111 55220',
-        email: 'raghav@cityscape.in',
-        city: 'Delhi NCR',
-        status: 'Idle',
-        activeMinutesToday: 64,
-        totalActiveMinutes: 1210,
-        sessionsToday: 4,
-        lastActive: '22 min ago',
-    },
-    {
-        id: 'PP-B-003',
-        type: 'builders',
-        name: 'GreenLeaf Developers',
-        contactPerson: 'Priya Nair',
-        phone: '+91 99801 33445',
-        email: 'priya@greenleaf.in',
-        city: 'Bangalore',
-        status: 'Offline',
-        activeMinutesToday: 0,
-        totalActiveMinutes: 980,
-        sessionsToday: 0,
-        lastActive: 'Yesterday',
-    },
-    {
-        id: 'PP-M-001',
-        type: 'marketingCompanies',
-        name: 'MarketLane Realty',
-        contactPerson: 'Sahil Verma',
-        phone: '+91 98770 11223',
-        email: 'ops@marketlane.in',
-        city: 'Indore',
-        status: 'Online',
-        activeMinutesToday: 92,
-        totalActiveMinutes: 1835,
-        sessionsToday: 6,
-        lastActive: '9 min ago',
-    },
-    {
-        id: 'PP-M-002',
-        type: 'marketingCompanies',
-        name: 'UrbanReach Media',
-        contactPerson: 'Kavya Sethi',
-        phone: '+91 99002 44556',
-        email: 'kavya@urbanreach.in',
-        city: 'Pune',
-        status: 'Idle',
-        activeMinutesToday: 41,
-        totalActiveMinutes: 890,
-        sessionsToday: 3,
-        lastActive: '38 min ago',
-    },
 ];
 
 const appTabs = [
@@ -174,6 +102,8 @@ const UserAppActivities = () => {
     const [activeTab, setActiveTab] = useState('savedProperties');
     const [projectPanelTab, setProjectPanelTab] = useState('builders');
     const [expandedDealId, setExpandedDealId] = useState(null);
+    const [projectPanelUsers, setProjectPanelUsers] = useState([]);
+    const [isLoadingProjectPanelUsers, setIsLoadingProjectPanelUsers] = useState(false);
 
     const handleViewAccount = (account) => {
         if (account.type === 'builders') {
@@ -412,6 +342,38 @@ const UserAppActivities = () => {
         return () => window.clearTimeout(timeout);
     }, [loadAppUsers]);
 
+    const loadProjectPanelUsers = useCallback(async () => {
+        if (activeApp !== 'projectPanel') return;
+
+        setIsLoadingProjectPanelUsers(true);
+        setPageError('');
+
+        try {
+            const usersResult = await fetchProjectPanelUsers({
+                search: searchQuery.trim(),
+                status: statusFilter === 'All' ? '' : statusFilter,
+                page: 1,
+                limit: 50,
+            });
+
+            setProjectPanelUsers(usersResult.items);
+        } catch (error) {
+            console.error('Failed to load Project Panel users:', error);
+            setPageError(error.message || 'Failed to load Project Panel users.');
+            setProjectPanelUsers([]);
+        } finally {
+            setIsLoadingProjectPanelUsers(false);
+        }
+    }, [activeApp, searchQuery, statusFilter]);
+
+    useEffect(() => {
+        const timeout = window.setTimeout(() => {
+            loadProjectPanelUsers();
+        }, 250);
+
+        return () => window.clearTimeout(timeout);
+    }, [loadProjectPanelUsers]);
+
     const selectedUserSummary = appUsers.find((user) => user.id === selectedUserId);
 
     const loadSelectedUser = useCallback(async () => {
@@ -451,7 +413,7 @@ const UserAppActivities = () => {
 
     const filteredProjectPanelAccounts = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
-        return projectPanelAccounts.filter((account) => {
+        return projectPanelUsers.filter((account) => {
             const matchesType = account.type === projectPanelTab;
             const matchesSearch = !query || [account.name, account.contactPerson, account.phone, account.email, account.city]
                 .filter(Boolean)
@@ -459,11 +421,11 @@ const UserAppActivities = () => {
             const matchesStatus = statusFilter === 'All' || account.status === statusFilter;
             return matchesType && matchesSearch && matchesStatus;
         });
-    }, [projectPanelTab, searchQuery, statusFilter]);
+    }, [projectPanelUsers, projectPanelTab, searchQuery, statusFilter]);
 
     const summary = useMemo(() => {
         if (activeApp === 'projectPanel') {
-            const visibleAccounts = projectPanelAccounts.filter((account) => {
+            const visibleAccounts = projectPanelUsers.filter((account) => {
                 const query = searchQuery.trim().toLowerCase();
                 const matchesSearch = !query || [account.name, account.contactPerson, account.phone, account.email, account.city]
                     .filter(Boolean)
@@ -475,10 +437,10 @@ const UserAppActivities = () => {
             const sessionsToday = visibleAccounts.reduce((sum, account) => sum + account.sessionsToday, 0);
 
             return [
-                { title: 'Total Users', value: projectPanelAccounts.length, icon: User, color: 'text-[#2717D7]', bg: 'bg-[#2717D7]/10' },
-                { title: 'Active Users', value: projectPanelAccounts.filter((account) => account.status === 'Online').length, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                { title: 'Active Time Today', value: formatActiveTime(totalActiveMinutes), icon: Clock, color: 'text-[#6F4BFF]', bg: 'bg-[#6F4BFF]/10' },
-                { title: 'Sessions Today', value: sessionsToday, icon: Smartphone, color: 'text-blue-600', bg: 'bg-blue-50' },
+                { title: 'Total Users', value: projectPanelUsers.length, icon: User, color: 'text-[#2717D7]', bg: 'bg-[#2717D7]/10' },
+                { title: 'Active Users', value: projectPanelUsers.filter((account) => account.status === 'Online').length, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { title: 'Active Time Today', value: formatTrackedActiveTime(totalActiveMinutes), icon: Clock, color: 'text-[#6F4BFF]', bg: 'bg-[#6F4BFF]/10' },
+                { title: 'Sessions Today', value: formatTrackedSessions(sessionsToday), icon: Smartphone, color: 'text-blue-600', bg: 'bg-blue-50' },
             ];
         }
 
@@ -498,14 +460,14 @@ const UserAppActivities = () => {
             { title: 'Contacted Properties', value: contactedCount, icon: PhoneCall, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { title: 'Booked Visits', value: visitCount, icon: CalendarDays, color: 'text-blue-600', bg: 'bg-blue-50' },
         ];
-    }, [activeApp, appMetrics, filteredUsers, searchQuery, statusFilter]);
+    }, [activeApp, appMetrics, filteredUsers, projectPanelUsers, searchQuery, statusFilter]);
 
     const renderProjectPanelContent = () => (
         <Card noPadding className="overflow-hidden">
             <div className="border-b border-gray-100 bg-white p-4">
                 <div className="flex flex-wrap gap-2">
                     {projectPanelTabs.map((tab) => {
-                        const count = projectPanelAccounts.filter((account) => account.type === tab.id).length;
+                        const count = projectPanelUsers.filter((account) => account.type === tab.id).length;
                         const isActive = projectPanelTab === tab.id;
 
                         return (
@@ -530,7 +492,14 @@ const UserAppActivities = () => {
             </div>
 
             <div className="divide-y divide-gray-100">
-                {filteredProjectPanelAccounts.map((account) => (
+                {isLoadingProjectPanelUsers && (
+                    <div className="py-16 text-center">
+                        <Activity className="mx-auto mb-3 h-12 w-12 text-gray-200" />
+                        <p className="font-bold text-gray-500">Loading Project Panel accounts...</p>
+                    </div>
+                )}
+
+                {!isLoadingProjectPanelUsers && filteredProjectPanelAccounts.map((account) => (
                     <div key={account.id} className="flex flex-col gap-4 bg-white p-5 transition-colors hover:bg-gray-50/70 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex min-w-0 gap-3">
                             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#6F4BFF]/10 text-lg font-black text-[#6F4BFF]">
@@ -549,11 +518,11 @@ const UserAppActivities = () => {
                         <div className="flex flex-col sm:flex-row items-center gap-4 lg:w-[480px] w-full shrink-0">
                             <div className="grid grid-cols-3 gap-2 flex-1 w-full">
                                 <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                                    <p className="text-sm font-black text-gray-900">{formatActiveTime(account.activeMinutesToday)}</p>
+                                    <p className="text-sm font-black text-gray-900">{formatTrackedActiveTime(account.activeMinutesToday)}</p>
                                     <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Active Today</p>
                                 </div>
                                 <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                                    <p className="text-sm font-black text-gray-900">{account.sessionsToday}</p>
+                                    <p className="text-sm font-black text-gray-900">{formatTrackedSessions(account.sessionsToday)}</p>
                                     <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">Sessions</p>
                                 </div>
                                 <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
@@ -573,7 +542,7 @@ const UserAppActivities = () => {
                     </div>
                 ))}
 
-                {filteredProjectPanelAccounts.length === 0 && (
+                {!isLoadingProjectPanelUsers && filteredProjectPanelAccounts.length === 0 && (
                     <div className="py-16 text-center">
                         <Activity className="mx-auto mb-3 h-12 w-12 text-gray-200" />
                         <p className="font-bold text-gray-500">No Project Panel accounts found.</p>
