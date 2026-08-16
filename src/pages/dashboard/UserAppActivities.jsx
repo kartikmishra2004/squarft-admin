@@ -67,17 +67,18 @@ const formatActiveTime = (minutes) => {
     return `${hours}h ${mins}m`;
 };
 
-// App-open/session-duration tracking for the User App has not been built on
-// the backend yet: `active_minutes_today` / `total_active_minutes` /
-// `sessions_today` columns exist (migrations/043_add_app_user_admin_activity.js)
-// and are read by GET /api/v1/app-users (appUserController.js), but nothing in
-// the codebase ever writes to them — there is no session-start/session-end/
-// heartbeat endpoint the User App or Broker App call. So every account reads
-// 0m, which looks like "confirmed zero usage" but is really "never measured".
-// Until that tracking pipeline is built, show an honest "Not tracked yet"
-// label instead of a misleading 0m/0 for these specific real-data fields.
-// TODO(backend): build App Open -> Session Start -> Activity Tracking ->
-// Session Duration -> Backend -> DB write path (QA spec Part F item 12).
+// App-open/session-duration tracking pipeline: `active_minutes_today` /
+// `total_active_minutes` / `sessions_today` (migrations/043) are written by
+// POST /api/v1/app-activity/heartbeat (appActivityController.js), called
+// every ~60s by each app while in the foreground, and read here via
+// GET /api/v1/app-users (appUserController.js). The pipeline is fully built —
+// a "0m"/"Not tracked yet" value for a given user just means that specific
+// account hasn't sent a heartbeat yet (app not rebuilt with the tracker,
+// user hasn't opened it since, or they've never logged in on a build that
+// includes it), not that tracking itself is missing. Keep the honest
+// "Not tracked yet" label rather than a misleading 0m for accounts with no
+// heartbeat row yet, since a real 0-minute session is not really
+// distinguishable from "no data" at this granularity.
 const formatTrackedActiveTime = (minutes) => (
     minutes > 0 ? formatActiveTime(minutes) : 'Not tracked yet'
 );
@@ -803,9 +804,9 @@ const UserAppActivities = () => {
                     {activeApp === 'userApp' && (
                         <Card className="border-l-4 border-l-amber-400 bg-amber-50">
                             <p className="text-sm font-bold text-amber-800">
-                                Session duration tracking is not implemented on the backend yet — "Not tracked yet" means usage
-                                time was never measured for that user, not that they had zero activity. See TODO(backend) in
-                                UserAppActivities.jsx / appUserController.js for the pipeline that still needs to be built.
+                                "Not tracked yet" means that specific account hasn't sent any session data — usually because
+                                they haven't opened the app since it was rebuilt with session tracking, not because they had
+                                zero activity. Real usage will fill in automatically as users open the updated apps.
                             </p>
                         </Card>
                     )}
