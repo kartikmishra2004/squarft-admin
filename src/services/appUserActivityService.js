@@ -72,6 +72,25 @@ export const normalizeAppUser = (user = {}) => ({
   contactedCount: Number(user.contactedCount || user.summary?.contacted || (user.contactedProperties?.length || 0)),
 });
 
+export const normalizeProjectPanelUser = (user = {}) => ({
+  id: user.id || user.userId,
+  userId: user.userId || user.id || '',
+  type: 'builders',
+  name: user.companyName || user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Builder',
+  contactPerson: user.name || '',
+  companyName: user.companyName || '',
+  reraNumber: user.reraNumber || '',
+  phone: user.phone || '',
+  email: user.email || '',
+  city: user.city || 'Location pending',
+  status: normalizeStatus(user.status),
+  joinedDate: formatDateTime(user.joinedDate),
+  lastActive: formatDateTime(user.lastActive) || 'Not active yet',
+  activeMinutesToday: Number(user.activeMinutesToday || 0),
+  totalActiveMinutes: Number(user.totalActiveMinutes || 0),
+  sessionsToday: Number(user.sessionsToday || 0),
+});
+
 export const normalizeSavedProperty = (property = {}) => ({
   id: property.id,
   title: property.title || 'Property',
@@ -147,6 +166,16 @@ export const fetchAppUsers = async (params = {}) => {
 
   return {
     items: items.map(normalizeAppUser),
+    pagination: payload?.pagination,
+  };
+};
+
+export const fetchProjectPanelUsers = async (params = {}) => {
+  const payload = unwrapData(await apiRequest(`${APP_USERS_BASE}/project-panel${buildQueryString(params)}`, { method: 'GET' }));
+  const items = payload?.items || [];
+
+  return {
+    items: items.map(normalizeProjectPanelUser),
     pagination: payload?.pagination,
   };
 };
