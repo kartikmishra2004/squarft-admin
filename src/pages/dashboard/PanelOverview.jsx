@@ -833,7 +833,7 @@ const PanelOverview = () => {
                         label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
                         image: url,
                     }));
-                setKycDetails({ ...mapBuilderKyc({ ...profile, name: profile.name }), kycDocuments });
+                setKycDetails({ ...mapBuilderKyc({ ...profile, name: profile.name }), kycDocuments, rawDocuments: documents || {} });
             }
         } catch (e) {
             console.error('Failed to load KYC details', e);
@@ -2389,24 +2389,47 @@ const PanelOverview = () => {
                                                     </>
                                                 )}
 
-                                                {selectedKycBuilder?.kycStatus === 'pending' && (
-                                                    <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-[#EFEAF8] pt-4">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleRejectKycBuilder(selectedKycBuilder.id)}
-                                                            className="h-9 rounded-[6px] border border-rose-100 bg-rose-50 px-4 text-xs font-black uppercase tracking-wider text-rose-600 hover:bg-rose-100 transition-colors"
-                                                        >
-                                                            Reject KYC
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleApproveKycBuilder(selectedKycBuilder.id)}
-                                                            className="h-9 rounded-[6px] bg-emerald-500 px-4 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-emerald-600 transition-colors"
-                                                        >
-                                                            Approve KYC
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                {selectedKycBuilder?.kycStatus === 'pending' && (() => {
+                                                    // SQF-KYC-023-pattern client-side safeguard (see UserList.jsx for the
+                                                    // matching Field/Sales Officer + Broker version): the server
+                                                    // (updateBuilderKycStatus) now rejects an 'approved' write missing
+                                                    // any mandatory document, but the button here used to be clickable
+                                                    // regardless. Mirror the same invariant client-side as a UX guard.
+                                                    const raw = selectedKycBuilder.rawDocuments || {};
+                                                    const missing = [
+                                                        !raw.selfie && 'Profile Photo / Selfie',
+                                                        !raw.aadhar_front && 'Aadhaar Front',
+                                                        !raw.pan_card && 'PAN Card',
+                                                    ].filter(Boolean);
+                                                    const canApproveBuilder = missing.length === 0;
+                                                    return (
+                                                        <div className="mt-5 border-t border-[#EFEAF8] pt-4">
+                                                            {!canApproveBuilder && (
+                                                                <p className="mb-2 text-right text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                                                    Cannot approve — missing: {missing.join(', ')}
+                                                                </p>
+                                                            )}
+                                                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRejectKycBuilder(selectedKycBuilder.id)}
+                                                                    className="h-9 rounded-[6px] border border-rose-100 bg-rose-50 px-4 text-xs font-black uppercase tracking-wider text-rose-600 hover:bg-rose-100 transition-colors"
+                                                                >
+                                                                    Reject KYC
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => canApproveBuilder && handleApproveKycBuilder(selectedKycBuilder.id)}
+                                                                    disabled={!canApproveBuilder}
+                                                                    title={canApproveBuilder ? undefined : `Missing mandatory document(s): ${missing.join(', ')}`}
+                                                                    className={`h-9 rounded-[6px] px-4 text-xs font-black uppercase tracking-wider text-white shadow-sm transition-colors ${canApproveBuilder ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-emerald-300 cursor-not-allowed opacity-60'}`}
+                                                                >
+                                                                    Approve KYC
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     )}

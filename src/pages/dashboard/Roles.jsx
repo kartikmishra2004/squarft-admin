@@ -313,12 +313,19 @@ const Roles = () => {
         return tabActions(backendTab).includes(actionKey);
     };
 
+    // SQF-RBAC-018 fix: this used to prefer `activeRole.enabledTabsCount` — a
+    // count computed server-side and shipped as a separate field on the role
+    // object — over deriving the number from `activeRole.tabs`, which is the
+    // SAME array the toggle grid below reads via `hasTabAction`. Whenever
+    // that separate field disagreed with (or went stale relative to) the
+    // actual tabs payload, the summary showed "2 of 19 tabs enabled" while
+    // every individual toggle rendered `aria-pressed=false`. Compute the
+    // count by running the exact same `dashboardAccessTabs`/`hasTabAction`
+    // enumeration the toggle grid uses, so the summary and the toggles can
+    // never disagree — they're now reading one canonical permission model.
     const allowedCount = activeRole.locked
         ? dashboardAccessTabs.length
-        : (activeRole.enabledTabsCount !== undefined
-            ? activeRole.enabledTabsCount
-            : (activeRole.tabs || []).filter(t => tabActions(t).includes('view')).length
-          );
+        : dashboardAccessTabs.filter((tab) => hasTabAction(tab.path, 'view')).length;
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F5F6FA] font-sans text-gray-900 selection:bg-[#6F4BFF]/20 selection:text-[#6F4BFF]">

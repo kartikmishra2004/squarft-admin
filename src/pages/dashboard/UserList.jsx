@@ -484,6 +484,17 @@ const UserEditView = ({ onBack }) => {
 
     const docStatus = formState.document_status?.toLowerCase();
 
+    // SQF-KYC-023 client-side safeguard: the server now rejects an approval
+    // that's missing mandatory documents (400), but this UI used to let the
+    // "Approve Account" button be clicked regardless — an admin could get
+    // all the way to a failed save with no clue why, or (before the backend
+    // fix) have the approval silently go through with docs still showing
+    // "No document uploaded". Mirror the same three-document invariant here
+    // as a UX safeguard only; the real enforcement is server-side.
+    const MANDATORY_DOC_KEYS = ['profile_photo', 'aadhaar_front', 'pan_card'];
+    const missingMandatoryDocs = MANDATORY_DOC_KEYS.filter((key) => !documents?.[key]);
+    const canApprove = missingMandatoryDocs.length === 0;
+
     const handleDeleteUser = async () => {
         if (await confirm(`Are you sure you want to delete ${profile.full_name}?`, { title: 'Delete User', confirmText: 'Delete', danger: true })) {
             try {
@@ -524,7 +535,16 @@ const UserEditView = ({ onBack }) => {
                                 </>
                             ) : (
                                 <>
-                                    <Button variant="success" icon={CheckCircle2} onClick={() => handleStatusUpdate('approved')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6">Approve Account</Button>
+                                    <Button
+                                        variant="success"
+                                        icon={CheckCircle2}
+                                        onClick={() => handleStatusUpdate('approved')}
+                                        disabled={!canApprove}
+                                        title={canApprove ? undefined : `Missing mandatory document(s): ${missingMandatoryDocs.join(', ')}`}
+                                        className={`font-black uppercase tracking-widest text-[10px] h-11 px-6 ${!canApprove ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        Approve Account
+                                    </Button>
                                     {docStatus !== 'rejected' && (
                                         <Button variant="danger" icon={XCircle} onClick={() => handleStatusUpdate('rejected')} className="font-black uppercase tracking-widest text-[10px] h-11 px-6 bg-rose-500 hover:bg-rose-600 text-white">Reject Details</Button>
                                     )}
@@ -532,6 +552,12 @@ const UserEditView = ({ onBack }) => {
                             )}
                         </div>
                     </div>
+                    {!canApprove && docStatus !== 'approved' && docStatus !== 'verified' && (
+                        <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 text-amber-800 text-xs font-bold rounded-xl border border-amber-200">
+                            <XCircle className="w-4 h-4 shrink-0" />
+                            Cannot approve yet — missing mandatory document(s): {missingMandatoryDocs.map((k) => k.replace('_', ' ')).join(', ')}.
+                        </div>
+                    )}
 
                     <Card className="p-8 border-gray-100 shadow-xl shadow-gray-200/50">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
