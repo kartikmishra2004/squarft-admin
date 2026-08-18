@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Loader2, Mail, Phone, Plus, ShieldCheck, UserCog } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Mail, Phone, Plus, ShieldCheck, UserCog } from 'lucide-react';
 import Header from '../../components/layout/Header';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -28,6 +28,13 @@ const Admins = () => {
     const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [form, setForm] = useState(initialForm);
+    // SQF-SEC-020 fix: the password field below used to be `type="text"`
+    // with no `name`/`autocomplete`, so it rendered the admin's new password
+    // in plain view while typing and gave browsers/password managers no
+    // signal about what the field was for. `showPassword` backs a manual
+    // show/hide toggle so the field can stay masked by default without
+    // losing the "let me check what I typed" convenience.
+    const [showPassword, setShowPassword] = useState(false);
     const [formErrors, setFormErrors] = useState({});
     const [submitting, setSubmitting] = useState(false);
 
@@ -217,13 +224,26 @@ const Admins = () => {
 
                     <div>
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Password</label>
-                        <input
-                            type="text"
-                            value={form.password}
-                            onChange={(e) => handleFieldChange('password', e.target.value)}
-                            className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
-                            placeholder="At least 8 characters"
-                        />
+                        <div className="relative mt-2">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                name="password"
+                                autoComplete="new-password"
+                                value={form.password}
+                                onChange={(e) => handleFieldChange('password', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg p-2.5 pr-10 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
+                                placeholder="At least 8 characters"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword((prev) => !prev)}
+                                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                aria-pressed={showPassword}
+                            >
+                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
                         {formErrors.password && <p className="text-xs text-red-500 mt-1">{formErrors.password}</p>}
                     </div>
 
