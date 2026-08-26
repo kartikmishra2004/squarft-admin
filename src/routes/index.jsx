@@ -1,5 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { ROLE_ACCESS_CATALOG_PATHS } from '../data/navigation';
 import AppLayout from '../layouts/AppLayout';
 import Login from '../pages/auth/Login';
 import Home from '../pages/dashboard/Home';
@@ -27,6 +28,8 @@ import AccessDenied from '../pages/dashboard/AccessDenied';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user, role } = useSelector((state) => state.auth);
+  const { myEffectiveAccess } = useSelector((state) => state.roleAccess);
+  const location = useLocation();
 
   if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
 
@@ -39,6 +42,25 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   // redirect back to the dashboard.
   if (allowedRoles && !allowedRoles.includes(userRole)) {
     return <AccessDenied />;
+  }
+
+  // Branch-level admin: typing a gated URL directly must be blocked the
+  // same way the sidebar hides it (see docs/frontend-roles-access-handoff.md
+  // "Main Frontend Rule" - GET /me is also the source of truth for route
+  // access, not just sidebar visibility). Skips enforcement until /me has
+  // loaded at least once (myEffectiveAccess is null) so a fresh page load
+  // doesn't Access-Deny a page it just hasn't heard back about yet - the
+  // underlying API calls are still 403-guarded server-side regardless.
+  if (
+    userRole === 'admin' &&
+    location.pathname !== '/dashboard' &&
+    ROLE_ACCESS_CATALOG_PATHS.has(location.pathname) &&
+    myEffectiveAccess?.tabAccess
+  ) {
+    const allowedPaths = new Set(myEffectiveAccess.tabAccess.map((tab) => tab.path));
+    if (!allowedPaths.has(location.pathname)) {
+      return <AccessDenied />;
+    }
   }
 
   return children;

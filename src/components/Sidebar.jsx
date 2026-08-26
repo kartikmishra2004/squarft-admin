@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -5,7 +6,7 @@ import {
 } from 'lucide-react';
 import { logout } from '../store/authSlice';
 import logo from '../assets/logo.png';
-import { adminLinks, superAdminLinks } from '../data/navigation';
+import { adminLinks, superAdminLinks, ROLE_ACCESS_CATALOG_PATHS } from '../data/navigation';
 
 const SidebarItem = ({ icon: Icon, label, active = false, onClick }) => (
   <div
@@ -22,6 +23,7 @@ const SidebarItem = ({ icon: Icon, label, active = false, onClick }) => (
 
 const Sidebar = () => {
   const { user } = useSelector((state) => state.auth);
+  const { myEffectiveAccess } = useSelector((state) => state.roleAccess);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,15 +33,35 @@ const Sidebar = () => {
     navigate('/auth/login');
   };
 
+  const isSuperAdmin = user?.role === 'super_admin';
+
+  // Source of truth for what a branch-level admin can see - see
+  // docs/frontend-roles-access-handoff.md "Sidebar Mapping". Super Admin
+  // always sees the full static list (their access is never restricted).
+  // A page whose path isn't in ROLE_ACCESS_CATALOG_PATHS has no permission
+  // model yet on the backend, so it stays always-visible rather than being
+  // hidden by a check that can never grant it back.
+  const allowedPaths = useMemo(() => {
+    if (!myEffectiveAccess?.tabAccess) return null;
+    return new Set(myEffectiveAccess.tabAccess.map((tab) => tab.path));
+  }, [myEffectiveAccess]);
+
   // QA_REQUIREMENTS_SPEC.md Part F item 1: Super Admin must not access the
   // plain Admin Dashboard (Home.jsx / '/dashboard/admin'). Previously this
   // spread in an "Admin Dashboard" link pointing at that route for
   // super_admin, which the route guard now also blocks (see
   // src/routes/index.jsx) — removed here too so the sidebar doesn't offer a
   // link that leads to Access Denied.
-  const links = user?.role === 'super_admin'
+  const links = isSuperAdmin
     ? [...superAdminLinks, ...adminLinks.slice(1)]
-    : adminLinks;
+    : adminLinks.filter((item) => {
+        if (item.path === '/dashboard') return true;
+        if (!ROLE_ACCESS_CATALOG_PATHS.has(item.path)) return true;
+        // Fail closed while access hasn't loaded yet, rather than flashing
+        // every gated link and then hiding most of them a moment later.
+        if (!allowedPaths) return false;
+        return allowedPaths.has(item.path);
+      });
 
   return (
     <aside className="w-72 bg-white border-r border-gray-100 p-5 flex-col hidden lg:flex fixed h-full z-20 shadow-sm overflow-y-auto custom-scrollbar">

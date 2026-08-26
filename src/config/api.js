@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = 'https://api.squarft.com';
+const API_BASE_URL = 'http://localhost:3001';
 
 export const getAuthToken = () => {
   try {

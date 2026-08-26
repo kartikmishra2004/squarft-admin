@@ -21,7 +21,7 @@ import Header from '../../components/layout/Header';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import { dashboardAccessTabs } from '../../data/navigation';
+import { roleAccessToggleTabs } from '../../data/navigation';
 import {
     getRoleAccessContext,
     getAccessibleBranches,
@@ -42,21 +42,26 @@ const TAB_ACTIONS = [
     { key: 'delete', label: 'Delete' },
 ];
 
-const Toggle = ({ active, disabled, onClick }) => (
+const Toggle = ({ active, disabled, loading, onClick }) => (
     <button
         type="button"
         onClick={onClick}
         disabled={disabled}
         aria-pressed={active}
+        aria-busy={loading}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#6F4BFF] focus:ring-offset-2 disabled:cursor-not-allowed ${
             active ? 'bg-[#6F4BFF]' : 'bg-gray-200'
         } ${disabled ? 'opacity-70' : ''}`}
     >
-        <span
-            className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                active ? 'translate-x-6' : 'translate-x-1'
-            }`}
-        />
+        {loading ? (
+            <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin text-white" />
+        ) : (
+            <span
+                className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                    active ? 'translate-x-6' : 'translate-x-1'
+                }`}
+            />
+        )}
     </button>
 );
 
@@ -98,6 +103,12 @@ const Roles = () => {
     const [loginPassword, setLoginPassword] = useState('');
     const [saveFeedback, setSaveFeedback] = useState(false);
     const [pendingDeleteRoleId, setPendingDeleteRoleId] = useState(null);
+    // Tracks the single tab/action a toggle click is currently saving, so
+    // that specific control can show a spinner instead of the whole page
+    // just sitting there during the round trip. Also used to block other
+    // toggles from firing mid-save, since each toggle click replaces the
+    // role's entire permission set from the current in-memory tabs.
+    const [pendingToggle, setPendingToggle] = useState(null);
 
     const rolesList = useMemo(() => {
         if (!operatingRoles) return [];
@@ -239,8 +250,8 @@ const Roles = () => {
             .map(({ path, actions }) => ({ path, actions }));
     };
 
-    const handleToggleAction = (tabPath, actionKey) => {
-        if (activeRole.locked) return;
+    const handleToggleAction = async (tabPath, actionKey) => {
+        if (activeRole.locked || pendingToggle) return;
 
         const backendTab = findTabEntry(activeRole.tabs, tabPath);
         if (!backendTab || (typeof backendTab === 'object' && backendTab.disabled)) return;
@@ -268,7 +279,12 @@ const Roles = () => {
             permissions.push({ path: tabPath, actions: [...currentActions] });
         }
 
-        handleSavePermissions(permissions);
+        setPendingToggle({ path: tabPath, action: actionKey });
+        try {
+            await handleSavePermissions(permissions);
+        } finally {
+            setPendingToggle(null);
+        }
     };
 
     const handleSavePermissions = async (permissionsOverride = null) => {
@@ -320,12 +336,12 @@ const Roles = () => {
     // that separate field disagreed with (or went stale relative to) the
     // actual tabs payload, the summary showed "2 of 19 tabs enabled" while
     // every individual toggle rendered `aria-pressed=false`. Compute the
-    // count by running the exact same `dashboardAccessTabs`/`hasTabAction`
+    // count by running the exact same `roleAccessToggleTabs`/`hasTabAction`
     // enumeration the toggle grid uses, so the summary and the toggles can
     // never disagree — they're now reading one canonical permission model.
     const allowedCount = activeRole.locked
-        ? dashboardAccessTabs.length
-        : dashboardAccessTabs.filter((tab) => hasTabAction(tab.path, 'view')).length;
+        ? roleAccessToggleTabs.length
+        : roleAccessToggleTabs.filter((tab) => hasTabAction(tab.path, 'view')).length;
 
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F5F6FA] font-sans text-gray-900 selection:bg-[#6F4BFF]/20 selection:text-[#6F4BFF]">
@@ -579,7 +595,7 @@ const Roles = () => {
                                     </div>
                                     <p className="text-sm font-medium text-gray-500 mt-1 flex items-center gap-2">
                                         <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                        {allowedCount} of {dashboardAccessTabs.length} tabs enabled
+                                        {allowedCount} of {roleAccessToggleTabs.length} tabs enabled
                                     </p>
                                 </div>
                                 <Button
@@ -608,19 +624,25 @@ const Roles = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {dashboardAccessTabs.map((tab) => {
+                                    {roleAccessToggleTabs.map((tab) => {
                                         const Icon = tab.icon;
                                         const hasView = hasTabAction(tab.path, 'view');
 
                                         const backendTab = findTabEntry(activeRole.tabs, tab.path);
                                         const isDisabledByBackend = backendTab && typeof backendTab === 'object' && backendTab.disabled === true;
+                                        const isThisTilePending = pendingToggle?.path === tab.path;
+                                        // Any in-flight toggle locks the whole grid - each toggle
+                                        // click replaces the role's entire permission set from
+                                        // the current in-memory tabs, so a second click before the
+                                        // first resolves would race against stale data.
+                                        const isLockedByOtherSave = Boolean(pendingToggle) && !isThisTilePending;
 
                                         return (
                                             <div
                                                 key={`${tab.label}-${tab.path}`}
                                                 className={`rounded-xl border p-4 bg-white transition-all ${
                                                     hasView ? 'border-[#6F4BFF]/20 shadow-xs' : 'border-gray-100 opacity-80 hover:opacity-100'
-                                                } ${isDisabledByBackend ? 'opacity-50' : ''}`}
+                                                } ${isDisabledByBackend ? 'opacity-50' : ''} ${isThisTilePending ? 'ring-2 ring-[#6F4BFF]/30' : ''} ${isLockedByOtherSave ? 'opacity-60 pointer-events-none' : ''}`}
                                             >
                                                 <div className="flex items-start justify-between gap-4">
                                                     <div className="flex items-start gap-3 min-w-0">
@@ -636,7 +658,8 @@ const Roles = () => {
                                                     </div>
                                                     <Toggle
                                                         active={hasView}
-                                                        disabled={activeRole.locked || isDisabledByBackend}
+                                                        disabled={activeRole.locked || isDisabledByBackend || Boolean(pendingToggle)}
+                                                        loading={isThisTilePending && pendingToggle.action === 'view'}
                                                         onClick={() => !isDisabledByBackend && handleToggleAction(tab.path, 'view')}
                                                     />
                                                 </div>
@@ -645,18 +668,20 @@ const Roles = () => {
                                                     <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
                                                         {TAB_ACTIONS.filter((a) => a.key !== 'view').map((action) => {
                                                             const active = hasTabAction(tab.path, action.key);
+                                                            const isActionPending = isThisTilePending && pendingToggle.action === action.key;
                                                             return (
                                                                 <button
                                                                     key={action.key}
                                                                     type="button"
-                                                                    disabled={activeRole.locked || isDisabledByBackend}
+                                                                    disabled={activeRole.locked || isDisabledByBackend || Boolean(pendingToggle)}
                                                                     onClick={() => handleToggleAction(tab.path, action.key)}
-                                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all disabled:cursor-not-allowed ${
+                                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all disabled:cursor-not-allowed inline-flex items-center gap-1.5 ${
                                                                         active
                                                                             ? 'bg-[#6F4BFF] text-white border-[#6F4BFF]'
                                                                             : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-[#6F4BFF]/40'
                                                                     }`}
                                                                 >
+                                                                    {isActionPending && <Loader2 className="w-3 h-3 animate-spin" />}
                                                                     {action.label}
                                                                 </button>
                                                             );

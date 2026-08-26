@@ -106,6 +106,8 @@ const initialState = {
   operatingRoles: [],
   selectedRole: null,
   myEffectiveAccess: null,
+  myAccessLoading: false,
+  myAccessError: null,
   activityLogs: [],
   loading: false,
   error: null,
@@ -296,18 +298,21 @@ const roleAccessSlice = createSlice({
         state.error = validationMessage(action.payload, 'Failed to update role status');
       })
 
-      // Get my effective access
+      // Get my effective access (drives Sidebar visibility + route guards -
+      // uses its own loading/error fields so it never collides with the
+      // shared `loading`/`error` the Roles & Access page reads for its own
+      // spinner/error banner)
       .addCase(getMyEffectiveAccess.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+        state.myAccessLoading = true;
+        state.myAccessError = null;
       })
       .addCase(getMyEffectiveAccess.fulfilled, (state, action) => {
-        state.loading = false;
+        state.myAccessLoading = false;
         state.myEffectiveAccess = action.payload;
       })
       .addCase(getMyEffectiveAccess.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload?.message || 'Failed to fetch effective access';
+        state.myAccessLoading = false;
+        state.myAccessError = action.payload?.message || 'Failed to fetch effective access';
       })
 
       // Get activity logs
