@@ -52,10 +52,9 @@ export const dashboardAccessTabs = [
 
 // Paths the backend Roles & Access module actually knows about (see
 // squarFT_backend/src/constants/roleAccessConstants.js DASHBOARD_TABS).
-// dashboardAccessTabs above also includes app pages (Payment Milestones,
-// Consumer ID Verification, Broker, Custom Notifications, Admins, Audit
-// Log) the backend has no permission_code for yet - toggling those does
-// nothing server-side, so they're excluded from the Roles & Access grid.
+// Admins and Audit Log are deliberately excluded - both are hard-locked to
+// super_admin at the route level (see routes/index.jsx), so a branch-scoped
+// role toggle for them would never be reachable and would only be misleading.
 export const ROLE_ACCESS_CATALOG_PATHS = new Set([
   '/dashboard',
   '/dashboard/branches',
@@ -70,6 +69,10 @@ export const ROLE_ACCESS_CATALOG_PATHS = new Set([
   '/dashboard/user-app-activities',
   '/dashboard/panel-overview',
   '/dashboard/support',
+  '/dashboard/payment-milestones',
+  '/dashboard/user-verification',
+  '/dashboard/broker-commission',
+  '/dashboard/notifications',
 ]);
 
 // Never shown as a toggle in the Roles & Access grid:

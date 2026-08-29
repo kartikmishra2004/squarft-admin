@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-    AlertCircle, Briefcase, Edit2, Globe, Loader2, Mail, Phone, Plus,
+    AlertCircle, Briefcase, Edit2, Globe, Loader2, Mail, MapPin, Phone, Plus,
     Save, Search, ShieldCheck, Sparkles, User, UserCog, Users
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
@@ -9,6 +9,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
+import LocationPickerModal from '../../components/dashboard/LocationPickerModal';
 import {
     getBranches,
     createNewBranch,
@@ -50,7 +51,6 @@ const findOptionLabel = (options, value, fallback) => {
 const initialFormState = {
     name: '',
     type: 'Regional Branch',
-    head: '',
     status: 'Active',
     city: '',
     state: '',
@@ -78,7 +78,8 @@ const Branches = () => {
     const [branchTypeOptions, setBranchTypeOptions] = useState(fallbackBranchTypes);
     const [branchStatusOptions, setBranchStatusOptions] = useState(fallbackBranchStatuses);
     const [cityOptions, setCityOptions] = useState([]);
-    const [managerOptions, setManagerOptions] = useState([]);
+    const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
+    const [locationError, setLocationError] = useState(null);
 
     // Replace Admin dialog state
     const [selectedAdminBranch, setSelectedAdminBranch] = useState(null);
@@ -98,10 +99,9 @@ const Branches = () => {
         let isMounted = true;
 
         const loadCommonOptions = async () => {
-            const [masterResult, citiesResult, managersResult] = await Promise.allSettled([
+            const [masterResult, citiesResult] = await Promise.allSettled([
                 fetchMasterOptions(['branch_types', 'branch_statuses']),
                 fetchCities({ status: 'ACTIVE' }),
-                fetchCommonUsers({ userType: 'BRANCH_MANAGER', status: 'ACTIVE', limit: 50 }),
             ]);
 
             if (!isMounted) return;
@@ -117,10 +117,6 @@ const Branches = () => {
 
             if (citiesResult.status === 'fulfilled' && Array.isArray(citiesResult.value)) {
                 setCityOptions(citiesResult.value);
-            }
-
-            if (managersResult.status === 'fulfilled') {
-                setManagerOptions(managersResult.value?.users || []);
             }
         };
 
@@ -159,6 +155,7 @@ const Branches = () => {
     const openCreateBranch = () => {
         setEditingBranchId(null);
         setFormState(initialFormState);
+        setLocationError(null);
         setIsBranchModalOpen(true);
     };
 
@@ -187,7 +184,6 @@ const Branches = () => {
         setFormState({
             name: branch.name,
             type: findOptionLabel(branchTypeOptions, branch.typeValue || branch.type, typeDisplayMap[branch.typeValue || branch.type] || 'Regional Branch'),
-            head: branch.managerId || '',
             status: findOptionLabel(branchStatusOptions, branch.statusValue || branch.status, statusDisplayMap[branch.statusValue || branch.status] || 'Active'),
             city: branch.city || '',
             state: branch.state || '',
@@ -198,6 +194,7 @@ const Branches = () => {
             revenue: String(branch.revenueValue ?? 0),
             target: String(branch.target ?? 0),
         });
+        setLocationError(null);
         setIsBranchModalOpen(true);
     };
 
@@ -205,6 +202,7 @@ const Branches = () => {
         setIsBranchModalOpen(false);
         setEditingBranchId(null);
         setFormState(initialFormState);
+        setLocationError(null);
     };
 
     const handleChange = (field, value) => {
@@ -220,16 +218,35 @@ const Branches = () => {
         });
     };
 
+    const handleLocationConfirm = (location) => {
+        setFormState((current) => ({
+            ...current,
+            latitude: String(location.latitude),
+            longitude: String(location.longitude),
+            address: current.address.trim() ? current.address : location.address,
+            city: current.city.trim() ? current.city : location.city,
+            state: current.state.trim() ? current.state : location.state,
+        }));
+        setLocationError(null);
+        setIsLocationPickerOpen(false);
+    };
+
     const handleBranchSubmit = async (event) => {
         event.preventDefault();
+
+        const cleanName = formState.name.trim();
+        const cleanCity = formState.city.trim();
+        const cleanState = formState.state.trim();
+        const cleanAddress = formState.address.trim();
+
+        if (formState.latitude === '' || formState.longitude === '') {
+            setLocationError('Please set a branch location on the map.');
+            return;
+        }
+        setLocationError(null);
         setIsSubmitting(true);
 
         try {
-            const cleanName = formState.name.trim();
-            const cleanCity = formState.city.trim();
-            const cleanState = formState.state.trim();
-            const cleanAddress = formState.address.trim();
-
             // Map frontend display values to backend constants
             const typeMap = Object.fromEntries(branchTypeOptions.map((option) => [option.label, option.value]));
             const statusMap = Object.fromEntries(branchStatusOptions.map((option) => [option.label, option.value]));
@@ -242,39 +259,14 @@ const Branches = () => {
                 type: mappedType,
                 status: mappedStatus,
                 city: cleanCity,
-                managerId: formState.head || null,
+                state: cleanState,
+                address: cleanAddress,
+                latitude: Math.min(90, Math.max(-90, Number(formState.latitude))),
+                longitude: Math.min(180, Math.max(-180, Number(formState.longitude))),
                 activeDeals: Math.max(0, Number(formState.activeDeals) || 0),
                 revenue: Math.max(0, Number(formState.revenue) || 0),
                 target: Math.min(100, Math.max(0, Number(formState.target) || 0)),
             };
-
-            // Add optional fields
-            if (cleanState) {
-                branchData.state = cleanState;
-            }
-
-            if (cleanAddress) {
-                branchData.address = cleanAddress;
-            }
-
-            // Latitude/longitude: optional, but clamp to valid geographic ranges when provided
-            // (mirrors the Math.max/Math.min clamping pattern used for activeDeals/revenue/target above).
-            // NOTE(QA-D7): no Maps API key is configured in this project, so there is no interactive
-            // map picker yet — these are plain numeric inputs. See Complete Address / City / State
-            // fields nearby for the rest of the location data captured on this form.
-            if (formState.latitude !== '' && formState.latitude !== null && formState.latitude !== undefined) {
-                const parsedLatitude = Number(formState.latitude);
-                if (!Number.isNaN(parsedLatitude)) {
-                    branchData.latitude = Math.min(90, Math.max(-90, parsedLatitude));
-                }
-            }
-
-            if (formState.longitude !== '' && formState.longitude !== null && formState.longitude !== undefined) {
-                const parsedLongitude = Number(formState.longitude);
-                if (!Number.isNaN(parsedLongitude)) {
-                    branchData.longitude = Math.min(180, Math.max(-180, parsedLongitude));
-                }
-            }
 
             if (editingBranchId) {
                 await dispatch(updateExistingBranch({ branchId: editingBranchId, branchData })).unwrap();
@@ -487,7 +479,9 @@ const Branches = () => {
                                     <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
                                         <Button variant="secondary" className="flex-1 font-bold text-xs" icon={Edit2} onClick={() => openEditBranch(branch)}>Edit Branch</Button>
                                         <Button variant="secondary" className="flex-1 font-bold text-xs" icon={Users} onClick={() => handleViewTeam(branch)}>View Team</Button>
-                                        <Button variant="secondary" className="flex-1 font-bold text-xs" icon={UserCog} onClick={() => openReplaceAdmin(branch)}>Replace Admin</Button>
+                                        {branch.hasAdmin && (
+                                            <Button variant="secondary" className="flex-1 font-bold text-xs" icon={UserCog} onClick={() => openReplaceAdmin(branch)}>Replace Admin</Button>
+                                        )}
                                     </div>
                                 </Card>
                             ))}
@@ -497,10 +491,10 @@ const Branches = () => {
             </main>
 
             {/* Create/Edit Branch Modal */}
-            <Modal isOpen={isBranchModalOpen} onClose={closeBranchModal} title={editingBranch ? `Edit ${editingBranch.name}` : 'Setup New Branch'}>
+            <Modal isOpen={isBranchModalOpen} onClose={closeBranchModal} title={editingBranch ? `Edit ${editingBranch.name}` : 'Setup New Branch'} size="lg">
                 <form onSubmit={handleBranchSubmit} className="space-y-5">
                     <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Branch Name</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Branch Name <span className="text-red-500">*</span></label>
                         <input
                             type="text"
                             required
@@ -533,9 +527,10 @@ const Branches = () => {
                             </datalist>
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">State</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">State <span className="text-red-500">*</span></label>
                             <input
                                 type="text"
+                                required
                                 value={formState.state}
                                 onChange={(event) => handleChange('state', event.target.value)}
                                 className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
@@ -544,35 +539,24 @@ const Branches = () => {
                             />
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Latitude</label>
-                            <input
-                                type="number"
-                                step="any"
-                                min="-90"
-                                max="90"
-                                value={formState.latitude}
-                                onChange={(event) => handleChange('latitude', event.target.value)}
-                                className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
-                                placeholder="e.g. 22.7196 (range -90 to 90)"
-                                disabled={isSubmitting}
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Longitude</label>
-                            <input
-                                type="number"
-                                step="any"
-                                min="-180"
-                                max="180"
-                                value={formState.longitude}
-                                onChange={(event) => handleChange('longitude', event.target.value)}
-                                className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
-                                placeholder="e.g. 75.8577 (range -180 to 180)"
-                                disabled={isSubmitting}
-                            />
-                        </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Location <span className="text-red-500">*</span></label>
+                        <button
+                            type="button"
+                            onClick={() => setIsLocationPickerOpen(true)}
+                            disabled={isSubmitting}
+                            className="w-full mt-2 border border-gray-300 rounded-lg p-3 flex items-center gap-2 text-left hover:border-[#6F4BFF] transition-colors"
+                        >
+                            <MapPin className="w-4 h-4 text-[#6F4BFF] shrink-0" />
+                            {formState.latitude && formState.longitude ? (
+                                <span className="font-bold text-gray-800 truncate">
+                                    {Number(formState.latitude).toFixed(5)}, {Number(formState.longitude).toFixed(5)}
+                                </span>
+                            ) : (
+                                <span className="font-bold text-gray-400">Tap to set branch location on the map</span>
+                            )}
+                        </button>
+                        {locationError && <p className="text-xs font-bold text-red-500 mt-1.5">{locationError}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -602,25 +586,12 @@ const Branches = () => {
                             </select>
                         </div>
                     </div>
-                    <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Assign Manager (Optional)</label>
-                        <select 
-                            value={formState.head} 
-                            onChange={(event) => handleChange('head', event.target.value)} 
-                            className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold bg-white"
-                            disabled={isSubmitting}
-                        >
-                            <option value="">No Manager Assigned</option>
-                            {managerOptions.map((manager) => (
-                                <option key={manager.id} value={manager.id}>{manager.name}</option>
-                            ))}
-                        </select>
-                    </div>
                     <div className="grid grid-cols-3 gap-4">
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Active Deals</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Active Deals <span className="text-red-500">*</span></label>
                             <input
                                 type="number"
+                                required
                                 min="0"
                                 value={formState.activeDeals}
                                 onChange={(event) => handleChange('activeDeals', event.target.value)}
@@ -629,9 +600,10 @@ const Branches = () => {
                             />
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Revenue (₹)</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Revenue (₹) <span className="text-red-500">*</span></label>
                             <input
                                 type="number"
+                                required
                                 min="0"
                                 step="0.01"
                                 value={formState.revenue}
@@ -642,9 +614,10 @@ const Branches = () => {
                             />
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Target %</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Target % <span className="text-red-500">*</span></label>
                             <input
                                 type="number"
+                                required
                                 min="0"
                                 max="100"
                                 value={formState.target}
@@ -656,9 +629,10 @@ const Branches = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Complete Address</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Complete Address <span className="text-red-500">*</span></label>
                         <textarea
                             rows="3"
+                            required
                             value={formState.address}
                             onChange={(event) => handleChange('address', event.target.value)}
                             className="w-full mt-2 border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-[#6F4BFF]/50 font-bold"
@@ -674,6 +648,13 @@ const Branches = () => {
                     </div>
                 </form>
             </Modal>
+
+            <LocationPickerModal
+                isOpen={isLocationPickerOpen}
+                onClose={() => setIsLocationPickerOpen(false)}
+                onConfirm={handleLocationConfirm}
+                initial={formState.latitude && formState.longitude ? { latitude: Number(formState.latitude), longitude: Number(formState.longitude) } : null}
+            />
 
             {/* View Team Modal */}
             <Modal isOpen={!!selectedTeamBranch} onClose={closeTeamModal} title={selectedTeamBranch ? `${selectedTeamBranch.name} Team` : 'Branch Team'}>

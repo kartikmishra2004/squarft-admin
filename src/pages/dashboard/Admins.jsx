@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Eye, EyeOff, Loader2, Mail, Phone, Plus, ShieldCheck, UserCog } from 'lucide-react';
+import { Crown, Eye, EyeOff, Loader2, Mail, Phone, Plus, ShieldCheck, UserCog } from 'lucide-react';
 import Header from '../../components/layout/Header';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -66,6 +66,7 @@ const Admins = () => {
         if (!form.email.trim()) errors.email = 'Email is required';
         if (!/^\d{10}$/.test(form.phone.replace(/\D/g, ''))) errors.phone = 'Enter a valid 10-digit phone number';
         if (form.password.length < 8) errors.password = 'Password must be at least 8 characters';
+        if (!form.branch_id) errors.branch_id = 'A branch is required — an admin must belong to exactly one branch';
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -81,7 +82,7 @@ const Admins = () => {
                 email: form.email.trim(),
                 phone: form.phone.replace(/\D/g, ''),
                 password: form.password,
-                branch_id: form.branch_id || null,
+                branch_id: form.branch_id,
             });
             setIsModalOpen(false);
             setForm(initialForm);
@@ -160,23 +161,43 @@ const Admins = () => {
                                             </td>
                                         </tr>
                                     )}
-                                    {admins.map((admin) => (
-                                        <tr key={admin.id} className="border-t border-gray-100 hover:bg-gray-50/60">
-                                            <td className="px-5 py-4 text-sm font-bold text-gray-900">
-                                                {admin.first_name} {admin.last_name}
-                                            </td>
-                                            <td className="px-5 py-4 text-sm text-gray-600">
-                                                <span className="inline-flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-gray-400" />{admin.email || '—'}</span>
-                                            </td>
-                                            <td className="px-5 py-4 text-sm text-gray-600">
-                                                <span className="inline-flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-gray-400" />{admin.phone || '—'}</span>
-                                            </td>
-                                            <td className="px-5 py-4 text-sm text-gray-600">{admin.branch_name || '—'}</td>
-                                            <td className="px-5 py-4">
-                                                <Badge variant={admin.status === 'active' ? 'green' : 'red'}>{admin.status}</Badge>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {admins.map((admin) => {
+                                        const isSuperAdmin = admin.role === 'super_admin';
+                                        return (
+                                            <tr
+                                                key={admin.id}
+                                                className={isSuperAdmin
+                                                    ? 'border-t border-amber-200 bg-linear-to-r from-amber-50 via-amber-50/60 to-transparent hover:from-amber-100/80'
+                                                    : 'border-t border-gray-100 hover:bg-gray-50/60'
+                                                }
+                                            >
+                                                <td className="px-5 py-4 text-sm font-bold text-gray-900">
+                                                    <span className="inline-flex items-center gap-2">
+                                                        {isSuperAdmin && <Crown className="w-4 h-4 text-amber-500 shrink-0" />}
+                                                        {admin.first_name} {admin.last_name}
+                                                        {isSuperAdmin && (
+                                                            <Badge variant="gradient" className="ml-1">Super Admin</Badge>
+                                                        )}
+                                                    </span>
+                                                </td>
+                                                <td className="px-5 py-4 text-sm text-gray-600">
+                                                    <span className="inline-flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-gray-400" />{admin.email || '—'}</span>
+                                                </td>
+                                                <td className="px-5 py-4 text-sm text-gray-600">
+                                                    <span className="inline-flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-gray-400" />{admin.phone || '—'}</span>
+                                                </td>
+                                                <td className="px-5 py-4 text-sm text-gray-600">
+                                                    {isSuperAdmin
+                                                        ? <span className="text-[11px] font-black text-amber-600 uppercase tracking-wider">All Branches</span>
+                                                        : (admin.branch_name || '—')
+                                                    }
+                                                </td>
+                                                <td className="px-5 py-4">
+                                                    <Badge variant={admin.status === 'active' ? 'green' : 'red'}>{admin.status}</Badge>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -212,13 +233,18 @@ const Admins = () => {
 
                     <div>
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Phone</label>
-                        <input
-                            type="text"
-                            value={form.phone}
-                            onChange={(e) => handleFieldChange('phone', e.target.value)}
-                            className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
-                            placeholder="10-digit mobile number"
-                        />
+                        <div className="flex items-center mt-2 border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#6F4BFF]/40">
+                            <span className="px-2.5 py-2.5 text-sm font-bold text-gray-500 bg-gray-50 border-r border-gray-200">+91</span>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                value={form.phone}
+                                onChange={(e) => handleFieldChange('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                className="w-full p-2.5 outline-none text-sm font-medium"
+                                placeholder="10-digit mobile number"
+                                maxLength={10}
+                            />
+                        </div>
                         {formErrors.phone && <p className="text-xs text-red-500 mt-1">{formErrors.phone}</p>}
                     </div>
 
@@ -248,17 +274,21 @@ const Admins = () => {
                     </div>
 
                     <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Branch (optional)</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Branch <span className="text-red-500">*</span></label>
                         <select
                             value={form.branch_id}
                             onChange={(e) => handleFieldChange('branch_id', e.target.value)}
                             className="w-full mt-2 border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/40 text-sm font-medium"
                         >
-                            <option value="">No branch</option>
+                            <option value="">Select a branch</option>
                             {(branches || []).map((branch) => (
                                 <option key={branch.id} value={branch.id}>{branch.name}</option>
                             ))}
                         </select>
+                        <p className="text-[11px] text-gray-400 font-medium mt-1.5">
+                            This admin will only ever see and manage this branch's data.
+                        </p>
+                        {formErrors.branch_id && <p className="text-xs text-red-500 mt-1">{formErrors.branch_id}</p>}
                     </div>
 
                     <div className="flex justify-end gap-3 pt-2">

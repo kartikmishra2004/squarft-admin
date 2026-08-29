@@ -7,6 +7,7 @@ import {
 import { logout } from '../store/authSlice';
 import logo from '../assets/logo.png';
 import { adminLinks, superAdminLinks, ROLE_ACCESS_CATALOG_PATHS } from '../data/navigation';
+import Avatar from './ui/Avatar';
 
 const SidebarItem = ({ icon: Icon, label, active = false, onClick }) => (
   <div
@@ -34,6 +35,17 @@ const Sidebar = () => {
   };
 
   const isSuperAdmin = user?.role === 'super_admin';
+
+  // myEffectiveAccess.currentUser (GET /api/admin/role-access/me, fetched
+  // once per session below) always reflects the account's current
+  // name/email - state.auth.user is only a snapshot taken at login, so it
+  // goes stale the moment someone edits their own profile.
+  const currentUser = myEffectiveAccess?.currentUser;
+  const displayName = currentUser?.name
+    || (user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.first_name)
+    || user?.name
+    || 'User';
+  const avatarUrl = currentUser?.avatarUrl || user?.avatar_url || null;
 
   // Source of truth for what a branch-level admin can see - see
   // docs/frontend-roles-access-handoff.md "Sidebar Mapping". Super Admin
@@ -84,17 +96,17 @@ const Sidebar = () => {
 
       <div className="pt-5 mt-5 border-t border-gray-100 shrink-0">
         <div className="flex items-center gap-2.5 px-3 py-2.5 mb-3 bg-gray-50 rounded-xl border border-gray-100">
-          <div className="w-9 h-9 rounded-lg bg-brand/10 flex items-center justify-center text-brand font-bold text-sm">
-            {user?.first_name?.charAt(0) || user?.name?.charAt(0) || 'U'}
-          </div>
+          <Avatar
+            src={avatarUrl}
+            name={displayName}
+            className="w-9 h-9 rounded-full bg-brand/10 text-brand font-bold text-sm"
+          />
           <div className="flex-1 overflow-hidden">
             <p className="text-[13px] font-bold text-gray-800 truncate">
-              {user?.first_name && user?.last_name 
-                ? `${user.first_name} ${user.last_name}` 
-                : user?.name || 'User'}
+              {displayName}
             </p>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-              {user?.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+              {(currentUser?.role || user?.role) === 'super_admin' ? 'Super Admin' : 'Admin'}
             </p>
           </div>
         </div>

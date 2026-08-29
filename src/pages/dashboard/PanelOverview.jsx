@@ -11,7 +11,6 @@ import {
     Pause,
     Download,
     CheckCircle2,
-    AlertCircle,
     Building2,
     Coins,
     FileText,
@@ -26,9 +25,6 @@ import Header from '../../components/layout/Header';
 import { useDialog } from '../../components/ui/Dialog';
 import {
     fetchPanelStats,
-    fetchBuilderKycList,
-    fetchBuilderKycDetails,
-    updateBuilderKycStatus,
     fetchOnboardingProjects,
     fetchProjectOnboardingDetails,
     decideProjectOnboarding,
@@ -73,21 +69,6 @@ const PanelMetricCard = ({ metric }) => (
         </div>
     </section>
 );
-
-// Maps API builder KYC record to the shape expected by KYC UI
-const mapBuilderKyc = (b) => ({
-    id: b.id,
-    firstName: b.name?.split(' ')[0] || '',
-    lastName: b.name?.split(' ').slice(1).join(' ') || '',
-    companyName: b.company_name || 'N/A',
-    companyType: 'Builder',
-    reraNumber: b.rera_number || 'N/A',
-    mobile: b.phone || 'N/A',
-    location: b.location || 'N/A',
-    kycStatus: (b.document_status || 'PENDING').toLowerCase(),
-    rejectionReason: b.rejection_reason || '',
-    kycDocuments: [],
-});
 
 // Maps API project onboarding record to the shape expected by onboarding UI
 const mapOnboardingProject = (p) => ({
@@ -710,19 +691,8 @@ const PanelOverview = () => {
 
     // Main layout tabs
     const [activeTab, setActiveTab] = useState('project'); // 'project' | 'fieldOfficer'
-    const [activeProjectSubTab, setActiveProjectSubTab] = useState('approveKyc'); // 'approveKyc' | 'onboardingProgress' | 'live' | 'rejected'
+    const [activeProjectSubTab, setActiveProjectSubTab] = useState('onboardingProgress'); // 'onboardingProgress' | 'live' | 'rejected'
     const [activeOfficerSubTab, setActiveOfficerSubTab] = useState('newAquisition');
-
-    // Builder KYC state (API-driven)
-    const [kycRecords, setKycRecords] = useState([]);
-    const [kycLoading, setKycLoading] = useState(false);
-    const [kycSubTab, setKycSubTab] = useState('pending');
-    const [selectedKycBuilderId, setSelectedKycBuilderId] = useState('');
-    const [kycDetails, setKycDetails] = useState(null);
-    const [kycDetailsLoading, setKycDetailsLoading] = useState(false);
-
-    const kycFilteredRecords = kycRecords.filter(b => b.kycStatus === kycSubTab);
-    const selectedKycBuilder = kycFilteredRecords.find(b => b.id === selectedKycBuilderId) || kycFilteredRecords[0] || null;
 
     // Field Officers state (API-driven)
     const [fieldOfficers, setFieldOfficers] = useState([]);
@@ -795,50 +765,6 @@ const PanelOverview = () => {
             console.error('Failed to load panel stats', e);
         } finally {
             setStatsLoading(false);
-        }
-    }, []);
-
-    const loadKycList = useCallback(async (status = kycSubTab) => {
-        try {
-            setKycLoading(true);
-            const res = await fetchBuilderKycList({ status });
-            if (res?.success) {
-                const mapped = (res.data || []).map(mapBuilderKyc);
-                setKycRecords(prev => {
-                    // Replace records for this status, keep others
-                    const others = prev.filter(r => r.kycStatus !== status);
-                    return [...others, ...mapped];
-                });
-                if (mapped.length > 0) setSelectedKycBuilderId(mapped[0].id);
-            }
-        } catch (e) {
-            console.error('Failed to load KYC list', e);
-        } finally {
-            setKycLoading(false);
-        }
-    }, [kycSubTab]);
-
-    const loadKycDetails = useCallback(async (id) => {
-        if (!id) return;
-        try {
-            setKycDetailsLoading(true);
-            const res = await fetchBuilderKycDetails(id);
-            if (res?.success && res.data) {
-                const { profile, documents } = res.data;
-                const docEntries = Object.entries(documents || {});
-                const kycDocuments = docEntries
-                    .filter(([, url]) => url)
-                    .map(([key, url], idx) => ({
-                        id: `${id}-${idx}`,
-                        label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-                        image: url,
-                    }));
-                setKycDetails({ ...mapBuilderKyc({ ...profile, name: profile.name }), kycDocuments, rawDocuments: documents || {} });
-            }
-        } catch (e) {
-            console.error('Failed to load KYC details', e);
-        } finally {
-            setKycDetailsLoading(false);
         }
     }, []);
 
@@ -1297,7 +1223,6 @@ const PanelOverview = () => {
 
     // Initial load
     useEffect(() => { loadStats(); }, [loadStats]);
-    useEffect(() => { loadKycList('pending'); loadKycList('approved'); loadKycList('rejected'); }, []);
     useEffect(() => { loadFieldOfficers(); }, [loadFieldOfficers]);
 
     // Load officer details + leads when officer changes
@@ -1313,11 +1238,6 @@ const PanelOverview = () => {
     useEffect(() => {
         if (selectedLeadId) loadLeadDetails(selectedLeadId);
     }, [selectedLeadId, loadLeadDetails]);
-
-    // Load KYC details when selected builder changes
-    useEffect(() => {
-        if (selectedKycBuilderId) loadKycDetails(selectedKycBuilderId);
-    }, [selectedKycBuilderId, loadKycDetails]);
 
     // Load onboarding when tab changes
     useEffect(() => { loadOnboardingProjects(projectOnboardTab); }, [projectOnboardTab]);
@@ -1351,13 +1271,6 @@ const PanelOverview = () => {
             loadOfficerOnboardDetails(selectedOfficerId, selectedOfficerOnboardId);
         }
     }, [selectedOfficerId, selectedOfficerOnboardId, loadOfficerOnboardDetails]);
-
-    // Keep kycFilteredRecords in sync when kycSubTab changes
-    useEffect(() => {
-        const current = kycRecords.filter(r => r.kycStatus === kycSubTab);
-        if (current.length > 0) setSelectedKycBuilderId(current[0].id);
-        else setSelectedKycBuilderId('');
-    }, [kycSubTab]);
 
     const handleAssignTask = async (e) => {
         e.preventDefault();
@@ -1485,34 +1398,6 @@ const PanelOverview = () => {
             ));
         } catch (e) {
             console.error('Failed to reject project', e);
-        }
-    };
-
-    const handleApproveKycBuilder = async (id) => {
-        try {
-            await updateBuilderKycStatus(id, { document_status: 'approved' });
-            setKycRecords(prev => prev.map(item =>
-                item.id === id ? { ...item, kycStatus: 'approved', rejectionReason: '' } : item
-            ));
-            setKycSubTab('approved');
-            setSelectedKycBuilderId(id);
-        } catch (e) {
-            console.error('Failed to approve KYC', e);
-        }
-    };
-
-    const handleRejectKycBuilder = async (id) => {
-        const reason = await prompt('Enter rejection reason for this builder KYC', { title: 'Reject KYC' });
-        if (!reason?.trim()) return;
-        try {
-            await updateBuilderKycStatus(id, { document_status: 'rejected', rejection_reason: reason.trim() });
-            setKycRecords(prev => prev.map(item =>
-                item.id === id ? { ...item, kycStatus: 'rejected', rejectionReason: reason.trim() } : item
-            ));
-            setKycSubTab('rejected');
-            setSelectedKycBuilderId(id);
-        } catch (e) {
-            console.error('Failed to reject KYC', e);
         }
     };
 
@@ -1846,48 +1731,6 @@ const PanelOverview = () => {
                             </div>
                         </div>
 
-                        {/* Selected Builder Basic Details (Signup Data) */}
-                        {activeTab === 'project' && (
-                            <div className="space-y-4 pb-4 border-b border-[#EFEAF8]">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                    <div />
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Online & Verified</span>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-4 rounded-[8px] bg-[#F8F9FF] border border-[#E1DDF0]">
-                                    <div>
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">First Name</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5">{(kycDetails || kycFilteredRecords[0])?.firstName || '—'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Last Name</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5">{(kycDetails || kycFilteredRecords[0])?.lastName || '—'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Phone Number</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5">{(kycDetails || kycFilteredRecords[0])?.mobile || '—'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Company Type</p>
-                                        <span className="inline-flex items-center mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold bg-[#F4F1FF] text-[#2717D7] border border-[#D8D2EB]">
-                                            {(kycDetails || kycFilteredRecords[0])?.companyType || 'Builder'}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">RERA Number</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5 tracking-wide">{(kycDetails || kycFilteredRecords[0])?.reraNumber || '—'}</p>
-                                    </div>
-                                    <div className="col-span-2 lg:col-span-1">
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">Location</p>
-                                        <p className="text-xs font-black text-[#171327] mt-0.5 truncate">{(kycDetails || kycFilteredRecords[0])?.location || '—'}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
                         {/* Selected Field Officer Basic Details (Signup Data) */}
                         {activeTab === 'fieldOfficer' && (
                             <div className="space-y-4 pb-4 border-b border-[#EFEAF8]">
@@ -1944,7 +1787,6 @@ const PanelOverview = () => {
                             {activeTab === 'project' ? (
                                 <>
                                     {[
-                                        { id: 'approveKyc', label: 'Approve KYC' },
                                         { id: 'onboardingProgress', label: 'Onboarding progress' },
                                         { id: 'live', label: 'Live' },
                                         { id: 'rejected', label: 'Rejected' },
@@ -2240,199 +2082,7 @@ const PanelOverview = () => {
                                                 </div>
                                             )}
                                         </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
-                                            <div className="lg:col-span-1 rounded-[10px] border border-[#D8D2EB] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-                                                <div className="flex items-center justify-between border-b border-[#EFEAF8] pb-3">
-                                                    <div>
-                                                        <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#171327]">Builder KYC</h4>
-                                                        <p className="text-[10px] font-bold text-[#5E5A71] mt-0.5">Signup records grouped by review status</p>
-                                                    </div>
-                                                    <span className="rounded-full bg-[#F4F1FF] px-2 py-0.5 text-[9px] font-black text-[#2717D7] border border-[#D8D2EB]">
-                                                        {kycFilteredRecords.length}
-                                                    </span>
-                                                </div>
-
-                                                <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-[8px] bg-[#F8F9FF] p-1 border border-[#E1DDF0]">
-                                                    {[
-                                                        { id: 'pending', label: 'Pending' },
-                                                        { id: 'approved', label: 'Approved' },
-                                                        { id: 'rejected', label: 'Rejected' },
-                                                    ].map((tab) => {
-                                                        const isActive = kycSubTab === tab.id;
-                                                        const count = kycRecords.filter((builder) => builder.kycStatus === tab.id).length;
-                                                        return (
-                                                            <button
-                                                                key={tab.id}
-                                                                type="button"
-                                                                onClick={() => setKycSubTab(tab.id)}
-                                                                className={`rounded-[6px] px-2 py-1.5 text-[9px] font-black uppercase tracking-wider transition-all ${isActive
-                                                                        ? 'bg-[#2717D7] text-white shadow-sm'
-                                                                        : 'text-[#5E5A71] hover:bg-white hover:text-[#2717D7]'
-                                                                    }`}
-                                                            >
-                                                                {tab.label} ({count})
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-
-                                                <div className="mt-3 space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                                                    {kycFilteredRecords.length === 0 ? (
-                                                        <div className="rounded-[8px] border border-dashed border-[#D8D2EB] bg-[#FCFBFF] p-6 text-center">
-                                                            <p className="text-xs font-bold text-[#797298]">No builders in this KYC stage.</p>
-                                                        </div>
-                                                    ) : kycFilteredRecords.map((builder) => {
-                                                        const isSelected = selectedKycBuilder?.id === builder.id;
-                                                        return (
-                                                            <button
-                                                                key={builder.id}
-                                                                type="button"
-                                                                onClick={() => setSelectedKycBuilderId(builder.id)}
-                                                                className={`w-full text-left rounded-[8px] border p-3 transition-all ${isSelected
-                                                                        ? 'border-[#2717D7] bg-[#F4F1FF]'
-                                                                        : 'border-[#E1DDF0] bg-white hover:border-[#2717D7]/40'
-                                                                    }`}
-                                                            >
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                    <div className="min-w-0">
-                                                                        <p className={`truncate text-xs font-black ${isSelected ? 'text-[#2717D7]' : 'text-[#171327]'}`}>
-                                                                            {builder.companyName}
-                                                                        </p>
-                                                                        <p className="mt-0.5 truncate text-[10px] font-bold text-[#5E5A71]">
-                                                                            {builder.firstName} {builder.lastName}
-                                                                        </p>
-                                                                    </div>
-                                                                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider border ${builder.kycStatus === 'approved'
-                                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                                                            : builder.kycStatus === 'rejected'
-                                                                                ? 'bg-rose-50 text-rose-600 border-rose-100'
-                                                                                : 'bg-amber-50 text-amber-600 border-amber-100'
-                                                                        }`}>
-                                                                        {builder.kycStatus}
-                                                                    </span>
-                                                                </div>
-                                                                <p className="mt-2 truncate font-mono text-[10px] font-black text-[#5E5A71]">
-                                                                    {builder.reraNumber}
-                                                                </p>
-                                                                {builder.kycStatus === 'rejected' && builder.rejectionReason && (
-                                                                    <p className="mt-2 line-clamp-2 text-[10px] font-bold text-rose-600">
-                                                                        {builder.rejectionReason}
-                                                                    </p>
-                                                                )}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-
-                                            <div className="lg:col-span-2 rounded-[10px] border border-[#D8D2EB] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-                                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-[#EFEAF8] pb-4">
-                                                    <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#797298]">Project panel signup</p>
-                                                        <h3 className="mt-1 text-lg font-black text-[#171327]">{selectedKycBuilder?.companyName}</h3>
-                                                        <p className="mt-1 text-xs font-bold text-[#5E5A71]">
-                                                            Basic details collected from the project-panel registration form.
-                                                        </p>
-                                                    </div>
-                                                    <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border ${selectedKycBuilder?.kycStatus === 'approved'
-                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                                            : selectedKycBuilder?.kycStatus === 'rejected'
-                                                                ? 'bg-rose-50 text-rose-600 border-rose-100'
-                                                                : 'bg-amber-50 text-amber-600 border-amber-100'
-                                                        }`}>
-                                                        {selectedKycBuilder?.kycStatus === 'approved' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
-                                                        {selectedKycBuilder?.kycStatus || 'Pending'} KYC
-                                                    </div>
-                                                </div>
-
-                                                {!selectedKycBuilder ? (
-                                                    <div className="mt-5 rounded-[8px] border border-dashed border-[#D8D2EB] bg-[#FCFBFF] p-8 text-center">
-                                                        <p className="text-xs font-bold text-[#797298]">Select a builder KYC record to review details.</p>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                            <DetailField label="First Name" value={selectedKycBuilder?.firstName} />
-                                                            <DetailField label="Last Name" value={selectedKycBuilder?.lastName} />
-                                                            <DetailField label="Company Name" value={selectedKycBuilder?.companyName} />
-                                                            <DetailField label="Company Type" value={selectedKycBuilder?.companyType} />
-                                                            <DetailField label="RERA Number" value={selectedKycBuilder?.reraNumber} />
-                                                            <DetailField label="Phone Number" value={selectedKycBuilder?.mobile} />
-                                                            <div className="sm:col-span-2">
-                                                                <DetailField label="Location" value={selectedKycBuilder?.location} />
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="mt-5 border-t border-[#EFEAF8] pt-4">
-                                                            <h4 className="text-xs font-black uppercase tracking-[0.1em] text-[#5E5A71] mb-3 flex items-center gap-1.5">
-                                                                <ImageIcon size={14} className="text-[#2717D7]" /> Uploaded KYC Documents
-                                                            </h4>
-                                                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                                                                {selectedKycBuilder.kycDocuments.map((document) => (
-                                                                    <div key={document.id} className="overflow-hidden rounded-[8px] border border-[#E1DDF0] bg-[#FCFBFF]">
-                                                                        <img src={document.image} alt={document.label} className="h-32 w-full object-cover" />
-                                                                        <div className="border-t border-[#E1DDF0] bg-white px-3 py-2">
-                                                                            <p className="text-[10px] font-black uppercase tracking-wider text-[#171327]">{document.label}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-
-                                                        {selectedKycBuilder.kycStatus === 'rejected' && selectedKycBuilder.rejectionReason && (
-                                                            <div className="mt-4 rounded-[8px] border border-rose-100 bg-rose-50 p-3">
-                                                                <p className="text-[9px] font-black uppercase tracking-wider text-rose-500">Rejection Reason</p>
-                                                                <p className="mt-1 text-xs font-bold text-rose-700">{selectedKycBuilder.rejectionReason}</p>
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                )}
-
-                                                {selectedKycBuilder?.kycStatus === 'pending' && (() => {
-                                                    // SQF-KYC-023-pattern client-side safeguard (see UserList.jsx for the
-                                                    // matching Field/Sales Officer + Broker version): the server
-                                                    // (updateBuilderKycStatus) now rejects an 'approved' write missing
-                                                    // any mandatory document, but the button here used to be clickable
-                                                    // regardless. Mirror the same invariant client-side as a UX guard.
-                                                    const raw = selectedKycBuilder.rawDocuments || {};
-                                                    const missing = [
-                                                        !raw.selfie && 'Profile Photo / Selfie',
-                                                        !raw.aadhar_front && 'Aadhaar Front',
-                                                        !raw.pan_card && 'PAN Card',
-                                                    ].filter(Boolean);
-                                                    const canApproveBuilder = missing.length === 0;
-                                                    return (
-                                                        <div className="mt-5 border-t border-[#EFEAF8] pt-4">
-                                                            {!canApproveBuilder && (
-                                                                <p className="mb-2 text-right text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                                                                    Cannot approve — missing: {missing.join(', ')}
-                                                                </p>
-                                                            )}
-                                                            <div className="flex flex-wrap items-center justify-end gap-2">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleRejectKycBuilder(selectedKycBuilder.id)}
-                                                                    className="h-9 rounded-[6px] border border-rose-100 bg-rose-50 px-4 text-xs font-black uppercase tracking-wider text-rose-600 hover:bg-rose-100 transition-colors"
-                                                                >
-                                                                    Reject KYC
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => canApproveBuilder && handleApproveKycBuilder(selectedKycBuilder.id)}
-                                                                    disabled={!canApproveBuilder}
-                                                                    title={canApproveBuilder ? undefined : `Missing mandatory document(s): ${missing.join(', ')}`}
-                                                                    className={`h-9 rounded-[6px] px-4 text-xs font-black uppercase tracking-wider text-white shadow-sm transition-colors ${canApproveBuilder ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-emerald-300 cursor-not-allowed opacity-60'}`}
-                                                                >
-                                                                    Approve KYC
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        </div>
-                                    )}
+                                    ) : null}
                                 </>
                             )}
 

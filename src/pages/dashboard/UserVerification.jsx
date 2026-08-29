@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-    Search, Eye, CheckCircle2, XCircle, FileCheck, FileText,
-    ChevronLeft, ChevronRight, Loader2, Smartphone, Clock,
+    Search, Eye, CheckCircle2, AlertCircle, XCircle, FileCheck, FileText,
+    ChevronLeft, ChevronRight, Loader2, Smartphone, Clock, Image as ImageIcon,
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -9,11 +9,17 @@ import Badge from '../../components/ui/Badge';
 import Header from '../../components/layout/Header';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
+import { useDialog } from '../../components/ui/Dialog';
 import {
     getPendingVerifications,
     approveVerificationDocument,
     rejectVerificationDocument,
 } from '../../services/userVerificationService';
+import {
+    fetchBuilderKycList,
+    fetchBuilderKycDetails,
+    updateBuilderKycStatus,
+} from '../../services/panelOverviewService';
 
 const documentTypeLabels = {
     profile_photo: 'Profile Photo',
@@ -37,7 +43,43 @@ const formatDate = (value) => {
 
 const isImageFile = (fileName = '') => /\.(jpe?g|png)$/i.test(fileName);
 
+// Maps a project-developer KYC list/detail record to the shape the panel below expects.
+const mapBuilderKyc = (b) => ({
+    id: b.id,
+    firstName: b.name?.split(' ')[0] || '',
+    lastName: b.name?.split(' ').slice(1).join(' ') || '',
+    companyName: b.company_name || 'N/A',
+    companyType: 'Builder',
+    reraNumber: b.rera_number || 'N/A',
+    mobile: b.phone || 'N/A',
+    location: b.location || 'N/A',
+    kycStatus: (b.document_status || 'PENDING').toLowerCase(),
+    rejectionReason: b.rejection_reason || '',
+    kycDocuments: [],
+});
+
+const DetailField = ({ label, value }) => {
+    const isValEmpty = value === null || value === undefined || String(value).trim() === '';
+    return (
+        <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-[#797298]">{label}</p>
+            {isValEmpty ? (
+                <span className="inline-flex items-center text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 mt-0.5">
+                    [Pending]
+                </span>
+            ) : (
+                <p className="text-xs font-black text-[#171327] mt-0.5 tracking-wide">
+                    {value}
+                </p>
+            )}
+        </div>
+    );
+};
+
 const UserVerification = () => {
+    const { prompt } = useDialog();
+    const [activeVerificationTab, setActiveVerificationTab] = useState('consumer'); // 'consumer' | 'builder'
+
     const [items, setItems] = useState([]);
     const [pagination, setPagination] = useState(null);
     const [page, setPage] = useState(1);
@@ -50,11 +92,30 @@ const UserVerification = () => {
     const [rejectionReason, setRejectionReason] = useState('');
     const [rejectError, setRejectError] = useState('');
 
+    // Project developer ("Builder") KYC state (API-driven)
+    const [kycRecords, setKycRecords] = useState([]);
+    const [kycSubTab, setKycSubTab] = useState('pending');
+    const [selectedKycBuilderId, setSelectedKycBuilderId] = useState('');
+    const [kycDetails, setKycDetails] = useState(null);
+    const [kycDetailsLoading, setKycDetailsLoading] = useState(false);
+
+    const kycFilteredRecords = kycRecords.filter(b => b.kycStatus === kycSubTab);
+    const selectedKycBuilder = kycFilteredRecords.find(b => b.id === selectedKycBuilderId) || kycFilteredRecords[0] || null;
+    // The list endpoint (kycRecords) never returns phone/location/document fields —
+    // only the detail endpoint (kycDetails) does. Prefer kycDetails whenever it's
+    // actually loaded for the currently selected builder, else fall back to the
+    // list record so something renders while the detail fetch is in flight.
+    const kycDisplay = (kycDetails && kycDetails.id === selectedKycBuilder?.id) ? kycDetails : selectedKycBuilder;
+
     const fetchPending = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
             const result = await getPendingVerifications({ page, limit: 10, sort: 'oldest_first' });
+            if (result.items.length === 0 && page > 1 && page > result.pagination.total_pages) {
+                setPage(Math.max(1, result.pagination.total_pages));
+                return;
+            }
             setItems(result.items);
             setPagination(result.pagination);
         } catch (err) {
@@ -65,8 +126,93 @@ const UserVerification = () => {
     }, [page]);
 
     useEffect(() => {
-        fetchPending();
-    }, [fetchPending]);
+        if (activeVerificationTab === 'consumer') fetchPending();
+    }, [fetchPending, activeVerificationTab]);
+
+    const loadKycList = useCallback(async (status) => {
+        try {
+            const res = await fetchBuilderKycList({ status });
+            if (res?.success) {
+                const mapped = (res.data || []).map(mapBuilderKyc);
+                setKycRecords(prev => {
+                    const others = prev.filter(r => r.kycStatus !== status);
+                    return [...others, ...mapped];
+                });
+                if (mapped.length > 0) setSelectedKycBuilderId(mapped[0].id);
+            }
+        } catch (e) {
+            console.error('Failed to load KYC list', e);
+        }
+    }, []);
+
+    const loadKycDetails = useCallback(async (id) => {
+        if (!id) return;
+        try {
+            setKycDetailsLoading(true);
+            const res = await fetchBuilderKycDetails(id);
+            if (res?.success && res.data) {
+                const { profile, documents } = res.data;
+                const docEntries = Object.entries(documents || {});
+                const kycDocuments = docEntries
+                    .filter(([, url]) => url)
+                    .map(([key, url], idx) => ({
+                        id: `${id}-${idx}`,
+                        label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                        image: url,
+                    }));
+                setKycDetails({ ...mapBuilderKyc({ ...profile, name: profile.name }), kycDocuments, rawDocuments: documents || {} });
+            }
+        } catch (e) {
+            console.error('Failed to load KYC details', e);
+        } finally {
+            setKycDetailsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeVerificationTab !== 'builder') return;
+        loadKycList('pending');
+        loadKycList('approved');
+        loadKycList('rejected');
+    }, [activeVerificationTab, loadKycList]);
+
+    useEffect(() => {
+        if (selectedKycBuilderId) loadKycDetails(selectedKycBuilderId);
+    }, [selectedKycBuilderId, loadKycDetails]);
+
+    useEffect(() => {
+        const current = kycRecords.filter(r => r.kycStatus === kycSubTab);
+        if (current.length > 0) setSelectedKycBuilderId(current[0].id);
+        else setSelectedKycBuilderId('');
+    }, [kycSubTab]);
+
+    const handleApproveKycBuilder = async (id) => {
+        try {
+            await updateBuilderKycStatus(id, { document_status: 'approved' });
+            setKycRecords(prev => prev.map(item =>
+                item.id === id ? { ...item, kycStatus: 'approved', rejectionReason: '' } : item
+            ));
+            setKycSubTab('approved');
+            setSelectedKycBuilderId(id);
+        } catch (e) {
+            console.error('Failed to approve KYC', e);
+        }
+    };
+
+    const handleRejectKycBuilder = async (id) => {
+        const reason = await prompt('Enter rejection reason for this builder KYC', { title: 'Reject KYC' });
+        if (!reason?.trim()) return;
+        try {
+            await updateBuilderKycStatus(id, { document_status: 'rejected', rejection_reason: reason.trim() });
+            setKycRecords(prev => prev.map(item =>
+                item.id === id ? { ...item, kycStatus: 'rejected', rejectionReason: reason.trim() } : item
+            ));
+            setKycSubTab('rejected');
+            setSelectedKycBuilderId(id);
+        } catch (e) {
+            console.error('Failed to reject KYC', e);
+        }
+    };
 
     const handleApprove = async (doc) => {
         setActionLoadingId(doc.document_id);
@@ -108,17 +254,41 @@ const UserVerification = () => {
 
     return (
         <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
-            <Header title="Consumer ID Verification" />
+            <Header title="ID Verification" />
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
                 <div className="max-w-[1600px] mx-auto space-y-6">
                     <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-800">Consumer ID verification</h2>
-                            <p className="text-sm text-gray-500 mt-1">Review identity documents uploaded by consumer app users awaiting KYC approval.</p>
+                            <h2 className="text-2xl font-bold text-gray-800">
+                                {activeVerificationTab === 'consumer' ? 'Consumer ID verification' : 'Project Developer KYC'}
+                            </h2>
+                            <p className="text-sm text-gray-500 mt-1">
+                                {activeVerificationTab === 'consumer'
+                                    ? 'Review identity documents uploaded by consumer app users awaiting KYC approval.'
+                                    : 'Review KYC submitted by project developers through the project panel app.'}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 rounded-xl bg-gray-100 p-1">
+                            <button
+                                type="button"
+                                onClick={() => setActiveVerificationTab('consumer')}
+                                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${activeVerificationTab === 'consumer' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                            >
+                                Consumer Users
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveVerificationTab('builder')}
+                                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${activeVerificationTab === 'builder' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                            >
+                                Project Developers
+                            </button>
                         </div>
                     </div>
 
+                    {activeVerificationTab === 'consumer' && (
+                    <>
                     {error && (
                         <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm font-bold px-4 py-3 rounded-xl flex justify-between items-center">
                             {error}
@@ -235,9 +405,203 @@ const UserVerification = () => {
                             </div>
                         </div>
                     )}
+                    </>
+                    )}
+
+                    {activeVerificationTab === 'builder' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-1 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-[0.1em] text-gray-900">Builder KYC</h4>
+                                        <p className="text-[10px] font-bold text-gray-500 mt-0.5">Signup records grouped by review status</p>
+                                    </div>
+                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-black text-gray-700 border border-gray-200">
+                                        {kycFilteredRecords.length}
+                                    </span>
+                                </div>
+
+                                <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-gray-50 p-1 border border-gray-100">
+                                    {[
+                                        { id: 'pending', label: 'Pending' },
+                                        { id: 'approved', label: 'Approved' },
+                                        { id: 'rejected', label: 'Rejected' },
+                                    ].map((tab) => {
+                                        const isActive = kycSubTab === tab.id;
+                                        const count = kycRecords.filter((builder) => builder.kycStatus === tab.id).length;
+                                        return (
+                                            <button
+                                                key={tab.id}
+                                                type="button"
+                                                onClick={() => setKycSubTab(tab.id)}
+                                                className={`rounded-md px-2 py-1.5 text-[9px] font-black uppercase tracking-wider transition-all ${isActive ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-900'}`}
+                                            >
+                                                {tab.label} ({count})
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="mt-3 space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                                    {kycFilteredRecords.length === 0 ? (
+                                        <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
+                                            <p className="text-xs font-bold text-gray-500">No builders in this KYC stage.</p>
+                                        </div>
+                                    ) : kycFilteredRecords.map((builder) => {
+                                        const isSelected = selectedKycBuilder?.id === builder.id;
+                                        return (
+                                            <button
+                                                key={builder.id}
+                                                type="button"
+                                                onClick={() => setSelectedKycBuilderId(builder.id)}
+                                                className={`w-full text-left rounded-lg border p-3 transition-all ${isSelected ? 'border-gray-900 bg-gray-50' : 'border-gray-200 bg-white hover:border-gray-400'}`}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <p className={`truncate text-xs font-black ${isSelected ? 'text-gray-900' : 'text-gray-800'}`}>
+                                                            {builder.companyName}
+                                                        </p>
+                                                        <p className="mt-0.5 truncate text-[10px] font-bold text-gray-500">
+                                                            {builder.firstName} {builder.lastName}
+                                                        </p>
+                                                    </div>
+                                                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider border ${builder.kycStatus === 'approved'
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                            : builder.kycStatus === 'rejected'
+                                                                ? 'bg-rose-50 text-rose-600 border-rose-100'
+                                                                : 'bg-amber-50 text-amber-600 border-amber-100'
+                                                        }`}>
+                                                        {builder.kycStatus}
+                                                    </span>
+                                                </div>
+                                                <p className="mt-2 truncate font-mono text-[10px] font-black text-gray-500">
+                                                    {builder.reraNumber}
+                                                </p>
+                                                {builder.kycStatus === 'rejected' && builder.rejectionReason && (
+                                                    <p className="mt-2 line-clamp-2 text-[10px] font-bold text-rose-600">
+                                                        {builder.rejectionReason}
+                                                    </p>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-gray-100 pb-4">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">Project panel signup</p>
+                                        <h3 className="mt-1 text-lg font-black text-gray-900">{kycDisplay?.companyName}</h3>
+                                        <p className="mt-1 text-xs font-bold text-gray-500">
+                                            Basic details collected from the project-panel registration form.
+                                        </p>
+                                    </div>
+                                    <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border ${kycDisplay?.kycStatus === 'approved'
+                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                            : kycDisplay?.kycStatus === 'rejected'
+                                                ? 'bg-rose-50 text-rose-600 border-rose-100'
+                                                : 'bg-amber-50 text-amber-600 border-amber-100'
+                                        }`}>
+                                        {kycDisplay?.kycStatus === 'approved' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+                                        {kycDisplay?.kycStatus || 'Pending'} KYC
+                                    </div>
+                                </div>
+
+                                {!selectedKycBuilder ? (
+                                    <div className="mt-5 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
+                                        <p className="text-xs font-bold text-gray-500">Select a builder KYC record to review details.</p>
+                                    </div>
+                                ) : kycDetailsLoading && kycDetails?.id !== selectedKycBuilder.id ? (
+                                    <div className="mt-5 flex items-center justify-center gap-2 py-10 text-gray-500">
+                                        <Loader2 size={16} className="animate-spin" />
+                                        <span className="text-xs font-bold">Loading KYC details...</span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <DetailField label="First Name" value={kycDisplay?.firstName} />
+                                            <DetailField label="Last Name" value={kycDisplay?.lastName} />
+                                            <DetailField label="Company Name" value={kycDisplay?.companyName} />
+                                            <DetailField label="Company Type" value={kycDisplay?.companyType} />
+                                            <DetailField label="RERA Number" value={kycDisplay?.reraNumber} />
+                                            <DetailField label="Phone Number" value={kycDisplay?.mobile} />
+                                            <div className="sm:col-span-2">
+                                                <DetailField label="Location" value={kycDisplay?.location} />
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-5 border-t border-gray-100 pt-4">
+                                            <h4 className="text-xs font-black uppercase tracking-[0.1em] text-gray-500 mb-3 flex items-center gap-1.5">
+                                                <ImageIcon size={14} className="text-gray-700" /> Uploaded KYC Documents
+                                            </h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                                                {(kycDisplay?.kycDocuments || []).length === 0 ? (
+                                                    <p className="text-xs font-bold text-gray-500">No documents uploaded yet.</p>
+                                                ) : kycDisplay.kycDocuments.map((document) => (
+                                                    <div key={document.id} className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                                                        <img src={document.image} alt={document.label} className="h-32 w-full object-cover" />
+                                                        <div className="border-t border-gray-200 bg-white px-3 py-2">
+                                                            <p className="text-[10px] font-black uppercase tracking-wider text-gray-900">{document.label}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {kycDisplay.kycStatus === 'rejected' && kycDisplay.rejectionReason && (
+                                            <div className="mt-4 rounded-lg border border-rose-100 bg-rose-50 p-3">
+                                                <p className="text-[9px] font-black uppercase tracking-wider text-rose-500">Rejection Reason</p>
+                                                <p className="mt-1 text-xs font-bold text-rose-700">{kycDisplay.rejectionReason}</p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {selectedKycBuilder?.kycStatus === 'pending' && (() => {
+                                    const raw = kycDisplay?.rawDocuments || {};
+                                    const missing = [
+                                        !raw.selfie && 'Profile Photo / Selfie',
+                                        !raw.aadhar_front && 'Aadhaar Front',
+                                        !raw.pan_card && 'PAN Card',
+                                    ].filter(Boolean);
+                                    const canApproveBuilder = missing.length === 0;
+                                    return (
+                                        <div className="mt-5 border-t border-gray-100 pt-4">
+                                            {!canApproveBuilder && (
+                                                <p className="mb-2 text-right text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                                    Cannot approve — missing: {missing.join(', ')}
+                                                </p>
+                                            )}
+                                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRejectKycBuilder(selectedKycBuilder.id)}
+                                                    className="h-9 rounded-lg border border-rose-100 bg-rose-50 px-4 text-xs font-black uppercase tracking-wider text-rose-600 hover:bg-rose-100 transition-colors"
+                                                >
+                                                    Reject KYC
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => canApproveBuilder && handleApproveKycBuilder(selectedKycBuilder.id)}
+                                                    disabled={!canApproveBuilder}
+                                                    title={canApproveBuilder ? undefined : `Missing mandatory document(s): ${missing.join(', ')}`}
+                                                    className={`h-9 rounded-lg px-4 text-xs font-black uppercase tracking-wider text-white shadow-sm transition-colors ${canApproveBuilder ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-emerald-300 cursor-not-allowed opacity-60'}`}
+                                                >
+                                                    Approve KYC
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
 
+            {activeVerificationTab === 'consumer' && (
+            <>
             {/* Document Preview Modal */}
             <Modal isOpen={!!previewDoc} onClose={() => setPreviewDoc(null)} title="Document Preview" size="lg">
                 {previewDoc && (
@@ -310,6 +674,8 @@ const UserVerification = () => {
                     </div>
                 )}
             </Modal>
+            </>
+            )}
         </div>
     );
 };
