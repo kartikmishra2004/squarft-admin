@@ -6,7 +6,7 @@ import {
     IndianRupee, Zap, Sparkles, Check, XCircle, CheckCircle2,
     Trash2, Users, FileIcon, UserPlus, Filter, ChevronDown, Briefcase,
     Phone, Coins, Image as ImageIcon, ShieldCheck, Dumbbell, Car, Trees, Droplets, Download,
-    ArrowUpDown
+    ArrowUpDown, ChevronLeft, ChevronRight, Images
 } from 'lucide-react';
 import { 
     setSelectedProject, 
@@ -210,34 +210,128 @@ const getProjectMeta = (project) => {
         'Verified documents',
         'Brochure available',
     ].filter(Boolean).slice(0, 4);
-    const images = project.projectImages?.length ? project.projectImages : [DEFAULT_PROJECT_IMAGE];
+    const galleryImages = (project.images || []).map((img) => img?.url).filter(Boolean);
+    const images = galleryImages.length
+        ? galleryImages
+        : project.coverImageUrl
+            ? [project.coverImageUrl]
+            : [DEFAULT_PROJECT_IMAGE];
 
     return { reraNumber, possession, avgPrice, amenities, images };
 };
 
-const ProjectImageStrip = ({ project, className = 'h-44' }) => {
-    const { images } = getProjectMeta(project);
-    const heroImage = images[0] || DEFAULT_PROJECT_IMAGE;
-    const thumbImage = images[1] || heroImage;
+const ImageLightbox = ({ images, startIndex = 0, alt = 'Project image', onClose }) => {
+    const [index, setIndex] = useState(startIndex);
+    const total = images.length;
+
+    const goPrev = (e) => { e.stopPropagation(); setIndex((i) => (i - 1 + total) % total); };
+    const goNext = (e) => { e.stopPropagation(); setIndex((i) => (i + 1) % total); };
+
+    useEffect(() => {
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape') onClose();
+            if (e.key === 'ArrowLeft') setIndex((i) => (i - 1 + total) % total);
+            if (e.key === 'ArrowRight') setIndex((i) => (i + 1) % total);
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [total, onClose]);
 
     return (
-        <div className={`${className} relative overflow-hidden bg-gray-100`}>
-            <div className="grid grid-cols-[1.4fr_0.8fr] h-full gap-0.5">
-                <img src={heroImage} alt={`${project.name} project view`} className="h-full w-full object-cover" />
-                <div className="relative">
-                    <img src={thumbImage} alt={`${project.name} gallery preview`} className="h-full w-full object-cover" />
-                    <div className="absolute bottom-3 right-3 rounded-md bg-black/55 px-2 py-1 text-[10px] font-black text-white">
-                        1/{images.length}
-                    </div>
+        <div
+            className="fixed inset-0 z-[1000] bg-black/90 flex items-center justify-center animate-in fade-in duration-200"
+            onClick={onClose}
+        >
+            <button
+                type="button"
+                onClick={onClose}
+                className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+            >
+                <X className="w-5 h-5" />
+            </button>
+
+            {total > 1 && (
+                <div className="absolute top-5 left-5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-black text-white tracking-wider">
+                    {index + 1} / {total}
                 </div>
-            </div>
-            <div className="absolute top-3 left-3 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#2512D9] shadow-sm">
-                SquarFT Verified
-            </div>
-            <div className="absolute top-3 right-3">
-                {getStatusBadge(project.status)}
-            </div>
+            )}
+
+            {total > 1 && (
+                <button
+                    type="button"
+                    onClick={goPrev}
+                    className="absolute left-3 md:left-6 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                >
+                    <ChevronLeft className="w-6 h-6" />
+                </button>
+            )}
+
+            <img
+                src={images[index]}
+                alt={`${alt} ${index + 1}`}
+                className="max-h-[85vh] max-w-[88vw] object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            />
+
+            {total > 1 && (
+                <button
+                    type="button"
+                    onClick={goNext}
+                    className="absolute right-3 md:right-6 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                >
+                    <ChevronRight className="w-6 h-6" />
+                </button>
+            )}
         </div>
+    );
+};
+
+const ProjectImageStrip = ({ project, className = 'h-44' }) => {
+    const { images } = getProjectMeta(project);
+    const mainImage = images[0] || DEFAULT_PROJECT_IMAGE;
+    const extraCount = images.length - 1;
+    const [lightboxOpen, setLightboxOpen] = useState(false);
+
+    const openLightbox = (e) => {
+        e.stopPropagation();
+        setLightboxOpen(true);
+    };
+
+    return (
+        <>
+            <div
+                className={`${className} relative overflow-hidden bg-gray-100 cursor-pointer`}
+                onClick={openLightbox}
+            >
+                <img src={mainImage} alt={`${project.name} project view`} className="h-full w-full object-cover" />
+
+                <div className="absolute top-3 left-3 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#2512D9] shadow-sm">
+                    SquarFT Verified
+                </div>
+                <div className="absolute top-3 right-3">
+                    {getStatusBadge(project.status)}
+                </div>
+
+                {extraCount > 0 && (
+                    <button
+                        type="button"
+                        onClick={openLightbox}
+                        className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 hover:bg-black/75 px-3 py-1.5 text-[10px] font-black text-white uppercase tracking-widest transition-colors"
+                    >
+                        <Images className="w-3.5 h-3.5" />
+                        View {images.length} Photos
+                    </button>
+                )}
+            </div>
+
+            {lightboxOpen && (
+                <ImageLightbox
+                    images={images}
+                    alt={project.name}
+                    onClose={(e) => { e?.stopPropagation?.(); setLightboxOpen(false); }}
+                />
+            )}
+        </>
     );
 };
 
@@ -246,7 +340,7 @@ const ProjectInventoryCard = ({ project, onOpen }) => {
     const counts = getInventoryCounts(project);
 
     return (
-        <Card noPadding className="group hover:border-[#6F4BFF]/40 hover:shadow-xl transition-all flex flex-col h-full overflow-hidden border-gray-100">
+        <Card noPadding className="group hover:border-[#6F4BFF]/40 hover:shadow-xl transition-all flex flex-col h-full overflow-hidden border-gray-200">
             <button type="button" onClick={() => onOpen(project)} className="text-left w-full">
                 <ProjectImageStrip project={project} />
             </button>
