@@ -204,12 +204,11 @@ const getProjectMeta = (project) => {
     }
     const avgPrice = avgPriceVal || 'Price on request';
 
-    const amenities = project.amenities || [
-        project.specs,
-        project.configs?.[0],
-        'Verified documents',
-        'Brochure available',
-    ].filter(Boolean).slice(0, 4);
+    // There's no project-level amenities feature in Add Project — this is the
+    // real, variant-level amenities the backend aggregates from
+    // properties.amenities. No placeholder text when it's empty: an empty
+    // list means the developer genuinely hasn't added any yet.
+    const amenities = project.amenities || [];
     const galleryImages = (project.images || []).map((img) => img?.url).filter(Boolean);
     const images = galleryImages.length
         ? galleryImages
@@ -304,13 +303,6 @@ const ProjectImageStrip = ({ project, className = 'h-44' }) => {
                 onClick={openLightbox}
             >
                 <img src={mainImage} alt={`${project.name} project view`} className="h-full w-full object-cover" />
-
-                <div className="absolute top-3 left-3 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#2512D9] shadow-sm">
-                    SquarFT Verified
-                </div>
-                <div className="absolute top-3 right-3">
-                    {getStatusBadge(project.status)}
-                </div>
 
                 {extraCount > 0 && (
                     <button
@@ -1297,55 +1289,6 @@ const getAmenityConfig = (amenityName) => {
     return { icon: Sparkles, color: 'text-[#6F4BFF] bg-[#6F4BFF]/5 border-[#6F4BFF]/10' };
 };
 
-const getProjectAmenitiesList = (project) => {
-    const isCommercial = (project?.specs || '').toLowerCase().includes('commercial');
-    if (isCommercial) {
-        return [
-            { name: 'Business Lounge', desc: 'Fully equipped spaces for meetings and conferences.', status: 'Available' },
-            { name: '24/7 CCTV Surveillance', desc: 'Complete security coverage across all floors.', status: 'Available' },
-            { name: 'Power Backup', desc: '100% electricity backup for uninterrupted operations.', status: 'Available' },
-            { name: 'Central Air Conditioning', desc: 'Advanced HVAC system for optimal temperature control.', status: 'Available' },
-            { name: 'Multi-level Parking', desc: 'Spacious reserved parking slots for employees and visitors.', status: 'Available' },
-            { name: 'Fire Safety Systems', desc: 'Full compliance with international fire safety standards.', status: 'Available' },
-            { name: 'High-speed Elevators', desc: 'Dedicated visitor and cargo elevator shafts.', status: 'Available' },
-            { name: 'High-speed Fiber Internet', desc: 'Secure high-speed connectivity throughout the premises.', status: 'Available' },
-        ];
-    }
-    return [
-        { name: 'Swimming Pool', desc: 'Temperature-controlled lap pool with kids pool section.', status: 'Available' },
-        { name: 'Modern Gymnasium', desc: 'Fully equipped fitness center with professional trainer facilities.', status: 'Available' },
-        { name: '24/7 CCTV Security', desc: 'Armed guard patrols and continuous perimeter security monitoring.', status: 'Available' },
-        { name: '100% Power Backup', desc: 'Full electricity backup for apartments and common building areas.', status: 'Available' },
-        { name: 'Kids Play Area', desc: 'Safe playground zone with soft flooring and outdoor activities.', status: 'Available' },
-        { name: 'Landscaped Gardens', desc: 'Lush green open parks with senior citizen seating zones.', status: 'Available' },
-        { name: 'Multipurpose Clubhouse', desc: 'Party hall, indoor games lounge, and community gathering space.', status: 'Available' },
-        { name: 'High-speed Elevators', desc: 'Premium passenger lift cabins with battery backup rescue systems.', status: 'Available' },
-    ];
-};
-
-const getDocumentNumberForFile = (docName, project) => {
-    const name = docName.toLowerCase();
-    if (name.includes('rera')) {
-        return project.builderProfile?.reraNumber || project.reraNumber || 'MHRERA-P51800044791';
-    }
-    if (name.includes('brochure')) {
-        return `SQ-BR-2026-${project.id}`;
-    }
-    if (name.includes('layout') || name.includes('site_plan')) {
-        return 'TNCP-MUM-2024-1882';
-    }
-    if (name.includes('id_proof') || name.includes('builder')) {
-        return project.builderProfile?.panNumber || 'AAGCA4455K';
-    }
-    if (name.includes('pricing')) {
-        return `SQ-PR-Q2-${project.id}`;
-    }
-    if (name.includes('noc') || name.includes('fire')) {
-        return 'NOC-FIRE-2024-098';
-    }
-    return `SQ-DOC-${project.id}-${Math.floor(1000 + Math.random() * 9000)}`;
-};
-
 const ProjectDetailView = ({ project, onBack }) => {
     const dispatch = useDispatch();
     const { alert } = useDialog();
@@ -2060,26 +2003,24 @@ const ProjectDetailView = ({ project, onBack }) => {
                                     <h3 className="text-lg font-black text-gray-800 tracking-tight">Property Amenities</h3>
                                     <p className="text-xs text-gray-500 mt-1 font-bold">List of premium amenities and facilities provided with this property.</p>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    {getProjectAmenitiesList(localProjectData).map((amenity, i) => {
-                                        const config = getAmenityConfig(amenity.name);
-                                        const IconComponent = config.icon;
-                                        return (
-                                            <div key={i} className="flex items-start p-4 rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-[#6F4BFF]/25 hover:shadow-md transition-all">
-                                                <div className={`p-3 rounded-xl mr-4 ${config.color} shrink-0`}>
-                                                    <IconComponent className="w-5 h-5" />
+                                {(localProjectData.amenities || []).length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                        {localProjectData.amenities.map((name, i) => {
+                                            const config = getAmenityConfig(name);
+                                            const IconComponent = config.icon;
+                                            return (
+                                                <div key={`${name}-${i}`} className="flex items-center p-4 rounded-2xl border border-gray-100 bg-white shadow-sm hover:border-[#6F4BFF]/25 hover:shadow-md transition-all">
+                                                    <div className={`p-3 rounded-xl mr-4 ${config.color} shrink-0`}>
+                                                        <IconComponent className="w-5 h-5" />
+                                                    </div>
+                                                    <p className="text-xs font-black text-gray-900">{name}</p>
                                                 </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-black text-gray-900 leading-none">{amenity.name}</p>
-                                                    <p className="text-[10px] text-gray-500 font-bold mt-1.5 leading-tight">{amenity.desc}</p>
-                                                    <span className="inline-block mt-2.5 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                                        {amenity.status}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-gray-400 font-bold">No amenities added for this project yet.</p>
+                                )}
                             </Card>
                         </div>
                     )}
