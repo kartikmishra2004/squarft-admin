@@ -20,6 +20,7 @@ import {
     fetchBuilderKycDetails,
     updateBuilderKycStatus,
 } from '../../services/panelOverviewService';
+import FieldOfficerKycPanel from '../../components/verification/FieldOfficerKycPanel';
 
 const documentTypeLabels = {
     profile_photo: 'Profile Photo',
@@ -78,7 +79,7 @@ const DetailField = ({ label, value }) => {
 
 const UserVerification = () => {
     const { prompt } = useDialog();
-    const [activeVerificationTab, setActiveVerificationTab] = useState('consumer'); // 'consumer' | 'builder'
+    const [activeVerificationTab, setActiveVerificationTab] = useState('consumer');
 
     const [items, setItems] = useState([]);
     const [pagination, setPagination] = useState(null);
@@ -261,29 +262,35 @@ const UserVerification = () => {
                     <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
                         <div>
                             <h2 className="text-2xl font-bold text-gray-800">
-                                {activeVerificationTab === 'consumer' ? 'Consumer ID verification' : 'Project Developer KYC'}
+                                {activeVerificationTab === 'consumer'
+                                    ? 'Consumer ID Verification'
+                                    : activeVerificationTab === 'builder'
+                                        ? 'Project Developer KYC'
+                                        : 'Field Officer KYC'}
                             </h2>
                             <p className="text-sm text-gray-500 mt-1">
                                 {activeVerificationTab === 'consumer'
                                     ? 'Review identity documents uploaded by consumer app users awaiting KYC approval.'
-                                    : 'Review KYC submitted by project developers through the project panel app.'}
+                                    : activeVerificationTab === 'builder'
+                                        ? 'Review KYC submitted by project developers through the project panel app.'
+                                        : 'Review complete KYC submissions from the field officer app.'}
                             </p>
                         </div>
-                        <div className="flex items-center gap-1.5 rounded-xl bg-gray-100 p-1">
-                            <button
-                                type="button"
-                                onClick={() => setActiveVerificationTab('consumer')}
-                                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${activeVerificationTab === 'consumer' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
-                            >
-                                Consumer Users
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setActiveVerificationTab('builder')}
-                                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${activeVerificationTab === 'builder' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
-                            >
-                                Project Developers
-                            </button>
+                        <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-gray-100 p-1">
+                            {[
+                                { id: 'consumer', label: 'Consumer Users' },
+                                { id: 'builder', label: 'Project Developers' },
+                                { id: 'field_officer', label: 'Field Officers' },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setActiveVerificationTab(tab.id)}
+                                    className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${activeVerificationTab === tab.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -597,6 +604,8 @@ const UserVerification = () => {
                             </div>
                         </div>
                     )}
+
+                    {activeVerificationTab === 'field_officer' && <FieldOfficerKycPanel />}
                 </div>
             </main>
 
