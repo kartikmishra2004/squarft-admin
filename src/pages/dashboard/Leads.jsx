@@ -14,6 +14,7 @@ import {
     X,
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
+import ProjectLeadPipeline from '../../components/leads/ProjectLeadPipeline';
 import { fetchMasterOptions } from '../../services/commonService';
 import {
     addManualSummary,
@@ -288,6 +289,7 @@ const escapeCsvValue = (value) => {
 };
 
 const Leads = () => {
+    const [pipelineView, setPipelineView] = useState('customer');
     const [leads, setLeads] = useState([]);
     const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -438,6 +440,11 @@ const Leads = () => {
             <Header title="Leads Pipeline" />
 
             <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
+                <div className="mx-auto mb-5 flex max-w-[1600px] gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+                    <button type="button" onClick={() => setPipelineView('customer')} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${pipelineView === 'customer' ? 'bg-[#4D3BFF] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>Customer Leads</button>
+                    <button type="button" onClick={() => setPipelineView('project')} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${pipelineView === 'project' ? 'bg-[#4D3BFF] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>Project Leads</button>
+                </div>
+                {pipelineView === 'project' ? <div className="mx-auto max-w-[1600px]"><ProjectLeadPipeline /></div> : (
                 <div className="mx-auto max-w-[1600px] space-y-5">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                         {metrics.map((metric) => (
@@ -553,6 +560,7 @@ const Leads = () => {
                         />
                     </div>
                 </div>
+                )}
             </main>
         </div>
     );
