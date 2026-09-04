@@ -25,6 +25,7 @@ import SettingsPage from '../pages/dashboard/Settings';
 import AuditLog from '../pages/dashboard/AuditLog';
 import Admins from '../pages/dashboard/Admins';
 import AccessDenied from '../pages/dashboard/AccessDenied';
+import Tasks from '../pages/dashboard/Tasks';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user, role } = useSelector((state) => state.auth);
@@ -202,6 +203,11 @@ const AppRoutes = () => {
         <Route path="panel-overview" element={
           <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
             <PanelOverview />
+          </ProtectedRoute>
+        } />
+        <Route path="field-officer-tasks" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <Tasks />
           </ProtectedRoute>
         } />
         <Route path="broker-commission" element={

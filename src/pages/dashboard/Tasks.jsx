@@ -1,261 +1,302 @@
-import React, { useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { 
-    Plus, Search, Calendar, Clock, User, 
-    CheckCircle2, XCircle, MoreVertical, 
-    AlertCircle, Filter, Trash2, Edit2, Check
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
+  Loader2,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Search,
+  UserRound,
 } from 'lucide-react';
-import { addTask, deleteTask, updateTaskStatus } from '../../store/tasksSlice';
-import { mockUsers } from '../../data/mockData';
-import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
-import Badge from '../../components/ui/Badge';
 import Header from '../../components/layout/Header';
-import Table from '../../components/ui/Table';
+import Card from '../../components/ui/Card';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
-import { useDialog } from '../../components/ui/Dialog';
+import LocationPickerModal from '../../components/dashboard/LocationPickerModal';
+import {
+  assignFieldOfficerTask,
+  fetchAssignableFieldOfficers,
+  fetchFieldOfficerTasks,
+} from '../../services/fieldOfficerTaskService';
 
-const getStatusBadge = (status) => {
-    if (!status) return null;
-    switch (status.toUpperCase()) {
-        case 'COMPLETED': case 'DONE':
-            return <Badge variant="green">{status}</Badge>;
-        case 'PENDING': case 'IN PROGRESS': case 'SCHEDULED':
-            return <Badge variant="yellow">{status}</Badge>;
-        case 'CANCELLED': case 'REJECTED':
-            return <Badge variant="red">{status}</Badge>;
-        case 'NEW':
-            return <Badge variant="purple">{status}</Badge>;
-        default:
-            return <Badge variant="gray">{status}</Badge>;
-    }
+const STATUS_FILTERS = ['ALL', 'ASSIGNED', 'IN_PROGRESS', 'OVERDUE', 'COMPLETED', 'CANCELLED'];
+
+const STATUS_LABELS = {
+  ASSIGNED: 'Assigned',
+  IN_PROGRESS: 'In progress',
+  OVERDUE: 'Overdue',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+};
+
+const PRIORITY_LABELS = {
+  LOW: 'Low',
+  NORMAL: 'Normal',
+  HIGH: 'High',
+  URGENT: 'Urgent',
+};
+
+const statusVariant = (status) => {
+  if (status === 'COMPLETED') return 'green';
+  if (status === 'CANCELLED' || status === 'OVERDUE') return 'red';
+  if (status === 'IN_PROGRESS') return 'yellow';
+  return 'purple';
+};
+
+const defaultTimeline = () => {
+  const date = new Date(Date.now() + 60 * 60 * 1000);
+  date.setMinutes(Math.ceil(date.getMinutes() / 15) * 15, 0, 0);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+};
+
+const createEmptyForm = () => ({
+  fieldOfficerId: '',
+  title: '',
+  description: '',
+  timeline: defaultTimeline(),
+  priority: 'NORMAL',
+  location: null,
+});
+
+const formatTimeline = (value) => {
+  if (!value) return 'No deadline';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Invalid deadline';
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 const Tasks = () => {
-    const dispatch = useDispatch();
-    const { confirm } = useDialog();
-    const { tasks } = useSelector((state) => state.tasks);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [officers, setOfficers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [form, setForm] = useState(createEmptyForm);
 
-    const filteredTasks = tasks.filter(t => 
-        t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.assignee.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  const loadData = useCallback(async ({ quiet = false } = {}) => {
+    quiet ? setRefreshing(true) : setLoading(true);
+    setError('');
+    try {
+      const [taskResponse, officerResponse] = await Promise.all([
+        fetchFieldOfficerTasks(),
+        fetchAssignableFieldOfficers(),
+      ]);
+      setTasks(taskResponse.data?.tasks || []);
+      const nextOfficers = officerResponse.data?.fieldOfficers || [];
+      setOfficers(nextOfficers);
+      setForm((current) => ({
+        ...current,
+        fieldOfficerId: current.fieldOfficerId || nextOfficers[0]?.id || '',
+      }));
+    } catch (requestError) {
+      setError(requestError.message || 'Could not load Field Officer tasks.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-    const handleAddTask = (newTask) => {
-        dispatch(addTask(newTask));
-        setIsModalOpen(false);
-    };
+  useEffect(() => {
+    // Initial page synchronization with the task APIs.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData();
+  }, [loadData]);
 
-    const handleDeleteTask = async (id) => {
-        if (await confirm('Delete this task?', { title: 'Delete Task', confirmText: 'Delete', danger: true })) {
-            dispatch(deleteTask(id));
-        }
-    };
-
-    return (
-        <div className="flex-1 flex flex-col h-full relative bg-[#F5F6FA] font-sans text-gray-900">
-            <Header title="Task Management" />
-
-            <main className="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
-                <div className="max-w-[1600px] mx-auto space-y-6">
-                    
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <div>
-                            <h2 className="text-2xl font-black text-gray-800 tracking-tight uppercase">Operational Tasks</h2>
-                            <p className="text-sm text-gray-500 mt-1 font-medium italic">Cross-team coordination and daily action items.</p>
-                        </div>
-                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <div className="relative flex-1 sm:w-80">
-                                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search tasks or assignees..."
-                                    className="pl-9 pr-4 py-2.5 w-full bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] transition-all shadow-sm"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-                            <Button icon={Plus} onClick={() => setIsModalOpen(true)} className="font-black uppercase tracking-widest text-xs">Assign Task</Button>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                        <div className="lg:col-span-3">
-                            <Card noPadding className="overflow-hidden border-gray-100 shadow-xl shadow-gray-200/50">
-                                <Table
-                                    headers={['TASK DESCRIPTION', 'ASSIGNEE', 'DUE DATE', 'PRIORITY', 'STATUS', 'ACTION']}
-                                    data={filteredTasks}
-                                    renderRow={(row, i) => (
-                                        <tr key={i} className="hover:bg-gray-50/80 transition-all border-b border-gray-100 last:border-0">
-                                            <td className="px-6 py-5 max-w-md">
-                                                <div className="flex items-start gap-3">
-                                                    <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${row.priority === 'High' ? 'bg-rose-500 shadow-lg shadow-rose-500/40 animate-pulse' : row.priority === 'Medium' ? 'bg-amber-500' : 'bg-blue-500'}`}></div>
-                                                    <span className="font-black text-gray-900 tracking-tight leading-tight">{row.title}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 border border-gray-200">
-                                                        <User className="w-4 h-4" />
-                                                    </div>
-                                                    <span className="text-sm font-black text-gray-700">{row.assignee}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-2 text-gray-500 font-bold text-xs">
-                                                    <Calendar className="w-3.5 h-3.5 text-[#6F4BFF]" />
-                                                    {row.due}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border ${
-                                                    row.priority === 'High' ? 'text-rose-600 bg-rose-50 border-rose-100' :
-                                                    row.priority === 'Medium' ? 'text-amber-600 bg-amber-50 border-amber-100' :
-                                                    'text-blue-600 bg-blue-50 border-blue-100'
-                                                }`}>
-                                                    {row.priority}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                {getStatusBadge(row.status)}
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-2">
-                                                    <button className="p-2 hover:bg-emerald-50 rounded-lg text-emerald-500 transition-all" title="Mark Complete">
-                                                        <CheckCircle2 className="w-4 h-4" />
-                                                    </button>
-                                                    <button onClick={() => handleDeleteTask(row.id)} className="p-2 hover:bg-rose-50 rounded-lg text-rose-400 transition-all" title="Delete Task">
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                />
-                            </Card>
-                        </div>
-
-                        <div className="space-y-6">
-                            <Card className="p-6 bg-linear-to-br from-[#6F4BFF] to-[#9D84FF] text-white border-0 shadow-xl shadow-[#6F4BFF]/20">
-                                <AlertCircle className="w-10 h-10 mb-4 opacity-50" />
-                                <h3 className="text-xl font-black mb-1 uppercase tracking-tight">System Alerts</h3>
-                                <p className="text-xs font-bold opacity-70 leading-relaxed mb-6">There are 3 high-priority tasks requiring immediate attention.</p>
-                                <Button variant="secondary" className="w-full bg-white/20 hover:bg-white/30 border-0 text-white font-black uppercase tracking-widest text-[10px] h-11">Review Criticals</Button>
-                            </Card>
-
-                            <Card className="p-6">
-                                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-4">Task Completion</h3>
-                                <div className="space-y-5">
-                                    {[
-                                        { label: 'Completed', val: 78, color: 'bg-emerald-500' },
-                                        { label: 'In Progress', val: 45, color: 'bg-[#6F4BFF]' },
-                                        { label: 'Pending', val: 12, color: 'bg-amber-500' },
-                                    ].map((stat, i) => (
-                                        <div key={i}>
-                                            <div className="flex justify-between text-[10px] font-black mb-1.5 uppercase tracking-widest">
-                                                <span className="text-gray-500">{stat.label}</span>
-                                                <span className="text-gray-900">{stat.val}</span>
-                                            </div>
-                                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                <div className={`h-full ${stat.color} rounded-full`} style={{ width: `${(stat.val / 100) * 100}%` }}></div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </Card>
-                        </div>
-                    </div>
-                </div>
-            </main>
-
-            <AssignTaskModal 
-                isOpen={isModalOpen} 
-                onClose={() => setIsModalOpen(false)} 
-                onAssign={handleAddTask} 
-            />
-        </div>
-    );
-};
-
-const AssignTaskModal = ({ isOpen, onClose, onAssign }) => {
-    const [formData, setFormData] = useState({
-        title: '',
-        assignee: '',
-        due: '',
-        priority: 'Medium',
-        notes: ''
+  const visibleTasks = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return tasks.filter((task) => {
+      if (statusFilter !== 'ALL' && task.status !== statusFilter) return false;
+      if (!query) return true;
+      return [
+        task.title,
+        task.description,
+        task.location,
+        task.assignedTo?.name,
+      ].some((value) => String(value || '').toLowerCase().includes(query));
     });
+  }, [search, statusFilter, tasks]);
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onAssign(formData);
-    };
+  const summary = useMemo(() => ({
+    open: tasks.filter((task) => !['COMPLETED', 'CANCELLED'].includes(task.status)).length,
+    overdue: tasks.filter((task) => task.status === 'OVERDUE').length,
+    completed: tasks.filter((task) => task.status === 'COMPLETED').length,
+  }), [tasks]);
 
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Assign New Operational Task">
-            <form onSubmit={handleSubmit} className="space-y-5 p-2">
-                <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Task Description</label>
-                    <input 
-                        type="text" 
-                        placeholder="e.g. Verify site documents for Project X" 
-                        className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-bold text-sm bg-gray-50"
-                        value={formData.title}
-                        onChange={(e) => setFormData({...formData, title: e.target.value})}
-                        required
-                    />
-                </div>
+  const closeAssignModal = () => {
+    setAssignOpen(false);
+    setLocationOpen(false);
+    setForm({ ...createEmptyForm(), fieldOfficerId: officers[0]?.id || '' });
+  };
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Assign To</label>
-                        <select 
-                            className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-sm bg-gray-50"
-                            value={formData.assignee}
-                            onChange={(e) => setFormData({...formData, assignee: e.target.value})}
-                            required
-                        >
-                            <option value="">Select Member</option>
-                            {mockUsers.map(u => <option key={u.id} value={u.name}>{u.name} ({u.type.replace('_', ' ')})</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Priority Level</label>
-                        <select 
-                            className="w-full border border-gray-200 rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-sm bg-gray-50"
-                            value={formData.priority}
-                            onChange={(e) => setFormData({...formData, priority: e.target.value})}
-                        >
-                            <option value="Low">Low Priority</option>
-                            <option value="Medium">Medium Priority</option>
-                            <option value="High">High Priority</option>
-                        </select>
-                    </div>
-                </div>
+  const submitTask = async (event) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!form.location) {
+      setError('Select the task location on the map before assigning it.');
+      return;
+    }
 
-                <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Due Date</label>
-                    <div className="relative">
-                        <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input 
-                            type="date" 
-                            className="w-full pl-10 pr-4 py-3.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[#6F4BFF]/20 focus:border-[#6F4BFF] font-black text-sm bg-gray-50"
-                            value={formData.due}
-                            onChange={(e) => setFormData({...formData, due: e.target.value})}
-                            required
-                        />
-                    </div>
-                </div>
+    setSubmitting(true);
+    try {
+      const response = await assignFieldOfficerTask({
+        fieldOfficerId: form.fieldOfficerId,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        timeline: new Date(form.timeline).toISOString(),
+        priority: form.priority,
+        location: form.location.address || `${form.location.latitude}, ${form.location.longitude}`,
+        area: form.location.city || '',
+        latitude: form.location.latitude,
+        longitude: form.location.longitude,
+      });
+      const createdTask = response.data?.task;
+      if (createdTask) setTasks((current) => [createdTask, ...current]);
+      setSuccess('Task assigned successfully. It is now available in the Field Officer app.');
+      closeAssignModal();
+    } catch (requestError) {
+      const validationMessage = requestError.errors?.[0]?.message;
+      setError(validationMessage || requestError.message || 'Could not assign task.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-                <div className="flex gap-3 pt-4">
-                    <Button variant="secondary" onClick={onClose} className="flex-1 font-black uppercase tracking-widest text-[10px] h-12">Cancel</Button>
-                    <Button type="submit" variant="primary" className="flex-1 font-black uppercase tracking-widest text-[10px] h-12" icon={Check}>Create Task</Button>
-                </div>
-            </form>
-        </Modal>
-    );
+  const openTaskLocation = (task) => {
+    if (task.latitude === null || task.longitude === null) return;
+    window.open(`https://www.google.com/maps/search/?api=1&query=${task.latitude},${task.longitude}`, '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <div className="flex min-h-full flex-1 flex-col bg-[#F5F6FA] text-gray-900">
+      <Header title="Field Officer Tasks" />
+      <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <div className="mx-auto max-w-[1600px] space-y-6">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div>
+              <h2 className="text-2xl font-black tracking-tight text-gray-800">Field Officer Tasks</h2>
+              <p className="mt-1 text-sm font-medium text-gray-500">Assign location-based work and monitor completion from the mobile app.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" icon={RefreshCw} disabled={refreshing} onClick={() => loadData({ quiet: true })}>
+                Refresh
+              </Button>
+              <Button icon={Plus} onClick={() => { setError(''); setAssignOpen(true); }}>Assign task</Button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </div>
+          )}
+          {success && (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />{success}
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              { label: 'Open tasks', value: summary.open, icon: ClipboardList, color: 'text-[#6F4BFF]', bg: 'bg-[#6F4BFF]/10' },
+              { label: 'Overdue', value: summary.overdue, icon: CalendarClock, color: 'text-rose-600', bg: 'bg-rose-50' },
+              { label: 'Completed', value: summary.completed, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            ].map(({ label, value, icon: Icon, color, bg }) => (
+              <Card key={label} className="flex items-center gap-4 p-5">
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${bg} ${color}`}><Icon className="h-5 w-5" /></div>
+                <div><p className="text-2xl font-black text-gray-900">{value}</p><p className="text-xs font-bold uppercase tracking-wider text-gray-400">{label}</p></div>
+              </Card>
+            ))}
+          </div>
+
+          <Card noPadding className="overflow-hidden border-gray-100">
+            <div className="flex flex-col gap-3 border-b border-gray-100 p-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full lg:max-w-md">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, officer, description or location" className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-4 text-sm font-medium outline-none focus:border-[#6F4BFF] focus:ring-2 focus:ring-[#6F4BFF]/20" />
+              </div>
+              <div className="flex max-w-full flex-nowrap gap-2 overflow-x-auto pb-1 lg:max-w-[60%]">
+                {STATUS_FILTERS.map((status) => (
+                  <button key={status} onClick={() => setStatusFilter(status)} className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-wider ${statusFilter === status ? 'bg-[#6F4BFF] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    {status === 'ALL' ? 'All' : STATUS_LABELS[status]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-24"><Loader2 className="h-7 w-7 animate-spin text-[#6F4BFF]" /></div>
+            ) : visibleTasks.length === 0 ? (
+              <div className="py-20 text-center"><ClipboardList className="mx-auto h-9 w-9 text-gray-300" /><p className="mt-3 font-bold text-gray-600">No tasks found</p></div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[920px] table-fixed text-left">
+                  <colgroup>
+                    <col className="w-[27%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[23%]" />
+                    <col className="w-[17%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[9%]" />
+                  </colgroup>
+                  <thead><tr className="border-b border-gray-100 bg-gray-50 text-[10px] font-black uppercase tracking-wider text-gray-400">
+                    <th className="px-5 py-4">Task</th><th className="px-5 py-4">Field Officer</th><th className="px-5 py-4">Location</th><th className="px-5 py-4">Deadline</th><th className="px-5 py-4 text-center">Priority</th><th className="px-5 py-4 text-center">Status</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {visibleTasks.map((task) => (
+                      <tr key={task.id} className="align-middle hover:bg-gray-50/70">
+                        <td className="px-5 py-5"><p className="break-words font-black leading-snug text-gray-900">{task.title}</p><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">{task.description || 'No description'}</p></td>
+                        <td className="px-5 py-5"><div className="flex min-w-0 items-center gap-2"><UserRound className="h-4 w-4 shrink-0 text-[#6F4BFF]" /><div className="min-w-0"><p className="break-words text-sm font-bold leading-snug text-gray-800">{task.assignedTo?.name || 'Unknown'}</p><p className="mt-1 break-words text-[11px] text-gray-400">{task.assignedTo?.branchName || 'No branch'}</p></div></div></td>
+                        <td className="px-5 py-5"><button type="button" onClick={() => openTaskLocation(task)} disabled={task.latitude === null || task.longitude === null} className="flex min-w-0 items-start gap-2 text-left text-xs font-bold leading-relaxed text-[#6F4BFF] disabled:cursor-default disabled:text-gray-400"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /><span className="break-words">{task.location || 'Coordinates unavailable'}</span></button></td>
+                        <td className="px-5 py-5 text-xs font-bold leading-relaxed text-gray-600">{formatTimeline(task.timeline)}</td>
+                        <td className="px-5 py-5 text-center text-xs font-black text-gray-700">{PRIORITY_LABELS[task.priority] || task.priority}</td>
+                        <td className="px-5 py-5 text-center"><Badge variant={statusVariant(task.status)} className="inline-block whitespace-nowrap">{STATUS_LABELS[task.status] || task.status}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
+      </main>
+
+      <Modal isOpen={assignOpen} onClose={closeAssignModal} title="Assign Field Officer Task" size="lg">
+        <form onSubmit={submitTask} className="space-y-5">
+          {error && (
+            <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </div>
+          )}
+          <div><label className="mb-2 block text-xs font-black uppercase tracking-wider text-gray-500">Field officer</label><select required value={form.fieldOfficerId} onChange={(event) => setForm({ ...form, fieldOfficerId: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold outline-none focus:border-[#6F4BFF]"><option value="">Select Field Officer</option>{officers.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.branchName ? ` — ${officer.branchName}` : ''}</option>)}</select></div>
+          <div><label className="mb-2 block text-xs font-black uppercase tracking-wider text-gray-500">Task title</label><input required minLength={3} maxLength={180} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="e.g. Verify the site entrance and access road" className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold outline-none focus:border-[#6F4BFF]" /></div>
+          <div><label className="mb-2 block text-xs font-black uppercase tracking-wider text-gray-500">Description</label><textarea required maxLength={3000} rows={4} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Explain exactly what the officer must complete" className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-medium outline-none focus:border-[#6F4BFF]" /></div>
+          <div className="grid gap-4 sm:grid-cols-2"><div><label className="mb-2 block text-xs font-black uppercase tracking-wider text-gray-500">Deadline</label><input required type="datetime-local" min={defaultTimeline()} value={form.timeline} onChange={(event) => setForm({ ...form, timeline: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold outline-none focus:border-[#6F4BFF]" /></div><div><label className="mb-2 block text-xs font-black uppercase tracking-wider text-gray-500">Priority</label><select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold outline-none focus:border-[#6F4BFF]"><option value="LOW">Low</option><option value="NORMAL">Normal</option><option value="HIGH">High</option><option value="URGENT">Urgent</option></select></div></div>
+          <div><label className="mb-2 block text-xs font-black uppercase tracking-wider text-gray-500">Task location</label><button type="button" onClick={() => setLocationOpen(true)} className={`flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-colors ${form.location ? 'border-[#6F4BFF]/30 bg-[#6F4BFF]/5' : 'border-dashed border-gray-300 bg-gray-50 hover:border-[#6F4BFF]'}`}><MapPin className="h-5 w-5 shrink-0 text-[#6F4BFF]" /><span className="text-sm font-bold text-gray-700">{form.location?.address || (form.location ? `${form.location.latitude}, ${form.location.longitude}` : 'Choose location on map')}</span></button></div>
+          <div className="flex justify-end gap-3 pt-2"><Button variant="secondary" onClick={closeAssignModal}>Cancel</Button><Button type="submit" icon={submitting ? Loader2 : Plus} disabled={submitting || !officers.length}>{submitting ? 'Assigning…' : 'Assign task'}</Button></div>
+        </form>
+      </Modal>
+
+      <LocationPickerModal isOpen={locationOpen} onClose={() => setLocationOpen(false)} title="Select Task Location" initial={form.location} onConfirm={(location) => { setForm((current) => ({ ...current, location })); setLocationOpen(false); }} />
+    </div>
+  );
 };
 
 export default Tasks;

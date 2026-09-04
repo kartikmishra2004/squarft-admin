@@ -49,7 +49,7 @@ const parseAddressComponents = (components = [], fallbackFormattedAddress = '') 
 // Autocomplete), "use current location", and click-to-place-pin, all
 // reverse-geocoded via the Google Maps JS API - same VITE_GOOGLE_MAPS_API_KEY
 // as the mobile app (see squarft-admin/.env).
-export default function LocationPickerModal({ isOpen, onClose, onConfirm, initial }) {
+export default function LocationPickerModal({ isOpen, onClose, onConfirm, initial, title = 'Set Location' }) {
     const mapRef = useRef(null);
     const mapInstanceRef = useRef(null);
     const mapContainerRef = useRef(null);
@@ -246,7 +246,7 @@ export default function LocationPickerModal({ isOpen, onClose, onConfirm, initia
         <div className="fixed inset-0 z-110 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
-                    <h3 className="font-black text-lg text-gray-900">Set Branch Location</h3>
+                    <h3 className="font-black text-lg text-gray-900">{title}</h3>
                     <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-xl text-gray-500 transition-colors bg-white border border-gray-100">
                         <X className="w-5 h-5" />
                     </button>

@@ -8,7 +8,6 @@ import inventoryReducer from './inventorySlice'
 import visitsReducer from './visitsSlice'
 import dealsReducer from './dealsSlice'
 import usersReducer from './usersSlice'
-import tasksReducer from './tasksSlice'
 import branchesReducer from './branchesSlice'
 import roleAccessReducer from './roleAccessSlice'
 
@@ -23,7 +22,6 @@ export const store = configureStore({
     visits: visitsReducer,
     deals: dealsReducer,
     users: usersReducer,
-    tasks: tasksReducer,
     branches: branchesReducer,
     roleAccess: roleAccessReducer,
   },
