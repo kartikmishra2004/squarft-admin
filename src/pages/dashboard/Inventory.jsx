@@ -6,7 +6,7 @@ import {
     IndianRupee, Zap, Sparkles, Check, XCircle, CheckCircle2,
     Trash2, Users, FileIcon, UserPlus, Filter, ChevronDown, Briefcase,
     Phone, Coins, Image as ImageIcon, ShieldCheck, Dumbbell, Car, Trees, Droplets, Download,
-    ArrowUpDown, ChevronLeft, ChevronRight, Images
+    ArrowUpDown, ChevronLeft, ChevronRight, Images, Star
 } from 'lucide-react';
 import { 
     setSelectedProject, 
@@ -17,10 +17,12 @@ import {
     getProjects,
     getSourceProfiles,
     getProjectById,
-    getConfigurationUnits
+    getConfigurationUnits,
+    updateProjectFeatured
 } from '../../store/inventorySlice';
 import * as inventoryService from '../../services/inventoryService';
 import { fetchProjectOnboardingDetails } from '../../services/panelOverviewService';
+import { fetchAccessibleBranches } from '../../services/roleAccessService';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -327,7 +329,7 @@ const ProjectImageStrip = ({ project, className = 'h-44' }) => {
     );
 };
 
-const ProjectInventoryCard = ({ project, onOpen }) => {
+const ProjectInventoryCard = ({ project, onOpen, onToggleFeatured, featuredUpdating = false }) => {
     const meta = getProjectMeta(project);
     const counts = getInventoryCounts(project);
 
@@ -345,6 +347,32 @@ const ProjectInventoryCard = ({ project, onOpen }) => {
                 <p className="text-sm text-gray-500 font-bold flex items-center gap-1.5 mb-3">
                     <MapPin className="w-4 h-4 text-gray-400 shrink-0" /> {project.location}
                 </p>
+
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        disabled={featuredUpdating}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onToggleFeatured?.(project);
+                        }}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                            project.isFeatured
+                                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                : 'border-gray-200 bg-white text-gray-500 hover:border-amber-200 hover:text-amber-600'
+                        } ${featuredUpdating ? 'opacity-60 cursor-wait' : ''}`}
+                        title={project.isFeatured ? 'Remove from featured projects' : 'Mark as featured project'}
+                    >
+                        <Star className={`h-3.5 w-3.5 ${project.isFeatured ? 'fill-amber-400 text-amber-500' : ''}`} />
+                        {featuredUpdating ? 'Saving' : project.isFeatured ? 'Featured' : 'Mark Featured'}
+                    </button>
+                    {project.branchName && (
+                        <span className="inline-flex items-center gap-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-700">
+                            <MapPin className="h-3 w-3" />
+                            {project.branchName}
+                        </span>
+                    )}
+                </div>
 
                 <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">
                     <span>Possession: <b className="text-gray-700">{meta.possession}</b></span>
@@ -409,20 +437,28 @@ const Inventory = () => {
         selectedBroker, 
         viewMode, 
         filters,
-        loading 
+        featuredUpdatingById,
     } = useSelector((state) => state.inventory);
     
     const [showPriceDropdown, setShowPriceDropdown] = useState(false);
     const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+    const [showBranchDropdown, setShowBranchDropdown] = useState(false);
+    const [branches, setBranches] = useState([]);
 
     // Fetch backend data based on source / search filters
     useEffect(() => {
         if (filters.propertySource === 'all') {
-            dispatch(getProjects());
+            dispatch(getProjects({ branchId: filters.branchId }));
         } else {
-            dispatch(getSourceProfiles({ source: filters.propertySource, search: filters.search }));
+            dispatch(getSourceProfiles({ source: filters.propertySource, search: filters.search, branchId: filters.branchId }));
         }
-    }, [dispatch, filters.propertySource, filters.search]);
+    }, [dispatch, filters.propertySource, filters.search, filters.branchId]);
+
+    useEffect(() => {
+        fetchAccessibleBranches({ limit: 200 })
+            .then((response) => setBranches(Array.isArray(response?.branches) ? response.branches : (Array.isArray(response) ? response : [])))
+            .catch(() => setBranches([]));
+    }, []);
 
     // Get unique locations from projects
     const uniqueLocations = useMemo(() => {
@@ -472,6 +508,13 @@ const Inventory = () => {
 
     const handleProjectClick = (project) => {
         dispatch(getProjectById(project.id));
+    };
+
+    const handleToggleFeatured = (project) => {
+        dispatch(updateProjectFeatured({
+            projectId: project.id,
+            isFeatured: !project.isFeatured,
+        }));
     };
 
     const handleBuilderClick = (builder) => {
@@ -613,6 +656,7 @@ const Inventory = () => {
                                     onClick={() => {
                                         setShowPriceDropdown(!showPriceDropdown);
                                         setShowLocationDropdown(false);
+                                        setShowBranchDropdown(false);
                                     }}
                                     className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
                                         filters.priceRange !== 'all'
@@ -666,6 +710,7 @@ const Inventory = () => {
                                     onClick={() => {
                                         setShowLocationDropdown(!showLocationDropdown);
                                         setShowPriceDropdown(false);
+                                        setShowBranchDropdown(false);
                                     }}
                                     className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
                                         filters.location !== 'all'
@@ -698,10 +743,50 @@ const Inventory = () => {
                                 )}
                             </div>
 
+                            {branches.length > 0 && (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => {
+                                            setShowBranchDropdown(!showBranchDropdown);
+                                            setShowPriceDropdown(false);
+                                            setShowLocationDropdown(false);
+                                        }}
+                                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                                            filters.branchId
+                                                ? 'bg-[#6F4BFF] text-white shadow-lg shadow-[#6F4BFF]/20'
+                                                : 'bg-white text-gray-600 border border-gray-200 hover:border-[#6F4BFF]/40'
+                                        }`}
+                                    >
+                                        <Building2 className="w-3 h-3" />
+                                        {filters.branchId ? (branches.find((branch) => branch.id === filters.branchId)?.name || 'Selected Branch') : 'All Branches'}
+                                        <ChevronDown className="w-3 h-3" />
+                                    </button>
+                                    {showBranchDropdown && (
+                                        <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[220px] max-h-[300px] overflow-y-auto">
+                                            <button
+                                                onClick={() => { dispatch(setFilters({ branchId: '' })); setShowBranchDropdown(false); }}
+                                                className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors"
+                                            >
+                                                All Branches
+                                            </button>
+                                            {branches.map((branch) => (
+                                                <button
+                                                    key={branch.id}
+                                                    onClick={() => { dispatch(setFilters({ branchId: branch.id })); setShowBranchDropdown(false); }}
+                                                    className="w-full px-4 py-2.5 text-left text-xs font-bold hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                                >
+                                                    {branch.name || branch.city || branch.id}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Clear All Filters Button */}
-                            {(filters.propertySource !== 'all' || filters.priceRange !== 'all' || filters.location !== 'all' || filters.search !== '') && (
+                            {(filters.propertySource !== 'all' || filters.priceRange !== 'all' || filters.location !== 'all' || filters.search !== '' || filters.branchId) && (
                                 <button
-                                    onClick={() => dispatch(setFilters({ propertySource: 'all', priceRange: 'all', location: 'all', search: '' }))}
+                                    onClick={() => dispatch(setFilters({ propertySource: 'all', priceRange: 'all', location: 'all', search: '', branchId: '' }))}
                                     className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
                                 >
                                     <X className="w-3 h-3 inline mr-1" />
@@ -798,7 +883,13 @@ const Inventory = () => {
                     {!showBuilders && !showBrokers && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
                             {filteredProjects.map((p, i) => (
-                                <ProjectInventoryCard key={p.id} project={p} onOpen={handleProjectClick} />
+                                <ProjectInventoryCard
+                                    key={p.id}
+                                    project={p}
+                                    onOpen={handleProjectClick}
+                                    onToggleFeatured={handleToggleFeatured}
+                                    featuredUpdating={Boolean(featuredUpdatingById[p.id])}
+                                />
                             ))}
                         </div>
                     )}
@@ -2114,6 +2205,7 @@ const ProjectDetailView = ({ project, onBack }) => {
 const BuilderProjectsView = ({ builder, onBack, profileType = 'builder' }) => {
     const dispatch = useDispatch();
     const selectedProject = useSelector((state) => state.inventory.selectedProject);
+    const featuredUpdatingById = useSelector((state) => state.inventory.featuredUpdatingById);
     const [showPriceDropdown, setShowPriceDropdown] = useState(false);
     const [showLocationDropdown, setShowLocationDropdown] = useState(false);
     const [localFilters, setLocalFilters] = useState({
@@ -2191,6 +2283,13 @@ const BuilderProjectsView = ({ builder, onBack, profileType = 'builder' }) => {
 
     const handleProjectClick = (project) => {
         dispatch(getProjectById(project.id));
+    };
+
+    const handleToggleFeatured = (project) => {
+        dispatch(updateProjectFeatured({
+            projectId: project.id,
+            isFeatured: !project.isFeatured,
+        }));
     };
 
     const handleProjectBack = () => {
@@ -2391,7 +2490,13 @@ const BuilderProjectsView = ({ builder, onBack, profileType = 'builder' }) => {
                         {/* Project Cards Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
                             {filteredBuilderProjects.map((p, i) => (
-                                <ProjectInventoryCard key={p.id} project={p} onOpen={handleProjectClick} />
+                                <ProjectInventoryCard
+                                    key={p.id}
+                                    project={p}
+                                    onOpen={handleProjectClick}
+                                    onToggleFeatured={handleToggleFeatured}
+                                    featuredUpdating={Boolean(featuredUpdatingById[p.id])}
+                                />
                             ))}
                         </div>
 

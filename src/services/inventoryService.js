@@ -29,6 +29,13 @@ export const fetchSourceProfiles = async (params = {}) =>
 export const fetchProjectById = async (projectId) =>
   unwrapData(await apiRequest(`${INVENTORY_BASE}/${projectId}`, { method: 'GET' }));
 
+// PATCH /api/admin/inventory/:projectId/featured
+export const updateProjectFeatured = async (projectId, isFeatured) =>
+  unwrapData(await apiRequest(`${INVENTORY_BASE}/${projectId}/featured`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isFeatured }),
+  }));
+
 // GET /api/admin/inventory/:projectId/configurations/:configurationId/units
 export const fetchConfigurationUnits = async (projectId, configurationId) =>
   unwrapData(

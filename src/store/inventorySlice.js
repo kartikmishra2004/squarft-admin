@@ -37,6 +37,17 @@ export const getProjectById = createAsyncThunk(
   }
 );
 
+export const updateProjectFeatured = createAsyncThunk(
+  'inventory/updateProjectFeatured',
+  async ({ projectId, isFeatured }, { rejectWithValue }) => {
+    try {
+      return await inventoryService.updateProjectFeatured(projectId, isFeatured);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const getConfigurationUnits = createAsyncThunk(
   'inventory/getConfigurationUnits',
   async ({ projectId, configurationId }, { rejectWithValue }) => {
@@ -57,6 +68,7 @@ const initialState = {
   selectedBroker: null,
   viewMode: 'projects', // 'projects', 'builderProjects', 'brokerProjects'
   loading: false,
+  featuredUpdatingById: {},
   error: null,
   filters: {
     search: '',
@@ -64,6 +76,7 @@ const initialState = {
     propertySource: 'all', // 'all', 'builder', 'broker'
     priceRange: 'all', // 'all', 'under-1cr', '1cr-2cr', '2cr-5cr', '5cr-plus'
     location: 'all', // 'all', or specific city names
+    branchId: '',
   },
   pagination: {
     total: 0,
@@ -210,6 +223,32 @@ const inventorySlice = createSlice({
       .addCase(getProjectById.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.message || 'Failed to fetch project details';
+      })
+
+      // Update featured flag
+      .addCase(updateProjectFeatured.pending, (state, action) => {
+        state.featuredUpdatingById[action.meta.arg.projectId] = true;
+        state.error = null;
+      })
+      .addCase(updateProjectFeatured.fulfilled, (state, action) => {
+        const updated = action.payload || {};
+        const applyFeatured = (project) => {
+          if (project?.id === updated.id) project.isFeatured = updated.isFeatured;
+        };
+
+        state.featuredUpdatingById[updated.id] = false;
+        state.projects.forEach(applyFeatured);
+        state.filteredProjects.forEach(applyFeatured);
+        state.sourceProfiles.forEach((profile) => (profile.projects || []).forEach(applyFeatured));
+        (state.selectedBuilder?.projects || []).forEach(applyFeatured);
+        (state.selectedBroker?.projects || []).forEach(applyFeatured);
+        if (state.selectedProject?.id === updated.id) {
+          state.selectedProject.isFeatured = updated.isFeatured;
+        }
+      })
+      .addCase(updateProjectFeatured.rejected, (state, action) => {
+        state.featuredUpdatingById[action.meta.arg.projectId] = false;
+        state.error = action.payload?.message || 'Failed to update featured status';
       })
 
       // Get configuration units

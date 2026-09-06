@@ -1,254 +1,61 @@
 import { apiRequest } from '../config/api';
 
-const APP_USERS_BASE = '/api/v1/app-users';
-
-const unwrapData = (response) => response?.data ?? response;
-
-const buildQueryString = (params = {}) => {
-  const queryParams = new URLSearchParams();
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      queryParams.append(key, value);
-    }
-  });
-
-  const queryString = queryParams.toString();
-  return queryString ? `?${queryString}` : '';
+const BASE = '/api/v1/app-users';
+const query = params => {
+  const values = new URLSearchParams(Object.entries(params || {}).filter(([, value]) => value !== '' && value != null));
+  return values.size ? `?${values}` : '';
 };
-
-const formatDateTime = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-const formatCurrency = (value) => {
-  if (value === null || value === undefined || value === '') return '';
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return String(value);
-  if (amount >= 10000000) return `INR ${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (amount >= 100000) return `INR ${(amount / 100000).toFixed(0)} L`;
-  return `INR ${amount.toLocaleString('en-IN')}`;
-};
-
-const normalizeStatus = (status) => {
-  const value = String(status || 'Offline').trim();
-  if (value.toLowerCase() === 'online') return 'Online';
-  if (value.toLowerCase() === 'idle') return 'Idle';
-  return value.toLowerCase() === 'offline' ? 'Offline' : value;
-};
+const get = async path => (await apiRequest(`${BASE}${path}`, { method: 'GET' })).data;
+const number = value => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
 
 export const normalizeAppUser = (user = {}) => ({
+  ...user,
   id: user.id || user.userId,
-  userId: user.userId || user.id || '',
-  name: user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'App User',
-  phone: user.phone || '',
-  email: user.email || '',
-  city: user.city || 'Location pending',
-  status: normalizeStatus(user.status),
-  joinedDate: formatDateTime(user.joinedDate),
-  lastActive: formatDateTime(user.lastActive) || 'Not active yet',
-  activeMinutesToday: Number(user.activeMinutesToday || 0),
-  totalActiveMinutes: Number(user.totalActiveMinutes || 0),
-  sessionsToday: Number(user.sessionsToday || 0),
-  savedProperties: user.savedProperties || [],
-  seenProperties: user.seenProperties || [],
-  contactedProperties: user.contactedProperties || [],
-  bookedVisits: user.bookedVisits || [],
-  screenEvents: user.screenEvents || [],
-  recentSearches: user.recentSearches || [],
-  dealsCount: Number(user.summary?.deals || user.dealsCount || 0),
-  savedCount: Number(user.savedCount || user.summary?.saved || (user.savedProperties?.length || 0)),
-  visitsCount: Number(user.visitsCount || user.summary?.visits || (user.bookedVisits?.length || 0)),
-  contactedCount: Number(user.contactedCount || user.summary?.contacted || (user.contactedProperties?.length || 0)),
+  name: user.name?.trim() || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Name not provided',
+  phone: user.phone || null,
+  email: user.email || null,
+  city: user.city || null,
+  branchName: user.branchName || null,
+  branchCity: user.branchCity || null,
+  status: user.status || 'Offline',
+  hasActivity: user.hasActivity ?? Boolean(user.lastActive),
+  activeMinutesToday: number(user.activeMinutesToday),
+  totalActiveMinutes: number(user.totalActiveMinutes),
+  sessionsToday: number(user.sessionsToday),
 });
-
-export const normalizeProjectPanelUser = (user = {}) => ({
-  id: user.id || user.userId,
-  userId: user.userId || user.id || '',
-  type: 'builders',
-  name: user.companyName || user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Builder',
-  contactPerson: user.name || '',
-  companyName: user.companyName || '',
-  reraNumber: user.reraNumber || '',
-  phone: user.phone || '',
-  email: user.email || '',
-  city: user.city || 'Location pending',
-  status: normalizeStatus(user.status),
-  joinedDate: formatDateTime(user.joinedDate),
-  lastActive: formatDateTime(user.lastActive) || 'Not active yet',
-  activeMinutesToday: Number(user.activeMinutesToday || 0),
-  totalActiveMinutes: Number(user.totalActiveMinutes || 0),
-  sessionsToday: Number(user.sessionsToday || 0),
+export const normalizeProjectPanelUser = user => ({ ...normalizeAppUser(user), companyName: user.companyName || null, reraNumber: user.reraNumber || null });
+export const normalizeDeal = (deal = {}) => ({
+  ...deal,
+  total_value: number(deal.total_value),
+  paid_so_far: number(deal.paid_so_far),
+  payments: Array.isArray(deal.payments) ? deal.payments : [],
 });
-
-export const normalizeSavedProperty = (property = {}) => ({
-  id: property.id,
-  title: property.title || 'Property',
-  location: property.location || '',
-  type: property.type || '',
-  price: formatCurrency(property.price),
-  savedAt: formatDateTime(property.savedAt),
-});
-
-export const normalizeSeenProperty = (property = {}) => ({
-  id: property.id,
-  title: property.title || 'Property',
-  seenAt: formatDateTime(property.seenAt),
-});
-
-export const normalizeContactedProperty = (property = {}) => ({
-  id: property.id,
-  title: property.title || 'Property',
-  channel: property.channel || 'Contacted',
-  contactedAt: formatDateTime(property.contactedAt),
-});
-
-export const normalizeVisit = (visit = {}) => ({
-  id: visit.id,
-  status: String(visit.status || 'PENDING').toUpperCase(),
-  title: visit.title || 'Property visit',
-  dateFull: formatDateTime(visit.dateFull),
-  bookingId: visit.bookingId || visit.id,
-});
-
-export const normalizeScreenEvent = (event = {}) => ({
-  time: formatDateTime(event.time),
-  screen: event.screen || 'App',
-  action: event.action || 'Activity recorded',
-});
-
-export const normalizeDeal = (deal = {}) => {
-  let status = String(deal.status || 'pending').toLowerCase();
-  if (status === 'deal completed' || status === 'closed') status = 'completed';
-  if (status === 'deal in process') status = 'active';
-  if (status === 'lost' || status === 'cancelled') status = 'cancelled';
-
-  return {
-    id: deal.id,
-    dealId: deal.deal_code || (deal.id ? `#SQ-${deal.id.substring(0, 5).toUpperCase()}` : '#SQ-PENDING'),
-    property_title: deal.property_name || deal.property_title || 'Property Deal',
-    city: deal.city || 'N/A',
-    area: deal.area || 'N/A',
-    status: status,
-    total_value: Number(deal.negotiation_price || deal.total_value || 0),
-    paid_so_far: Number(deal.paid_amount || deal.paid_so_far || 0),
-    current_stage_index: Number(deal.current_stage_index || 1),
-    total_stages: Number(deal.total_stages || 8),
-    payments: Array.isArray(deal.payments) ? deal.payments.map((p, idx) => ({
-      id: p.id || String(idx),
-      amount: Number(p.amount || 0),
-      title: p.title || `Milestone ${idx + 1}`,
-      due_date: p.due_date || 'N/A',
-      status: p.status || 'pending'
-    })) : [
-      { id: '1', amount: Number(deal.paid_amount || 0), title: 'Paid Amount', due_date: 'Completed', status: 'paid' },
-      { id: '2', amount: Number((deal.negotiation_price || deal.total_value || 0) - (deal.paid_amount || 0)), title: 'Balance Amount', due_date: 'Pending', status: 'pending' }
-    ]
+export const fetchAppUserMetrics = params => get(`/metrics${query(params)}`);
+export const fetchAppUsers = async params => {
+  const result = await get(query(params));
+  return { ...result, items: (result.items || []).map(normalizeAppUser) };
+};
+export const fetchProjectPanelUsers = async params => {
+  const result = await get(`/project-panel${query(params)}`);
+  return { ...result, items: (result.items || []).map(normalizeProjectPanelUser) };
+};
+export const fetchAppUserActivityBundle = async userId => {
+  const profile = normalizeAppUser(await get(`/${encodeURIComponent(userId)}`));
+  const endpoints = {
+    savedProperties: 'saved', seenProperties: 'seen', contactedProperties: 'contacted',
+    bookedVisits: 'visits', screenEvents: 'screen-events', recentSearches: 'searches', deals: 'deals',
   };
-};
-
-export const fetchAppUserMetrics = async (params = {}) =>
-  unwrapData(await apiRequest(`${APP_USERS_BASE}/metrics${buildQueryString(params)}`, { method: 'GET' }));
-
-export const fetchAppUsers = async (params = {}) => {
-  const payload = unwrapData(await apiRequest(`${APP_USERS_BASE}${buildQueryString(params)}`, { method: 'GET' }));
-  const items = payload?.items || [];
-
-  return {
-    items: items.map(normalizeAppUser),
-    pagination: payload?.pagination,
-  };
-};
-
-export const fetchProjectPanelUsers = async (params = {}) => {
-  const payload = unwrapData(await apiRequest(`${APP_USERS_BASE}/project-panel${buildQueryString(params)}`, { method: 'GET' }));
-  const items = payload?.items || [];
-
-  return {
-    items: items.map(normalizeProjectPanelUser),
-    pagination: payload?.pagination,
-  };
-};
-
-export const fetchAppUserProfile = async (userId) =>
-  normalizeAppUser(unwrapData(await apiRequest(`${APP_USERS_BASE}/${userId}`, { method: 'GET' })));
-
-export const fetchSavedProperties = async (userId) => {
-  const data = unwrapData(await apiRequest(`${APP_USERS_BASE}/${userId}/saved`, { method: 'GET' }));
-  return (data || []).map(normalizeSavedProperty);
-};
-
-export const fetchSeenProperties = async (userId) => {
-  const data = unwrapData(await apiRequest(`${APP_USERS_BASE}/${userId}/seen`, { method: 'GET' }));
-  return (data || []).map(normalizeSeenProperty);
-};
-
-export const fetchContactedProperties = async (userId) => {
-  const data = unwrapData(await apiRequest(`${APP_USERS_BASE}/${userId}/contacted`, { method: 'GET' }));
-  return (data || []).map(normalizeContactedProperty);
-};
-
-export const fetchAppUserVisits = async (userId) => {
-  const data = unwrapData(await apiRequest(`${APP_USERS_BASE}/${userId}/visits`, { method: 'GET' }));
-  return (data || []).map(normalizeVisit);
-};
-
-export const fetchScreenEvents = async (userId) => {
-  const data = unwrapData(await apiRequest(`${APP_USERS_BASE}/${userId}/screen-events`, { method: 'GET' }));
-  return (data || []).map(normalizeScreenEvent);
-};
-
-export const fetchRecentSearches = async (userId) => {
-  const data = unwrapData(await apiRequest(`${APP_USERS_BASE}/${userId}/searches`, { method: 'GET' }));
-  return data || [];
-};
-
-export const fetchUserDeals = async (userId) => {
-  const data = unwrapData(await apiRequest(`/api/v1/admin/deals?userId=${userId}`, { method: 'GET' }));
-  return (data?.items || []).map(normalizeDeal);
-};
-
-export const fetchAppUserActivityBundle = async (userId, summary = {}) => {
-  const [
-    profileResult,
-    savedResult,
-    seenResult,
-    contactedResult,
-    visitsResult,
-    eventsResult,
-    searchesResult,
-    dealsResult,
-  ] = await Promise.allSettled([
-    fetchAppUserProfile(userId),
-    fetchSavedProperties(userId),
-    fetchSeenProperties(userId),
-    fetchContactedProperties(userId),
-    fetchAppUserVisits(userId),
-    fetchScreenEvents(userId),
-    fetchRecentSearches(userId),
-    fetchUserDeals(userId),
-  ]);
-
-  const profile = profileResult.status === 'fulfilled' ? profileResult.value : normalizeAppUser(summary);
-
-  return {
-    ...profile,
-    savedProperties: savedResult.status === 'fulfilled' ? savedResult.value : [],
-    seenProperties: seenResult.status === 'fulfilled' ? seenResult.value : [],
-    contactedProperties: contactedResult.status === 'fulfilled' ? contactedResult.value : [],
-    bookedVisits: visitsResult.status === 'fulfilled' ? visitsResult.value : [],
-    screenEvents: eventsResult.status === 'fulfilled' ? eventsResult.value : [],
-    recentSearches: searchesResult.status === 'fulfilled' ? searchesResult.value : profile.recentSearches || [],
-    deals: dealsResult.status === 'fulfilled' ? dealsResult.value : [],
-  };
+  const entries = Object.entries(endpoints);
+  const results = await Promise.allSettled(entries.map(([, endpoint]) => get(`/${encodeURIComponent(userId)}/${endpoint}`)));
+  const errors = {};
+  results.forEach((result, index) => {
+    const key = entries[index][0];
+    if (result.status === 'fulfilled') {
+      profile[key] = key === 'deals' ? result.value.map(normalizeDeal) : result.value;
+    } else {
+      profile[key] = null;
+      errors[key] = result.reason?.message || 'Unable to load this activity.';
+    }
+  });
+  return { ...profile, errors };
 };
